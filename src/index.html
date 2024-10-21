@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGlRenderEngine</title>
+    <style>
+        html, body {
+            margin: 0 !important;
+            padding: 0;
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: #222222;
+        }
+
+        .canvas-wrapper {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100vw;
+            height: 100vh;
+            max-width: 100vw;
+            max-height: 100vh;
+
+            background: #FF121255;
+            overflow: hidden;
+            display: none;
+        }
+
+        canvas {
+            z-index: 1;
+            background: #00ff0055;
+        }
+
+        .meta {
+            position: absolute;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            background: #FFFFFFAA;
+            top: 0;
+            right: 0;
+            width: max-content;
+            height: max-content;
+        }
+
+        .controls, .views {
+            padding: 8px;
+            width: max-content;
+            height: max-content;
+        }
+
+        #global-controls {
+            position: absolute;
+            z-index: 9999;
+            left: 0;
+            top: 0;
+            background: rgba(255, 255, 255, 150);
+        }
+
+        /*canvas {*/
+        /*    border: 1px solid white;*/
+        /*}*/
+    </style>
+</head>
+<body>
+<div id="global-controls">
+
+</div>
+<div class="canvas-wrapper" id="webgl2-canvas">
+    <div class="meta">
+        <div class="views"></div>
+        <div class="controls"></div>
+    </div>
+</div>
+<div class="canvas-wrapper" id="webgpu-canvas">
+    <div class="meta">
+        <div class="views"></div>
+        <div class="controls"></div>
+    </div>
+</div>
+</body>
+<script src="./bundle.js"></script>
+</html>
