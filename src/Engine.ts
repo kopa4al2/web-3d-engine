@@ -1,3 +1,4 @@
+// @ts-nocheck
 import Canvas from "Canvas";
 import CameraComponent from "core/components/camera/CameraComponent";
 import LightSource from "core/components/camera/LightSource";

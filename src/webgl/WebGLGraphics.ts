@@ -1,10 +1,9 @@
+//@ts-nocheck
 import { Buffer, BufferData, BufferId, BufferUsage, TextureData } from "core/buffer/Buffer";
-import Graphics, { PipelineId, RenderPass } from "core/Graphics";
+import Graphics, { BindGroupId, DrawMode, PipelineId, RenderPass, UniformGroupId } from "core/Graphics";
 import PropertiesManager from "core/PropertiesManager";
-import { Shader } from "core/shaders/Shader";
+import { BindGroup, GPUShader, PipelineProperties, ShaderUniformType, UniformGroup } from "core/shaders/GPUShader";
 import { SamplerId, TextureId } from "core/texture/Texture";
-import log from "util/Logger";
-import ThrottleUtil from "util/ThrottleUtil";
 import Canvas from "../Canvas";
 
 export default class WebGLGraphics implements Graphics {
@@ -17,7 +16,9 @@ export default class WebGLGraphics implements Graphics {
 
     // VAOs
     public readonly pipelines: Map<PipelineId, WebGlPipelineInfo>;
-    public readonly shaders: Map<PipelineId, Shader>;
+    public readonly bindGroups: Map<BindGroupId, WebGl2BindGroup[]>;
+    public readonly uniformGroups: Map<UniformGroupId, WebGl2ShaderProgram>;
+    public readonly shaders: Map<PipelineId, GPUShader>;
 
     constructor(canvas: Canvas, private props: PropertiesManager) {
         const gl = canvas.getWebGl2Context();
@@ -28,6 +29,8 @@ export default class WebGLGraphics implements Graphics {
         this.pipelines = new Map();
         this.shaders = new Map();
 
+        this.uniformGroups = new Map();
+        this.bindGroups = new Map();
 
         gl.enable(gl.DEPTH_TEST);
         gl.enable(gl.CULL_FACE);
@@ -44,67 +47,150 @@ export default class WebGLGraphics implements Graphics {
         this.glContext = gl;
     }
 
-    initPipeline(shader: Shader): PipelineId {
-        const pipelineId = Symbol('WebGl2Pipeline');
-        const shaderProgram = this.glContext.createProgram() as WebGLProgram;
-
-        this.glContext.attachShader(shaderProgram, this.loadShader(this.glContext.VERTEX_SHADER, shader.vertexShaderSource));
-        this.glContext.attachShader(shaderProgram, this.loadShader(this.glContext.FRAGMENT_SHADER, shader.fragmentShaderSource));
-        this.glContext.linkProgram(shaderProgram);
-
-        // UNIFORMS
-        let uniformCounter = 0;
-        for (let bindGroup of shader.bindGroups) {
-            for (let j = 0; j < bindGroup.buffers.length; j++) {
-                const { type, id: bufferId, bindNumber, name: blockName } = bindGroup.buffers[j];
-                if (type === 'uniform') {
-                    const blockIndex = this.glContext.getUniformBlockIndex(shaderProgram, blockName);
-                    log.infoGroup('WebGLGraphics', `Binding in webgl: bindNUm: ${bindNumber}. blockName: ${blockName}. ${blockIndex}. ${bufferId.toString()}. ${type}`)
-                    this.glContext.uniformBlockBinding(shaderProgram, blockIndex, uniformCounter++);  // Bind UBO to binding point
-                } else if (type === 'sampler') {
-                    // TODO Implement when specific samplers are needed.
-                    /*const sampler = this.samplers.get(bufferId);
-                    this.glContext.bindSampler(0, sampler);
-                    this.glContext.activeTexture(this.glContext.TEXTURE0);*/
-                } else if (type === 'texture') {
-
-                }
-            }
-        }
-
-        const vaos: WebGLVertexArrayObject[] = [];
-        for (let vertexBuffer of shader.vertexBuffers) {
-            const vao = this.glContext.createVertexArray();
-            const bufferInfo = this.buffers.get(vertexBuffer.id) as WebGlBufferInfo;
-            this.glContext.bindVertexArray(vao);
-            this.glContext.bindBuffer(this.glContext.ARRAY_BUFFER, bufferInfo.gpuBuffer);
-            for (let i = 0; i < vertexBuffer.layout.length; i++) {
-                const { offset, format } = vertexBuffer.layout[i];
-                const [float, indices] = format.split('x'); // TODO:
-
-                this.glContext.vertexAttribPointer(i, indices as unknown as number, this.glContext.FLOAT, false, vertexBuffer.stride, offset);
-                this.glContext.enableVertexAttribArray(i);
-            }
-            vaos.push(vao as WebGLVertexArrayObject);
-        }
-
-
-        let indexBuffer;
-        if (shader.indexBuffer) {
-            indexBuffer = (this.buffers.get(shader.indexBuffer.id) as WebGlBufferInfo).gpuBuffer;
-        }
-
-        if (!this.glContext.getProgramParameter(shaderProgram, this.glContext.LINK_STATUS)) {
-            alert(
-                `Unable to initialize the shader program: ${this.glContext.getProgramInfoLog(shaderProgram)}`,
-            );
-            console.error(this.glContext.getProgramInfoLog(shaderProgram));
-            throw "Error creating the shader program";
-        }
-
-        this.pipelines.set(pipelineId, { shader, shaderProgram, vaos, indexBuffer });
-        return pipelineId
+    initPipeline(pipelineProperties: PipelineProperties, pipelineLayout: UniformGroupId[], name?: string): PipelineId {
+        return undefined;
     }
+
+    createShaderGroup(groupLayout: UniformGroup): UniformGroupId {
+        const program = this.glContext.createProgram()!;
+        const layout = [];
+        const { shaderUniformGroup, binding } = groupLayout;
+        const { name, layout: shaderLayout } = shaderUniformGroup;
+
+        let textureCounter = 0, uniformCounter = 0;
+        for (let shaderUniform of shaderLayout) {
+            const { type } = shaderUniform;
+            if (type === 'texture') {
+                layout.push({
+                    location: textureCounter++,
+                    type
+                });
+            } else if (type === 'uniform') {
+                layout.push({
+                    location: uniformCounter++,
+                    type,
+                })
+            }
+            // Samplers are ignored for now
+        }
+
+        const id = Symbol(`${name}-uniform-group`)
+        this.uniformGroups.set(id, { layout, program });
+
+        return id;
+    }
+
+    createBindGroup(layoutId: UniformGroupId, bindGroups: BindGroup[]): BindGroupId {
+        const { program, layout } = this.uniformGroups.get(layoutId)!;
+        const groups: WebGl2BindGroup[] = [];
+        let uniformCounter = 0;
+        for (let j = 0; j < bindGroups.length; j++) {
+            const { type, binding, name: blockName } = bindGroups[j];
+            if (type === 'uniform') {
+                const blockIndex = this.glContext.getUniformBlockIndex(program, blockName);
+                this.glContext.uniformBlockBinding(program, blockIndex, binding);  // Bind UBO to binding point
+                // this.glContext.uniformBlockBinding(shaderProgram, blockIndex, uniformCounter++);  // Bind UBO to binding point
+            } else if (type === 'sampler') {
+                // TODO Implement when specific samplers are needed.
+                /*const sampler = this.samplers.get(bufferId);
+                this.glContext.bindSampler(0, sampler);
+                this.glContext.activeTexture(this.glContext.TEXTURE0);*/
+            } else if (type === 'texture') {
+
+            }
+        }
+
+        const id = Symbol('webgl2-bind-group');
+        this.bindGroups.set(id, { name })
+        return undefined;
+    }
+
+
+    // initPipeline(shader: GPUShader): PipelineId {
+    //     const pipelineId = Symbol('WebGl2Pipeline');
+    //     const shaderProgram = this.glContext.createProgram() as WebGLProgram;
+    //
+    //     this.glContext.attachShader(shaderProgram, this.loadShader(this.glContext.VERTEX_SHADER, shader.vertexShaderSource));
+    //     this.glContext.attachShader(shaderProgram, this.loadShader(this.glContext.FRAGMENT_SHADER, shader.fragmentShaderSource));
+    //     this.glContext.linkProgram(shaderProgram);
+    //
+    //     // UNIFORMS
+    //     let uniformCounter = 0;
+    //     for (let bindGroup of shader.bindGroups) {
+    //         for (let j = 0; j < bindGroup.buffers.length; j++) {
+    //             const { type, id: bufferId, bindNumber, name: blockName } = bindGroup.buffers[j];
+    //             if (type === 'uniform') {
+    //                 const blockIndex = this.glContext.getUniformBlockIndex(shaderProgram, blockName);
+    //                 log.infoGroup('WebGLGraphics', `Binding in webgl: bindNUm: ${bindNumber}. blockName: ${blockName}. ${blockIndex}. ${bufferId.toString()}. ${type}`)
+    //                 this.glContext.uniformBlockBinding(shaderProgram, blockIndex, uniformCounter++);  // Bind UBO to binding point
+    //             } else if (type === 'sampler') {
+    //                 // TODO Implement when specific samplers are needed.
+    //                 /*const sampler = this.samplers.get(bufferId);
+    //                 this.glContext.bindSampler(0, sampler);
+    //                 this.glContext.activeTexture(this.glContext.TEXTURE0);*/
+    //             } else if (type === 'texture') {
+    //
+    //             }
+    //         }
+    //     }
+    //
+    //     const vaos: WebGLVertexArrayObject[] = [];
+    //     for (let vertexBuffer of shader.vertexBuffers) {
+    //         const vao = this.glContext.createVertexArray();
+    //         const bufferInfo = this.buffers.get(vertexBuffer.id) as WebGlBufferInfo;
+    //         this.glContext.bindVertexArray(vao);
+    //         this.glContext.bindBuffer(this.glContext.ARRAY_BUFFER, bufferInfo.gpuBuffer);
+    //         for (let i = 0; i < vertexBuffer.layout.length; i++) {
+    //             const { offset, format } = vertexBuffer.layout[i];
+    //             const [float, indices] = format.split('x'); // TODO:
+    //
+    //             this.glContext.vertexAttribPointer(i, indices as unknown as number, this.glContext.FLOAT, false, vertexBuffer.stride, offset);
+    //             this.glContext.enableVertexAttribArray(i);
+    //         }
+    //         vaos.push(vao as WebGLVertexArrayObject);
+    //     }
+    //
+    //
+    //     let indexBuffer;
+    //     if (shader.indexBuffer) {
+    //         indexBuffer = (this.buffers.get(shader.indexBuffer.id) as WebGlBufferInfo).gpuBuffer;
+    //     }
+    //
+    //     if (!this.glContext.getProgramParameter(shaderProgram, this.glContext.LINK_STATUS)) {
+    //         alert(
+    //             `Unable to initialize the shader program: ${this.glContext.getProgramInfoLog(shaderProgram)}`,
+    //         );
+    //         console.error(this.glContext.getProgramInfoLog(shaderProgram));
+    //         throw "Error creating the shader program";
+    //     }
+    //
+    //     this.pipelines.set(pipelineId, { shader, shaderProgram, vaos, indexBuffer });
+    //     return pipelineId
+    // }
+    //
+    // createBindGroup(layout: BindGroupLayout[]): BindGroupId {
+    //     // UNIFORMS
+    //     let uniformCounter = 0;
+    //     for (let bindGroup of layout) {
+    //         for (let j = 0; j < bindGroup.buffers.length; j++) {
+    //             const { type, id: bufferId, bindNumber, name: blockName } = bindGroup.buffers[j];
+    //             if (type === 'uniform') {
+    //                 const blockIndex = this.glContext.getUniformBlockIndex(shaderProgram, blockName);
+    //                 log.infoGroup('WebGLGraphics', `Binding in webgl: bindNUm: ${bindNumber}. blockName: ${blockName}. ${blockIndex}. ${bufferId.toString()}. ${type}`)
+    //                 this.glContext.uniformBlockBinding(shaderProgram, blockIndex, uniformCounter++);  // Bind UBO to binding point
+    //             } else if (type === 'sampler') {
+    //                 // TODO Implement when specific samplers are needed.
+    //                 /*const sampler = this.samplers.get(bufferId);
+    //                 this.glContext.bindSampler(0, sampler);
+    //                 this.glContext.activeTexture(this.glContext.TEXTURE0);*/
+    //             } else if (type === 'texture') {
+    //
+    //             }
+    //         }
+    //     }
+    //     return undefined;
+    // }
+
 
     createBuffer(buffer: Buffer): BufferId {
         const bId = Symbol(`buffer-${buffer.name}`);
@@ -124,13 +210,12 @@ export default class WebGLGraphics implements Graphics {
     }
 
     createBufferWithData(buffer: Buffer, data: BufferData): BufferId {
-        const bId = Symbol('buffer');
+        const bId = Symbol(`${buffer.name}-buffer`);
         const gpuBuffer = this.glContext.createBuffer() as WebGLBuffer;
         const { type, isUniform } = getBufferType(buffer, this.glContext);
 
         this.glContext.bindBuffer(type, gpuBuffer);
         if (isUniform) {
-            log.infoGroup(`GL BIND BUFFER ${buffer.name}`, buffer.byteLength)
             this.glContext.bufferData(type, data.byteLength, this.glContext.DYNAMIC_DRAW);
             this.glContext.bufferSubData(type, 0, data);
         } else
@@ -222,6 +307,7 @@ export class WebGLRenderPass implements RenderPass {
     private commandBuffer: Function[];
 
     private drawMode: GLenum;
+
     constructor(private glGraphics: WebGLGraphics, props: PropertiesManager) {
         this.commandBuffer = [];
         this.commandBuffer.push(() => {
@@ -231,56 +317,129 @@ export class WebGLRenderPass implements RenderPass {
         this.drawMode = props.getBoolean('wireframe') ? glGraphics.glContext.LINES : glGraphics.glContext.TRIANGLES;
     }
 
-    draw(pipeline: PipelineId): RenderPass {
-        const {
-            shader,
-            shaderProgram,
-            vaos,
-            indexBuffer
-        } = this.glGraphics.pipelines.get(pipeline) as WebGlPipelineInfo;
+    setPipeline(pipeline:PipelineId): RenderPass {
 
-        const gl = this.glGraphics.glContext;
-
-        this.commandBuffer.push(
-            () => gl.useProgram(shaderProgram),
-            () => {
-                let uniformCounter = 0;
-                let textureCounter = 0;
-                for (let bindGroup of shader.bindGroups) {
-                    for (let j = 0; j < bindGroup.buffers.length; j++) {
-                        const { id: bufferId, type, name } = bindGroup.buffers[j];
-                        if (type === 'uniform') {
-                            const buffer = this.glGraphics.buffers.get(bufferId) as WebGlBufferInfo;
-                            const { gpuBuffer } = buffer;
-                            gl.bindBufferBase(gl.UNIFORM_BUFFER, uniformCounter++, gpuBuffer);
-                        } else if (type === 'texture') {
-                            const texture = this.glGraphics.textures.get(bufferId) as WebGLTexture;
-                            gl.activeTexture(gl.TEXTURE0 + textureCounter);
-                            gl.bindTexture(gl.TEXTURE_2D, texture);
-                            const textureUniform = gl.getUniformLocation(shaderProgram, `${name.replace('-', '')}Texture`);
-                            gl.uniform1i(textureUniform, textureCounter);
-
-                            textureCounter += 1;
-                        }
-
-                        // TODO: Else if Sampler logic
-                    }
-                }
-
-                vaos.forEach((vao, idx) => {
-                    gl.bindVertexArray(vao);
-                    if (indexBuffer && shader.indexBuffer) {
-                        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer)
-                        gl.drawElements(this.drawMode, shader.indexBuffer.indices, gl.UNSIGNED_INT, 0);
-                    } else {
-                        // gl.bindBuffer(gl.ARRAY_BUFFER, vao)
-                        gl.drawArrays(this.drawMode, 0, shader.vertexBuffers[idx].vertexCount);
-                    }
-                    gl.bindVertexArray(null);
-                });
-            });
         return this;
     }
+
+    setVertexBuffer(index: number, id: BufferId): RenderPass {
+        this.commandBuffer.push(() => this._setVertexBuffer(index, id));
+
+        return this;
+    }
+    _setVertexBuffer(index: number, id: BufferId): void {
+        const gl = this.glGraphics.glContext;
+        const vao = this.glGraphics.buffers.get(id)!;
+
+        gl.bindVertexArray(vao);
+    }
+
+    setIndexBuffer(id: BufferId): RenderPass {
+        this.commandBuffer.push(() => this._setIndexBuffer(id));
+
+        return this;
+    }
+    _setIndexBuffer(id: BufferId): void {
+        const gl = this.glGraphics.glContext;
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.glGraphics.buffers.get(id)!);
+    }
+
+    bindGroup(index: number, bindGroup: BindGroupId): RenderPass {
+        this.commandBuffer.push(() => this._bindGroup(index, bindGroup));
+
+        return this;
+    }
+
+    _bindGroup(index: number, bindGroup: BindGroupId): void {
+        const gl = this.glGraphics.glContext;
+        const webGl2BindGroups = this.glGraphics.bindGroups.get(bindGroup)!;
+
+        for (let glGroup of webGl2BindGroups) {
+            const { type, buffer:bufferId, location, name } = glGroup;
+            if (type === 'uniform') {
+                const buffer = this.glGraphics.buffers.get(bufferId) as WebGlBufferInfo;
+                const { gpuBuffer } = buffer;
+                gl.bindBufferBase(gl.UNIFORM_BUFFER, location, gpuBuffer);
+            } else if (type === 'texture') {
+                const texture = this.glGraphics.textures.get(bufferId) as WebGLTexture;
+                gl.activeTexture(gl.TEXTURE0 + location);
+                gl.bindTexture(gl.TEXTURE_2D, texture);
+                const textureUniform = gl.getUniformLocation(shaderProgram, name);
+                gl.uniform1i(textureUniform, location);
+
+            }
+        }
+    }
+
+    draw(drawMode: DrawMode, count: number): RenderPass {
+        this.commandBuffer.push(() => this._draw(drawMode, count));
+
+        return this;
+    }
+    _draw(drawMode: DrawMode, count: number): void {
+        const gl = this.glGraphics.glContext;
+
+        // TODO: Handle wireframe
+        // const isWireframe = drawMode === DrawMode.WIREFRAME;
+
+        if (drawMode === DrawMode.INDEX) {
+            gl.drawElements(this.drawMode, count, gl.UNSIGNED_INT, 0);
+        } else {
+            gl.drawArrays(this.drawMode, 0, count);
+        }
+
+    }
+
+    // setPipeline(pipeline: PipelineId): RenderPass {
+        // const {
+        //     shader,
+        //     shaderProgram,
+        //     vaos,
+        //     indexBuffer
+        // } = this.glGraphics.pipelines.get(pipeline) as WebGlPipelineInfo;
+        //
+        // const gl = this.glGraphics.glContext;
+
+        // this.commandBuffer.push(
+        //     () => gl.useProgram(shaderProgram),
+        //     () => {
+        //         let uniformCounter = 0;
+        //         let textureCounter = 0;
+        //         for (let bindGroup of shader.bindGroups) {
+        //             for (let j = 0; j < bindGroup.buffers.length; j++) {
+        //                 const { id: bufferId, type, name } = bindGroup.buffers[j];
+        //                 if (type === 'uniform') {
+        //                     const buffer = this.glGraphics.buffers.get(bufferId) as WebGlBufferInfo;
+        //                     const { gpuBuffer } = buffer;
+        //                     gl.bindBufferBase(gl.UNIFORM_BUFFER, uniformCounter++, gpuBuffer);
+        //                 } else if (type === 'texture') {
+        //                     const texture = this.glGraphics.textures.get(bufferId) as WebGLTexture;
+        //                     gl.activeTexture(gl.TEXTURE0 + textureCounter);
+        //                     gl.bindTexture(gl.TEXTURE_2D, texture);
+        //                     const textureUniform = gl.getUniformLocation(shaderProgram, `${name.replace('-', '')}Texture`);
+        //                     gl.uniform1i(textureUniform, textureCounter);
+        //
+        //                     textureCounter += 1;
+        //                 }
+        //
+        //                 // TODO: Else if Sampler logic
+        //             }
+        //         }
+        //
+        //         vaos.forEach((vao, idx) => {
+        //             gl.bindVertexArray(vao);
+        //             if (indexBuffer && shader.indexBuffer) {
+        //                 gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer)
+        //                 gl.drawElements(this.drawMode, shader.indexBuffer.indices, gl.UNSIGNED_INT, 0);
+        //             } else {
+        //                 // gl.bindBuffer(gl.ARRAY_BUFFER, vao)
+        //                 gl.drawArrays(this.drawMode, 0, shader.vertexBuffers[idx].vertexCount);
+        //             }
+        //             gl.bindVertexArray(null);
+        //         });
+        //     });
+        // return this;
+    // }
 
     submit(): void {
         this.commandBuffer.forEach(fn => fn());
@@ -294,7 +453,7 @@ interface WebGlBufferInfo {
 }
 
 interface WebGlPipelineInfo {
-    shader: Shader,
+    shader: GPUShader,
     vaos: WebGLVertexArrayObject[],
     indexBuffer?: WebGLBuffer,
     shaderProgram: WebGLShader,
@@ -310,4 +469,16 @@ function getBufferType(buffer: Buffer, gl: WebGL2RenderingContext): { type: numb
         type,
         isUniform
     }
+}
+
+interface WebGl2BindGroup {
+    buffer: BufferId | TextureId | SamplerId,
+    type: ShaderUniformType,
+    name: string,
+    location: number,
+}
+
+interface WebGl2ShaderProgram {
+    layout: { location: number, type: ShaderUniformType } []
+    program: WebGLProgram,
 }

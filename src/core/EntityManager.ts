@@ -1,14 +1,18 @@
 import Component, { ComponentId } from "core/components/Component";
+import { Renderable } from "core/resources/gpu/GPUResourceFactory";
 import Scene from "core/Scene";
 import JavaMap from "util/JavaMap";
 
 export type EntityId = symbol;
 
+export type RenderableType = number;
+const WorldRenderable = 1;
 export default class EntityManager {
 
     public scenes: Scene[] = [];
     private entities: Map<EntityId, Map<ComponentId, Component>> = new Map();
     private components: Map<ComponentId, EntityId[]> = new Map();
+    private renderableComponents: Map<symbol, Renderable[]> = new Map();
 
     public clear() {
         this.entities.clear();

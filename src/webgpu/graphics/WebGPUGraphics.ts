@@ -1,11 +1,10 @@
 import Canvas from "Canvas";
-import { Buffer, BufferData, BufferId } from "core/buffer/Buffer";
-import Graphics, { PipelineId, RenderPass } from "core/Graphics";
-import PropertiesManager, { WindowProperties } from "core/PropertiesManager";
-import { Shader, ShaderType } from "core/shaders/Shader";
+import { Buffer, BufferData, BufferFormat, BufferId } from "core/buffer/Buffer";
+import Graphics, { BindGroupId, DrawMode, PipelineId, RenderPass, UniformGroupId } from "core/Graphics";
+import PropertiesManager from "core/PropertiesManager";
+import { BindGroup, GPUShader, PipelineProperties, UniformGroup } from "core/shaders/GPUShader";
 import { SamplerId, TextureId } from "core/texture/Texture";
-import log, { NamedLogger } from "util/Logger";
-import ThrottleUtil from "util/ThrottleUtil";
+import { NamedLogger } from "util/Logger";
 import WebGPUContext from "webgpu/graphics/WebGPUContext";
 import WebGPUDevice from "webgpu/graphics/WebGPUDevice";
 
@@ -18,8 +17,9 @@ export default class WebGPUGraphics implements Graphics {
     private readonly samplers: Map<SamplerId, GPUSampler>;
 
     public readonly pipelines: Map<PipelineId, GPUPipelineBase>;
-    public readonly bindGroups: Map<PipelineId, GPUBindGroup[]>;
-    public readonly shaders: Map<PipelineId, Shader>;
+    public readonly bindGroupLayouts: Map<UniformGroupId, GPUBindGroupLayout>;
+    public readonly bindGroups: Map<BindGroupId, GPUBindGroup>;
+    public readonly shaders: Map<PipelineId, GPUShader>;
 
     private readonly _device: GPUDevice;
     // @ts-ignore
@@ -33,6 +33,7 @@ export default class WebGPUGraphics implements Graphics {
         this.textures = new Map();
         this.samplers = new Map();
         this.pipelines = new Map();
+        this.bindGroupLayouts = new Map();
         this.bindGroups = new Map();
         this.shaders = new Map();
 
@@ -67,94 +68,44 @@ export default class WebGPUGraphics implements Graphics {
         return new WebGPURenderPass(passEncoder, commandEncoder, this);
     }
 
-    initPipeline(shader: Shader): PipelineId {
+    initPipeline(props: PipelineProperties, pipelineLayout: UniformGroupId[], name: string = 'unnamed'): PipelineId {
         const device = this._device;
         const vertexShader = device.createShaderModule({
             label: 'vertexShader',
-            code: shader.vertexShaderSource
+            code: props.vertexShaderSource
         });
         const fragmentShader = device.createShaderModule({
             label: 'fragmentShader',
-            code: shader.fragmentShaderSource
+            code: props.fragmentShaderSource
         });
-        log.infoGroup('Shader', shader)
 
-        const bindGroupLayouts: GPUBindGroupLayout[] = [];
-        const gpuBindGroups: GPUBindGroup[] = [];
-        for (let i = 0; i < shader.bindGroups.length; i++) {
-            const { buffers, groupNumber, targetShader: visibility } = shader.bindGroups[i];
-            const groupEntries: GPUBindGroupLayoutEntry[] = [];
-            const bindingEntries: GPUBindGroupEntry[] = [];
+        const layout = device.createPipelineLayout({
+            bindGroupLayouts: pipelineLayout.map(id => this.bindGroupLayouts.get(id)!)
+        });
 
-            buffers.forEach(bufferInfo => {
-                    const { type, name, id, bindNumber: binding } = bufferInfo;
-                    if (type === 'uniform') {
-                        const buffer = this.buffers.get(id) as GPUBuffer;
-                        bindingEntries.push({
-                            binding, resource: { buffer }
-                        });
-                        groupEntries.push({
-                            binding, visibility,
-                            buffer: { type: 'uniform' }
-                        });
-                    } else if (type === 'texture') {
-                        const texture = this.textures.get(id) as GPUTexture;
-                        bindingEntries.push({
-                            binding, resource: texture.createView(),
-                        })
-                        groupEntries.push({
-                            binding, visibility,
-                            texture: { sampleType: 'float' }
-                        });
-                    } else if (type === 'sampler') {
-                        const sampler = this.samplers.get(id) as GPUSampler;
-                        bindingEntries.push({
-                            binding, resource: sampler,
-                        });
-                        groupEntries.push({
-                            binding, visibility,
-                            sampler: {}
-                        });
-                    }
-                }
-            )
-
-            log.infoGroup(`bind-group-layout-${groupNumber}`, groupEntries)
-            log.infoGroup(`bind-group-${groupNumber}`, bindingEntries)
-
-            const layoutDescriptor = device.createBindGroupLayout({
-                label: `bind-group-layout-${groupNumber}`,
-                entries: groupEntries
+        const vertexShaderLayout = props.vertexShaderLayout;
+        const attributes: GPUVertexAttribute[] = [];
+        let lastEl = 0, lastOffset = 0, arrayStride = 0;
+        for (let index = 0; index < vertexShaderLayout.length; index++) {
+            const vertexLayout = vertexShaderLayout[index];
+            lastOffset = lastOffset + Float32Array.BYTES_PER_ELEMENT * lastEl;
+            attributes.push({
+                shaderLocation: index,
+                format: `${vertexLayout.dataType}x${vertexLayout.elementsPerVertex}` as BufferFormat,
+                offset: lastOffset + Float32Array.BYTES_PER_ELEMENT * lastEl
             });
-            gpuBindGroups.push(device.createBindGroup({
-                label: `bind-group-${groupNumber}`,
-                layout: layoutDescriptor,
-                entries: bindingEntries
-            }));
-            bindGroupLayouts.push(layoutDescriptor);
+            lastEl = vertexLayout.elementsPerVertex;
+            arrayStride += vertexLayout.elementsPerVertex;
         }
+        arrayStride *= Float32Array.BYTES_PER_ELEMENT;
 
-
-        const layout = device.createPipelineLayout({ bindGroupLayouts });
-
-
-        const buffers: GPUVertexBufferLayout[] = shader.vertexBuffers.map((vertexBuffer) => ({
-            arrayStride: vertexBuffer.stride,
-            attributes: vertexBuffer.layout.map(({ offset, format, location: shaderLocation }, i) => ({
-                shaderLocation: i, format, offset
-            }))
-        }));
-
-        const pipelineId = Symbol('pipeline');
-        this.bindGroups.set(pipelineId, gpuBindGroups);
-        this.shaders.set(pipelineId, shader);
-
+        const pipelineId = Symbol(`${name}-pipeline`);
         this.pipelines.set(pipelineId, device.createRenderPipeline({
             layout,
             vertex: {
                 module: vertexShader,
                 entryPoint: 'main',
-                buffers,
+                buffers: [{ arrayStride, attributes }], //TODO: For now only a single vertex buffer is supported
             },
             fragment: {
                 module: fragmentShader,
@@ -166,7 +117,7 @@ export default class WebGPUGraphics implements Graphics {
                 ],
             },
             primitive: {
-                topology: this.props.getBoolean('wireframe') ? 'line-list' : 'triangle-list',
+                topology: props.topology === DrawMode.WIREFRAME ? 'line-list' : 'triangle-list',
                 // topology: 'triangle-list',
                 frontFace: 'ccw',
                 cullMode: 'back',
@@ -180,6 +131,77 @@ export default class WebGPUGraphics implements Graphics {
 
         return pipelineId;
     }
+
+    createShaderGroup(group: UniformGroup): UniformGroupId {
+        const { shaderUniformGroup: { layout, name }, binding } = group;
+        const groupEntries: GPUBindGroupLayoutEntry[] = [];
+
+        for (let globalUniform of layout) {
+            const { type, visibility } = globalUniform;
+            if (type === 'uniform') {
+                groupEntries.push({
+                    binding, visibility,
+                    buffer: { type: 'uniform' }
+                });
+            } else if (type === 'texture') {
+                groupEntries.push({
+                    binding, visibility,
+                    texture: { sampleType: 'float' }
+                });
+            } else if (type === 'sampler') {
+                groupEntries.push({
+                    binding, visibility,
+                    sampler: {}
+                });
+            }
+        }
+
+        const layoutId = Symbol(`${name}-shader-layout`);
+        const layoutDescriptor = this._device.createBindGroupLayout({
+            label: `group-layout-${name}-${binding}`,
+            entries: groupEntries
+        });
+        this.bindGroupLayouts.set(layoutId, layoutDescriptor);
+
+        return layoutId;
+    }
+
+
+    createBindGroup(layoutId: UniformGroupId, groups: BindGroup[]): BindGroupId {
+        const layout = this.bindGroupLayouts.get(layoutId)!;
+        const groupId = Symbol(`bind-group-${layout.label}`)
+        const bindingEntries: GPUBindGroupEntry[] = [];
+
+        for (let group of groups) {
+            const { type, binding, buffer: id } = group;
+            if (type === 'uniform') {
+                const buffer = this.buffers.get(id) as GPUBuffer;
+                bindingEntries.push({
+                    binding, resource: { buffer }
+                });
+            } else if (type === 'texture') {
+                const texture = this.textures.get(id) as GPUTexture;
+                bindingEntries.push({
+                    binding, resource: texture.createView(),
+                })
+
+            } else if (type === 'sampler') {
+                const sampler = this.samplers.get(id) as GPUSampler;
+                bindingEntries.push({
+                    binding, resource: sampler,
+                });
+            }
+        }
+
+        this.bindGroups.set(groupId, this._device.createBindGroup({
+            label: `bind-group-${layout.label}`,
+            layout,
+            entries: bindingEntries
+        }));
+
+        return groupId;
+    }
+
 
     createBuffer(buffer: Buffer): BufferId {
         const bId = Symbol(`buffer_${buffer.name}`);
@@ -199,7 +221,8 @@ export default class WebGPUGraphics implements Graphics {
         const gpuBuffer = this._device.createBuffer({
             label: buffer.name,
             size: buffer.byteLength,
-            usage: buffer.usage
+            usage: buffer.usage,
+            mappedAtCreation: true,
         });
         this._device.queue.writeBuffer(gpuBuffer, 0, data, 0, data.length);
 
@@ -293,30 +316,35 @@ export class WebGPURenderPass implements RenderPass {
                 private graphics: WebGPUGraphics) {
     }
 
-    draw(pipelineId: symbol): RenderPass {
-        const pipeline = this.graphics.pipelines.get(pipelineId) as GPURenderPipeline;
-        const bindGroups = this.graphics.bindGroups.get(pipelineId) as GPUBindGroup[];
-        const shader = this.graphics.shaders.get(pipelineId) as Shader;
+    setPipeline(pipelineId: symbol): RenderPass {
+        this.passEncoder.setPipeline(this.graphics.pipelines.get(pipelineId) as GPURenderPipeline);
 
-        const { width, height } = this.graphics.props.getT<WindowProperties>('window');
-        // this.passEncoder.setViewport(0, 0, width, height, 0.0, 1.0);
-        this.passEncoder.setPipeline(pipeline)
+        return this;
+    }
 
-        shader.vertexBuffers.forEach((vertexBuffer, index) => {
-            this.passEncoder.setVertexBuffer(index, this.graphics.buffers.get(vertexBuffer.id) as GPUBuffer)
-        })
+    setVertexBuffer(index: number, id: BufferId): RenderPass {
+        this.passEncoder.setVertexBuffer(index, this.graphics.buffers.get(id)!)
 
-        for (let i = 0; i < bindGroups.length; i++) {
-            this.passEncoder.setBindGroup(i, bindGroups[i]);
-        }
+        return this;
+    }
 
-        const indexBuffer = shader.indexBuffer;
-        if (indexBuffer) {
-            const buffer = this.graphics.buffers.get(indexBuffer.id) as GPUBuffer;
-            this.passEncoder.setIndexBuffer(buffer, 'uint32');
-            this.passEncoder.drawIndexed(indexBuffer.indices, 1, 0, 0, 0);
+    setIndexBuffer(id: BufferId): RenderPass {
+        this.passEncoder.setIndexBuffer(this.graphics.buffers.get(id)!, 'uint32');
+
+        return this;
+    }
+
+    bindGroup(index: number, bindGroup: BindGroupId): RenderPass {
+        this.passEncoder.setBindGroup(index, this.graphics.bindGroups.get(bindGroup)!);
+
+        return this;
+    }
+
+    draw(drawMode: DrawMode, count: number): RenderPass {
+        if (drawMode === DrawMode.INDEX) {
+            this.passEncoder.drawIndexed(count, 1, 0, 0, 0);
         } else {
-            this.passEncoder.draw(shader.vertexBuffers[0].vertexCount);
+            this.passEncoder.draw(count);
         }
 
         return this;

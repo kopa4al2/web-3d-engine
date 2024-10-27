@@ -1,5 +1,5 @@
 import GeometryComponent, { GeometryProperties } from "core/components/geometry/GeometryComponent";
-import { VertexShader } from "core/shaders/Shader";
+import { VertexShader } from "core/shaders/GPUShader";
 
 export default class Cone extends GeometryComponent {
 

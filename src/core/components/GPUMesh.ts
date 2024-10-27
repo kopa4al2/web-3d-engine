@@ -1,14 +1,13 @@
 import { BufferId } from "core/buffer/Buffer";
 import Component from "core/components/Component";
-import { Geometry } from "core/components/Mesh";
 import { PipelineId } from "core/Graphics";
-import { Shader } from "core/shaders/Shader";
+import { GPUShader } from "core/shaders/GPUShader";
 
 export default class GPUMesh implements Component {
     static readonly ID: symbol = Symbol("GPUMesh");
     readonly id: symbol = GPUMesh.ID;
 
-    constructor(public shader: Shader,
+    constructor(public shader: GPUShader,
                 public bufferGroups: StaticGpuUniforms,
                 public pipeline: PipelineId) {
     }
