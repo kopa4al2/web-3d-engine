@@ -1,18 +1,14 @@
-import GeometryComponent from "core/components/geometry/GeometryComponent";
-import MaterialComponent from "core/components/material/MaterialComponent";
 import EntityManager from "core/EntityManager";
-import Scene from "core/Scene";
-import { mat4, mat3, vec3, vec4 } from "gl-matrix";
-import MathUtil from "util/MathUtil";
-import ThrottleUtil from "util/ThrottleUtil";
+import { Renderable } from "core/resources/gpu/GPUResourceFactory";
+import { ShaderUniform, ShaderUniformGroup } from "core/shaders/GPUShader";
+import { RenderSystem, System } from "core/systems/EntityComponentSystem";
+import { mat3, mat4, vec3 } from "gl-matrix";
 import GPUMesh, { GPUMeshGroup } from "../../core/components/GPUMesh";
-import OrbitCamera from "../../core/components/OrbitCamera";
 import Transform from "../../core/components/Transform";
-import Graphics from "../../core/Graphics";
-import EntityComponentSystem, { System } from "core/systems/EntityComponentSystem";
+import Graphics, { DrawMode } from "../../core/Graphics";
 
 
-export default class Renderer implements System {
+export default class Renderer implements RenderSystem {
 
     constructor(private graphics: Graphics,
                 private entityManager: EntityManager) {
@@ -49,7 +45,7 @@ export default class Renderer implements System {
                         this.graphics.writeToBuffer(mesh.bufferGroups.fragmentBuffer, lightData, 16, 4, 4);
                         this.graphics.writeToBuffer(mesh.bufferGroups.fragmentBuffer, new Float32Array([0.0, 0.0, 10.0]), 32, 0);
                     }
-                    renderPass.draw(mesh.pipeline);
+                    renderPass.setPipeline(mesh.pipeline);
                 }
             }
         }

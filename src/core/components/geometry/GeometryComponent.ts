@@ -1,14 +1,20 @@
+// @ts-nocheck
 import Component from "core/components/Component";
 import { InterleavedMesh } from "core/parser/ObjParser";
 import GPUResourceFactory from "core/resources/gpu/GPUResourceFactory";
-import { VertexShader } from "core/shaders/Shader";
+import { VertexShader } from "core/shaders/GPUShader";
 
 export interface GeometryProperties {
-    shaderSource: string,
     vertices: number[];        // Flat array of vertex positions
     normals: number[];         // Flat array of normals
     texCoords: number[];       // Flat array of texture coordinates
-    indices: number[];         // Flat array of indices
+    indices: Uint32Array | Uint16Array;         // Flat array of indices
+}
+
+export interface InterleavedProps {
+    data: Float32Array,
+    vertexCount: number,
+    indices: Uint32Array | Uint16Array
 }
 
 export default class GeometryComponent implements Component {

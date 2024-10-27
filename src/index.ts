@@ -6,6 +6,9 @@ import Graphics from "core/Graphics";
 import TextureLoader from "core/loader/TextureLoader";
 import ObjParser, { ObjFile } from "core/parser/ObjParser";
 import PropertiesManager, { PartialProperties, Property, PropertyValue } from "core/PropertiesManager";
+import { ShaderType } from "core/shaders/GPUShader";
+import ShaderFactory, { WebGL2ShaderFactory, WebGpuShaderFactory } from "core/shaders/ShaderFactory";
+import { LightStruct, MaterialStruct, ShaderVariableType, TextureStruct, WorldStruct } from "core/shaders/ShaderStruct";
 import EntityComponentSystem from "core/systems/EntityComponentSystem";
 import Engine, { OnRenderPlugin } from "Engine";
 import { vec2, vec3 } from "gl-matrix";
@@ -20,9 +23,80 @@ console.time(loadTimer);
 const onRender: OnRenderPlugin = () => {
     screenProps.flushBuffer()
 };
+
+// const shaderFactory: ShaderFactory = new WebGL2ShaderFactory();
+const shaderFactory: ShaderFactory = new WebGpuShaderFactory();
+const vertexShaderCode = shaderFactory.createShader({
+    shaderType: ShaderType.VERTEX,
+    uniforms: [WorldStruct],
+    input: [
+        { name: 'aPosition', type: ShaderVariableType.VEC3 },
+        { name: 'aTextureUV', type: ShaderVariableType.VEC2 },
+        { name: 'aNormal', type: ShaderVariableType.VEC3 }
+    ],
+    output: [
+        { name: 'vVertexPosition', type: ShaderVariableType.VEC3 },
+        { name: 'vNormalVector', type: ShaderVariableType.VEC3 },
+        { name: 'vTextureCoordinate', type: ShaderVariableType.VEC2 },
+    ],
+    code: `
+        vVertexPosition = vec3(uModelViewProjection * vec4(aPosition, 1.0));
+        vNormalVector = mat3(uInverseTranspose) * aNormal;
+        gl_Position = uModelViewProjection * vec4(aPosition, 1.0);
+        vTextureCoordinate = aTextureUV;
+    `
+});
+const fragmentShaderCode = shaderFactory.createShader({
+    shaderType: ShaderType.FRAGMENT,
+    uniforms: [MaterialStruct, LightStruct,],
+    textures: [TextureStruct('sampler')],
+    input: [
+        { name: 'vVertexPosition', type: ShaderVariableType.VEC3 },
+        { name: 'vNormalVector', type: ShaderVariableType.VEC3 },
+        { name: 'vTextureCoordinate', type: ShaderVariableType.VEC2 },
+    ],
+    output: [
+        { name: 'fragColor', type: ShaderVariableType.VEC4 },
+    ],
+    code: `
+        float uShininess = 10.0;
+        vec3 uLightPos = uLightDirection.xyz;
+        vec3 uViewPos = uViewPosition.xyz;
+        vec3 uAmbientColor = uAmbientLight.rgb;
+    
+        vec3 normal = normalize(vVertexPosition);
+        vec3 lightDir = normalize(uLightPos - vVertexPosition);
+        vec3 viewDir = normalize(uViewPos - vVertexPosition);
+    
+        vec4 texColor = texture(sampler, vTextureCoordinate);
+        // If texture has alpha channel > 0 it will use the texutre otherwise the diffuse color
+        vec3 color = mix(uDiffuseLight.rgb, texColor.rgb, texColor.a);
+    
+        vec3 ambient = uAmbientColor * color;
+        float diff = max(dot(normal, lightDir), 0.0);
+        vec3 diffuse = diff * uLightColor.rgb * color;
+    
+        // Specular component (Phong)
+        vec3 reflectDir = reflect(-lightDir, normal);// Reflect light direction around the normal
+        float spec = pow(max(dot(viewDir, reflectDir), 0.0), uShininess);
+        vec3 specular = spec * uLightColor.rgb * uMaterialSpecular.rgb;
+    
+        vec3 result = ambient + diffuse + specular;
+        fragColor = vec4(result, 1.0);    
+    `
+});
+
+console.log('vertex', vertexShaderCode)
+console.log('fragment', fragmentShaderCode)
+
+
 export const STATIC: Record<string, ObjFile> = {}
 document.body.onload = async () => {
+    return;
     console.timeLog(loadTimer, 'Document loaded')
+    // const sh = await ShaderManager.loadShader('assets/shaders/webgl2/terrain/terrainVertexShader.vert', 'glTerrain');
+    // console.log('Loaded shader? ', sh)
+    // console.log('Get shader? ', ShaderManager.getShaderSource(sh));
     STATIC['cube'] = await ObjParser.parseObjFile('assets/basic-geometry/cube/cube.obj');
     STATIC['cubeMtl'] = await ObjParser.parseObjFile('assets/basic-geometry/cube/cube.obj', 'assets/basic-geometry/cube/cube.mtl');
     STATIC['dragon'] = await ObjParser.parseObjFile('assets/advanced/dragon.obj');

@@ -1,10 +1,10 @@
+// @ts-nocheck
 import Component from "core/components/Component";
-import { FragmentShader, FragmentUniformInfo, ShaderType } from "core/shaders/Shader";
+import { FragmentShader, UniformInfo, ShaderType } from "core/shaders/GPUShader";
 import Texture from "core/texture/Texture";
 import { vec3, vec4 } from "gl-matrix";
 
 export interface MaterialProps {
-    fragmentShaderSource: string,
     textures: Texture[],
     texturesOffset?: number,            // The offset in binding groups where texture mapping begins. Applicable only if textures are present
     color? : vec3,
@@ -31,15 +31,15 @@ export const defaultProps: MaterialProps = {
     textures: []
 }
 
-export default abstract class MaterialComponent implements Component {
+export default class MaterialComponent implements Component {
     public static readonly ID = Symbol('MaterialComponent');
     id: symbol = MaterialComponent.ID;
 
-    protected constructor(public shader: FragmentShader, public properties?: MaterialProps) {
+    constructor(public shader: FragmentShader, public properties?: Partial<MaterialProps>) {
     }
 
 
-    protected static createBindGroup(group: number, name: string, binding: number, visibility: ShaderType, data: (Float32Array | number[] | vec3 | vec4)[]): FragmentUniformInfo[] {
+    protected static createBindGroup(group: number, name: string, binding: number, visibility: ShaderType, data: (Float32Array | number[] | vec3 | vec4)[]): UniformInfo[] {
         return data.map(value => ({ type: 'float32Array', binding, group, name, visibility, value: value as Float32Array }));
     }
 }

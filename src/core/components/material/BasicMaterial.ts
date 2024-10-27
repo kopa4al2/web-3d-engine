@@ -1,7 +1,8 @@
+// @ts-nocheck
 import MaterialComponent, { defaultProps, MaterialProps } from "core/components/material/MaterialComponent";
 import TextureLoader from "core/loader/TextureLoader";
 import GPUResourceFactory from "core/resources/gpu/GPUResourceFactory";
-import { ShaderType } from "core/shaders/Shader";
+import { ShaderType } from "core/shaders/GPUShader";
 import Texture from "core/texture/Texture";
 import { vec3, vec4 } from "gl-matrix";
 import log from "util/Logger";

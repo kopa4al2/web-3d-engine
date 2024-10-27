@@ -1,3 +1,4 @@
+// @ts-nocheck
 import GeometryComponent from "core/components/geometry/GeometryComponent";
 import GPUResourceFactory from "core/resources/gpu/GPUResourceFactory";
 

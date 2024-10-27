@@ -1,12 +1,9 @@
-import { Geometry } from "core/components/Mesh";
 import Graphics from "core/Graphics";
 import TextureLoader from "core/loader/TextureLoader";
-import { RenderSystem, System, UpdateSystem } from "core/systems/EntityComponentSystem";
+import { RenderSystem, UpdateSystem } from "core/systems/EntityComponentSystem";
 
 export default class TerrainSystem implements RenderSystem, UpdateSystem {
 
-    // @ts-ignore
-    private terrainGeometry: Geometry;
 
 
     constructor(private graphicsApi: Graphics) {

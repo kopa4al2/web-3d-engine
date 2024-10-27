@@ -1,3 +1,4 @@
+// @ts-nocheck
 import GeometryComponent from "core/components/geometry/GeometryComponent";
 import TextureLoader from "core/loader/TextureLoader";
 import { vec3 } from "gl-matrix";
