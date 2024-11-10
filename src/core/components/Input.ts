@@ -2,7 +2,7 @@ import { InputState } from "core/systems/InputSystem";
 import { vec2, vec3 } from "gl-matrix";
 import Component from "./Component";
 
-export default class Input implements Component {
+class Input implements Component {
     static readonly ID: symbol = Symbol('Input');
     readonly id = Input.ID;
 
@@ -18,3 +18,5 @@ export default class Input implements Component {
         };
     }
 }
+
+export default Input

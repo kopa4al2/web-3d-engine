@@ -2,16 +2,22 @@ import Texture from "../texture/Texture";
 
 export default class TextureLoader {
 
-    public static textures: Record<TextureName, Texture> = {};
+    public static textures: Record<TextureName, Texture> = {
+        grass1: Texture.OPAQUE_TEXTURE,
+        grass2: Texture.OPAQUE_TEXTURE,
+        mountain1: Texture.OPAQUE_TEXTURE,
+        opaque: Texture.OPAQUE_TEXTURE,
+        texture: Texture.OPAQUE_TEXTURE
+    };
     public static rawImages: Record<string, ImageData> = {};
 
-    static async loadTexture(name: string, path: string): Promise<Texture> {
+    static async loadTexture(name: TextureName, path: string, textureName: string = name): Promise<Texture> {
         const img = new Image();
         img.src = path;
         // console.time(name);
         await img.decode();
         // console.timeLog(name, 'decode');
-        TextureLoader.textures[name] = new Texture(name, await createImageBitmap(img, { colorSpaceConversion: 'none' }));
+        TextureLoader.textures[name] = new Texture(textureName, await createImageBitmap(img, { colorSpaceConversion: 'none' }));
         // console.timeEnd(name);
         return TextureLoader.textures[name];
     }
@@ -38,4 +44,4 @@ export default class TextureLoader {
     }
 }
 
-export type TextureName = string
+export type TextureName = 'texture' | 'grass1' | 'grass2' | 'mountain1' | 'opaque' | string

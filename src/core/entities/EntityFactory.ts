@@ -1,0 +1,18 @@
+import Component from 'core/components/Component';
+import Mesh from 'core/components/Mesh';
+import Transform from 'core/components/Transform';
+import EntityManager, { EntityId, EntityName } from 'core/EntityManager';
+
+export default class EntityFactory {
+
+    constructor(private entityManager: EntityManager) {
+    }
+
+    public createEntityInstance(label: EntityName, template: Mesh, transform: Transform): EntityId {
+        const entity = this.entityManager.createEntity(label);
+        this.entityManager.addComponents(entity, [template, transform]);
+
+        return entity;
+    }
+
+}

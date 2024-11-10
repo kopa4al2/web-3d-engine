@@ -1,39 +1,50 @@
-import GeometryComponent from "core/components/geometry/GeometryComponent";
-import GPUResourceFactory from "core/resources/gpu/GPUResourceFactory";
+import GeometryComponent, { GeometryProperties } from "core/components/geometry/GeometryComponent";
+import { GeometryData } from 'core/mesh/Geometry';
+import { vec3 } from 'gl-matrix';
 
 export interface SphereProperties {
     radius?: number,
-    latDivisions: number,
-    lonDivision: number,
+    latDivisions?: number,
+    lonDivision?: number,
+    center?: vec3,
+    wireframe?: boolean,
 }
 
 export default class SphereGeometry extends GeometryComponent {
 
-    constructor(props?: SphereProperties) {
-        const shaderSource = 'GPUResourceFactory.instance.getGeometryShader()';
-        const { vertices, indices } = generateSphere(
+    public geometryData: GeometryData;
+
+    constructor(props?: Partial<SphereProperties>) {
+        const sphereGeometry = generateSphere(
             props?.radius || 1.0,
             props?.latDivisions || 16,
             props?.lonDivision || 32);
 
+        const { vertices, indices, uvs, normals, latitudes, longitudes } = sphereGeometry;
 
         super({
             vertices,
-            layout: [
-                { dataType: 'float32', elementsPerVertex: 3 },
-                { dataType: 'float32', elementsPerVertex: 3 },
-                { dataType: 'float32', elementsPerVertex: 2 }],
-            stride: Float32Array.BYTES_PER_ELEMENT * (3 + 3 + 2),
-            vertexCount: vertices.length / 5,
+            texCoords: uvs,
+            normals,
             indices,
-            shaderSource
         });
+
+        this.geometryData = {
+            vertices,
+            indices,
+            normals,
+            texCoords: uvs
+        };
     }
 }
 
 function generateSphere(radius: number, latDivisions: number, lonDivisions: number) {
     const vertices: number[] = [];
     const indices: number[] = [];
+    const uvs: number[] = [];
+    const normals: number[] = [];
+    const latitudes: number[] = [];
+    const longitudes: number[] = [];
 
     // Generate vertices and UVs
     for (let lat = 0; lat <= latDivisions; lat++) {
@@ -51,17 +62,26 @@ function generateSphere(radius: number, latDivisions: number, lonDivisions: numb
             const y = radius * cosTheta;
             const z = radius * sinTheta * sinPhi;
 
+            const latitude = theta / Math.PI; //lat / latDivisions;
+            const longitude = phi / (2 * Math.PI);  //lon / lonDivisions;
+
+            latitudes.push(latitude);
+            longitudes.push(longitude);
+
             // Normal vector (normalized vertex position for a sphere)
             const nx = sinTheta * cosPhi;
             const ny = cosTheta;
             const nz = sinTheta * sinPhi;
 
+            normals.push(nx, ny, nz);
+
             // UV coordinates
             const u = lon / lonDivisions;
             const v = lat / latDivisions;
 
-            // Add vertex position, normal, and UV to the vertices array
-            vertices.push(x, y, z, nx, ny, nz, u, v);
+            uvs.push(u, v)
+            vertices.push(x, y, z);
+            // vertices.push(x, y, z, u, v, nx, ny, nz);
         }
     }
 
@@ -77,5 +97,6 @@ function generateSphere(radius: number, latDivisions: number, lonDivisions: numb
         }
     }
 
-    return { vertices: new Float32Array(vertices), indices: new Uint16Array(indices) };
+    return { vertices, indices, uvs, normals, latitudes, longitudes };
+    // return { vertices: new Float32Array(vertices), indices: new Uint32Array(indices), uvs, normals };
 }

@@ -1,8 +1,10 @@
 import Component, { ComponentId } from "core/components/Component";
 import Scene from "core/Scene";
-import JavaMap from "util/JavaMap";
 
 export type EntityId = symbol;
+// export type EntityId = EntityName;
+// export type EntityName = 'DRAGON' | 'TERRAIN' | 'BOX' | 'SPHERE' | 'ARROW' | 'CAMERA' | 'LIGHT_BULB' | 'BUNNY';
+export type EntityName = string;
 
 export default class EntityManager {
 
@@ -10,14 +12,17 @@ export default class EntityManager {
     private entities: Map<EntityId, Map<ComponentId, Component>> = new Map();
     private components: Map<ComponentId, EntityId[]> = new Map();
 
+    private entityNames: Record<EntityId, EntityName> = {};
+
     public clear() {
         this.entities.clear();
         this.components.clear();
         this.scenes = [];
     }
 
-    public createEntity(name?: string): EntityId {
+    public createEntity(name: EntityName): EntityId {
         const entityId = Symbol(name + '-entity');
+        // const entityId = name;
         this.entities.set(entityId, new Map());
         return entityId;
     }
@@ -78,6 +83,18 @@ export default class EntityManager {
         return entities;
     }
 
+    public getAllComponents(...componentIds: ComponentId[]): Component[] {
+        return componentIds.reduce((acc: Component[], componentId: ComponentId) => {
+            const entities = this.components.get(componentId) || [];
+            entities.forEach(entityId => {
+                const component = this.getComponent(entityId, componentId);
+                if (component) {
+                    acc.push(component);
+                }
+            });
+            return acc;
+        }, []);
+    }
     public getEntityComponents(...componentIds: ComponentId[]): Component[][] {
         if (!componentIds || componentIds.length === 0) {
             return [];
@@ -96,58 +113,22 @@ export default class EntityManager {
         return components;
     }
 
-    getComponent<T extends Component>(entity: EntityId, component: ComponentId): T {
-        return (this.entities.get(entity) as Map<ComponentId, Component>).get(component) as T;
-    }
+    getComponents<T1 extends Component, T2 extends Component>(entity: EntityId, ...components: ComponentId[]): [T1, T2]
+    getComponents<T1 extends Component, T2 extends Component, T3 extends Component>(entity: EntityId, ...components: ComponentId[]): [T1, T2, T3]
+    getComponents<T extends Component>(entity: EntityId, ...components: ComponentId[]): T[] {
+        const entityComponents = this.entities.get(entity)!
 
-}
-
-
-// TODO:
-export class EntityManager_NewCacheFriendly {
-
-    private entities: Map<EntityId, Map<ComponentId, Component>> = new Map();
-    private components: JavaMap<ComponentId, Component[]>
-
-
-    constructor() {
-        this.components = new JavaMap();
-    }
-
-    public clear() {
-        this.entities.clear();
-        this.components.clear();
-    }
-
-    public createEntity(name?: string): EntityId {
-        const entityId = Symbol(name + '-entity');
-        this.entities.set(entityId, new Map());
-        return entityId;
-    }
-
-    public addComponents(entityId: EntityId, components: Component[]) {
-        for (let i = components.length - 1; i >= 0; i--) {
-            this.addComponent(entityId, components[i]);
-        }
-    }
-
-    public addComponent(entityId: EntityId, component: Component) {
-    }
-
-    public getEntitiesHavingAll(...componentIds: ComponentId[]): EntityId[] {
-        return [];
-    }
-
-    public getEntitiesWithComponents(...componentIds: ComponentId[]): EntityId[] {
-        return []
-    }
-
-    public getEntityComponents(...componentIds: ComponentId[]): Component[][] {
-        return [];
+        // @ts-ignore
+        return components
+            .filter(component => entityComponents.has(component))
+            .map(component => entityComponents.get(component))
     }
 
     getComponent<T extends Component>(entity: EntityId, component: ComponentId): T {
         return (this.entities.get(entity) as Map<ComponentId, Component>).get(component) as T;
     }
 
+    public removeComponent(entity: EntityId, componentId: ComponentId) {
+        this.entities.get(entity)?.delete(componentId);
+    }
 }

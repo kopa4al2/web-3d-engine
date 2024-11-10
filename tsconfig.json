@@ -5,7 +5,7 @@
     "paths": {
       "core/*": ["core/*"]
     },
-    "target": "es2017",
+    "target": "es2019",
     "module": "es6",
     "moduleResolution": "Bundler",
 //    "moduleResolution": "Node",
@@ -23,18 +23,3 @@
     "src/**/*"
   ]
 }
-// CHAT GPT RECOMMENDATION
-//{
-//  "compilerOptions": {
-//    "target": "es6",
-//    "module": "es6",
-//    "moduleResolution": "node",
-//    "strict": true,
-//    "esModuleInterop": true,
-//    "outDir": "./dist",
-//    "sourceMap": true
-//  },
-//  "include": [
-//    "src/**/*.ts"
-//  ]
-//}

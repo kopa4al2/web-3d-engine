@@ -15,10 +15,8 @@ export default class LightSource implements Component {
 
     constructor(private properties: PropertiesManager,
                 public lightDirection: vec3 = vec3.create(),
-                public lightColor: vec3 = LightSource.WHITE_LIGHT) {
-        // this.lightDirection = vec3.fromValues(0.0, 0.0, 3.0);
-        // this.lightDirection = vec3.fromValues(10.0, 10.0, 2.0);
-        this.lightDirection = vec3.fromValues(0.0, 20.0, -10.0);
+                public lightColor: vec3 = LightSource.COOL_LIGHT) {
+        this.lightDirection = vec3.fromValues(0.0, 20.0, 10.0);
 
         if (properties.getString('gpuApi') === 'webgl2') {
             // this.lightDirection[1] = this.lightDirection[2];

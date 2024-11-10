@@ -19,9 +19,11 @@ export default class EntityComponentSystem {
     private renderSystems: RenderSystem[] = [];
     public scenes: Scene[] = [];
 
-    registerSystem(system: System): void {
-        this.registerUpdateSystem(system);
-        this.registerRenderSystem(system);
+    registerSystems(...systems: System[]): void {
+        for (const system of systems) {
+            this.registerUpdateSystem(system);
+            this.registerRenderSystem(system);
+        }
     }
 
     registerRenderSystem(system: System) {

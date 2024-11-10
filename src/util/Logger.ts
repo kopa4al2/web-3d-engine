@@ -25,12 +25,19 @@ class Logger {
         //     .forEach(console.log);
     }
 
+
+    debug(group: string, ...messages: any[]): void {
+        console.groupCollapsed(group);
+        this.logAny(messages, console.debug);
+        console.groupEnd();
+    }
+
     trace(...messages: any[]): void {
         messages.map(msg => this.toLoggable(msg))
             .forEach(console.trace);
     }
 
-    warn(messages: any[]): void {
+    warn(...messages: any[]): void {
         messages.map(msg => this.toLoggable(msg))
             .forEach(console.warn);
     }
@@ -84,19 +91,29 @@ class Logger {
 
     }
 
-    private logAny(messages: any[]) {
+    protected logAny(messages: any[], logFn = console.log) {
         for (let msg of messages) {
             if (typeof msg === 'string' || typeof msg === 'number' || typeof msg === 'boolean') {
-                console.log(msg);
+                logFn(msg);
+            } else if (typeof msg === 'symbol') {
+                logFn(msg.toString())
             } else if (isIterable(msg)) {
-                console.log([...msg]);
+                [...msg].forEach(m => logFn(m.toString()))
             } else if (msg === Object(msg)) {
-                console.log({ ...msg });
+                // logFn(JSON.stringify(msg));
+                logFn({ ...msg });
             } else {
-                console.log(msg);
+                logFn(msg);
             }
         }
     }
+}
+
+interface RateLimitedLogEntry {
+    timeStamp: Date,
+    message: string,
+    // group: string,
+    // caller: string,
 }
 
 class RateLimitedLogger extends Logger {
@@ -104,42 +121,51 @@ class RateLimitedLogger extends Logger {
 
     private readonly logInterval: number;
 
-    private lastLogTime: number = -1;
-    private queuedMessages: Set<string> = new Set;
+    // private queuedMessages: Set<string> = new Set;
+    private queuedMessages: RateLimitedLogEntry[] = [];
 
-    constructor(private caller: string, logInterval: number = 1000) {
+    constructor(private caller: string, logInterval: number = 3000) {
         super();
         this.logInterval = logInterval;
         setInterval(() => this.flushLogs(), logInterval);
     }
 
+    logOnce(...message: any) {
+        this.logMax(1, message);
+    }
 
-    log(message: any) {
+    logMax(times: number, ...message: any) {
         const caller = super.getCallerInfo();
         const logger = RateLimitedLogger.queues.computeIfAbsent(caller, () => new RateLimitedLogger(caller));
 
-        logger.queuedMessages.add(JSON.stringify(message));
-        // if (logger.lastLogTime < 0) {
-        //     logger.lastLogTime = performance.now();
-        //     super.infoGroup(caller, message);
-        //     return;
-        // }
-        // const currentTime = performance.now();
-
-        // Queue the message
-        // this.queuedMessages.add(message);
-
-        // Only log if the time since the last log is greater than logInterval
-        // if (currentTime - this.lastLogTime >= this.logInterval) {
-        //     this.flushLogs();  // Log all queued messages
-        //     this.lastLogTime = currentTime;
-        // }
+        if (logger.queuedMessages.length < times) {
+            logger.queuedMessages.push({ message: JSON.stringify(message), timeStamp: new Date() });
+        }
     }
 
+    log(...message: any) {
+        const caller = super.getCallerInfo();
+        const logger = RateLimitedLogger.queues.computeIfAbsent(caller, () => new RateLimitedLogger(caller));
+
+        // Dont overflood the logger
+        if (logger.queuedMessages.length < 20) {
+            logger.queuedMessages.push({ message: JSON.stringify(message), timeStamp: new Date() });
+        }
+    }
+
+
+    // public debug(group: string, ...messages: any[]) {
+    //     super.logAny(messages, msg => this.queuedMessages.add(msg));
+    // }
+
     private flushLogs() {
-        if (this.queuedMessages.size > 0) {
-            this.queuedMessages.forEach(msg => super.infoGroup(this.caller, msg));
-            this.queuedMessages.clear();
+        if (this.queuedMessages.length > 0) {
+            console.groupCollapsed(this.caller);
+            super.logAny(this.queuedMessages
+                .map(({ timeStamp, message }) =>
+                    `[${String(timeStamp.getHours()).padStart(2, '0')}:${String(timeStamp.getMinutes()).padStart(2, '0')}:${String(timeStamp.getSeconds()).padStart(2, '0')}.${String(timeStamp.getMilliseconds()).padStart(3, '0')}] ${message}`), console.debug);
+            console.groupEnd();
+            this.queuedMessages = [];
         }
     }
 }
@@ -184,7 +210,7 @@ export class NamedLogger extends Logger {
 
 class Observer {
     observe<T extends Object>(object: T, name?: string): T {
-        let logGroup = (name || Object.keys({object})[0]) + ' CHANGED '
+        let logGroup = (name || Object.keys({ object })[0]) + ' CHANGED '
         return this.createProxy(object, function (target, key, value) {
             log.infoGroup(logGroup, `${key.toString()} set to ${value}`);
             // @ts-ignore
@@ -194,7 +220,7 @@ class Observer {
     }
 
     deepObserve<T extends Object>(object: T, name?: string): T {
-        let logGroup = (name || Object.keys({object})[0]) + ' CHANGED '
+        let logGroup = (name || Object.keys({ object })[0]) + ' CHANGED '
         const proxy = this.createProxy(object, (target, key, value) => {
             if (isObject(value)) {
                 // @ts-ignore

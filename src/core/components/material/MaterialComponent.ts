@@ -1,15 +1,22 @@
 import Component from "core/components/Component";
-import { FragmentShader, FragmentUniformInfo, ShaderType } from "core/shaders/Shader";
-import Texture from "core/texture/Texture";
-import { vec3, vec4 } from "gl-matrix";
+import Graphics, { BindGroupId, BindGroupLayoutGroupId, PipelineId, RenderPass } from 'core/Graphics';
+import { FragmentShaderName, VertexShaderName } from 'core/resources/cpu/CpuShaderData';
+import { BufferId, BufferUsage } from 'core/resources/gpu/BufferDescription';
+import { BindGroupEntry, PipelineOptions, UniformVisibility } from 'core/resources/gpu/GpuShaderData';
+import GPUResourceManager, { BindGroupLayoutCpu, UniformsData } from 'core/resources/GPUResourceManager';
+import Texture, { SamplerId, TextureId } from "core/texture/Texture";
+import { vec3 } from "gl-matrix";
+import Bitmask from 'util/BitMask';
+import ObjectUtils from 'util/ObjectUtils';
 
 export interface MaterialProps {
-    fragmentShaderSource: string,
+    shaderName: VertexShaderName,
     textures: Texture[],
     texturesOffset?: number,            // The offset in binding groups where texture mapping begins. Applicable only if textures are present
-    color? : vec3,
+    color?: vec3,
 
-    name: string
+    label: string,
+
     ambient: vec3;                      // Ka
     diffuse: vec3;                      // Kd
     specular: vec3;                     // Ks
@@ -19,27 +26,73 @@ export interface MaterialProps {
     illuminationModel: number;          // illum
 }
 
-export const defaultProps: MaterialProps = {
-    fragmentShaderSource: '',// TODO: Its set to empty string to satisfty typescript, however its better if its required
+export const defaultMaterialProps: MaterialProps = {
+    shaderName: VertexShaderName.BASIC_WITH_LIGHT,
     // ambient: vec3.fromValues(1.0, 0.15, 0.15),
     ambient: vec3.fromValues(0.15, 0.15, 0.15),
     illuminationModel: 0,
     shininess: 10.0,
     specular: vec3.fromValues(0.9, 0.9, 0.9),
-    name: 'n/a',
+    label: 'n/a',
     diffuse: vec3.fromValues(0.2, 0.45, 0.47),
     textures: []
 }
 
-export default abstract class MaterialComponent implements Component {
+export default class MaterialComponent implements Component {
     public static readonly ID = Symbol('MaterialComponent');
     id: symbol = MaterialComponent.ID;
 
-    protected constructor(public shader: FragmentShader, public properties?: MaterialProps) {
-    }
+    public readonly properties: MaterialProps;
 
+    public constructor(public partialProps: Partial<MaterialProps>) {
 
-    protected static createBindGroup(group: number, name: string, binding: number, visibility: ShaderType, data: (Float32Array | number[] | vec3 | vec4)[]): FragmentUniformInfo[] {
-        return data.map(value => ({ type: 'float32Array', binding, group, name, visibility, value: value as Float32Array }));
+        const properties: MaterialProps = ObjectUtils.mergePartial(partialProps, defaultMaterialProps);
+        const {
+            label,
+            textures = [],
+            texturesOffset = 1,
+            // texture = TextureLoader.textures['noop'],
+            ambient,
+            diffuse = partialProps.color || partialProps.diffuse || defaultMaterialProps.diffuse,
+            illuminationModel,
+            indexOfRefraction,
+            shininess,
+            specular,
+            transparency,
+            shaderName
+        } = properties;
+
+        // const materialBindGroup = MaterialComponent.createBindGroup(1, 'Material', 0, UniformVisibility.FRAGMENT,
+        //     [
+        //         MathUtil.vec4(ambient, 1.0),
+        //         MathUtil.vec4(diffuse, 1.0),
+        //         MathUtil.vec4(specular, 1.0),
+        //         // shininess
+        //     ])
+        //
+        // textures.forEach((texture, index) => {
+        //     if (!texture || !texture.imageData) {
+        //         console.error("NO TEXTURE: ", texture)
+        //     }
+        //     materialBindGroup.push({
+        //             type: 'texture',
+        //             binding: (index + 1) * texturesOffset,
+        //             group: 1,
+        //             name: `texture-${texture.name}`,
+        //             visibility: UniformVisibility.FRAGMENT,
+        //             value: texture,
+        //         },
+        //         {
+        //             type: 'sampler',
+        //             binding: (index + 1) * texturesOffset + 1,
+        //             group: 1,
+        //             name: `sampler-${texture.name}`,
+        //             visibility: UniformVisibility.FRAGMENT,
+        //             value: texture,
+        //         });
+        // })
+
+        // this.fragmentData = { uniforms: materialBindGroup, shaderName };
+        this.properties = properties;
     }
 }

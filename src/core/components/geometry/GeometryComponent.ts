@@ -1,46 +1,77 @@
 import Component from "core/components/Component";
-import { InterleavedMesh } from "core/parser/ObjParser";
-import GPUResourceFactory from "core/resources/gpu/GPUResourceFactory";
-import { VertexShader } from "core/shaders/Shader";
+import CubeGeometry from 'core/components/geometry/CubeGeometry';
+import Mesh from 'core/components/Mesh';
+import { RenderPass } from 'core/Graphics';
+import { BufferId } from 'core/resources/gpu/BufferDescription';
+import { IndexBuffer } from 'core/resources/gpu/GpuShaderData';
+import { vec3 } from 'gl-matrix';
+import MathUtil from 'util/MathUtil';
+
+export interface AABBoundingBox {
+    min: vec3,
+    max: vec3,
+}
+
+export interface SphereBoundingBox {
+    center: vec3,
+    radius: number,
+}
+
+// export interface GeometryData {
+//     AABB: AABBoundingBox,
+//     sphereBoundingBox: SphereBoundingBox,
+//     vertices: Float32Array,
+//     indices: Uint16Array | Uint32Array,
+// }
 
 export interface GeometryProperties {
-    shaderSource: string,
     vertices: number[];        // Flat array of vertex positions
     normals: number[];         // Flat array of normals
     texCoords: number[];       // Flat array of texture coordinates
     indices: number[];         // Flat array of indices
+    skipInterleave?: boolean,
 }
 
 export default class GeometryComponent implements Component {
     public static readonly ID = Symbol('GeometryComponent');
     id: symbol = GeometryComponent.ID;
 
-    public vertexData: VertexShader;
+    // public data: GeometryData;
 
-    public constructor(geometryProps: GeometryProperties | VertexShader) {
-        if ((geometryProps as VertexShader).layout) {
-            this.vertexData = geometryProps as VertexShader;
-            return;
-        }
+    public vertices: Float32Array;
+    public indices: Uint32Array;
 
-        const shaderSource = geometryProps.shaderSource;
+    public constructor(geometryProps: Partial<GeometryProperties>) {
         const props = geometryProps as GeometryProperties;
-        const vertices = GeometryComponent.createSingleBufferData(props);
-        this.vertexData = {
-            vertices,
-            layout: [
-                { dataType: 'float32', elementsPerVertex: 3 },
-                { dataType: 'float32', elementsPerVertex: 2 },
-                { dataType: 'float32', elementsPerVertex: 3 }
-            ],
-            stride: Float32Array.BYTES_PER_ELEMENT * (3 + 3 + 2),
-            vertexCount: props.vertices.length / 3,
-            indices: new Uint32Array(props.indices),
-            shaderSource
-        }
+        this.vertices = geometryProps.skipInterleave
+            ? new Float32Array(props.vertices!)
+            : GeometryComponent.interleaveData(props);
+        this.indices = new Uint32Array(geometryProps.indices!);
+
+        // this.data = {
+        //     vertices: this.vertices,
+        //     indices: this.indices,
+        //     sphereBoundingBox: MathUtil.calculateBoundingSphere(this.vertices),
+        //     AABB: MathUtil.calculateAABB(this.vertices)
+        // }
+        // this.indices = props.indices;
+        // this.vertexData = {
+        //     vertices,
+        //     layout: [
+        //         { dataType: 'float32', elementsPerVertex: 3 },
+        //         { dataType: 'float32', elementsPerVertex: 2 },
+        //         { dataType: 'float32', elementsPerVertex: 3 }
+        //     ],
+        //     stride: Float32Array.BYTES_PER_ELEMENT * (3 + 3 + 2),
+        //     vertexCount: props.vertices.length / 3,
+        //     indices: new Uint32Array(props.indices),
+        //     shaderName
+        // }
+        //
+
     }
 
-    protected static createSingleBufferData(geometryProps: Partial<GeometryProperties>): Float32Array {
+    public static interleaveData(geometryProps: Partial<GeometryProperties>): Float32Array {
         const interleavedData = [];
 
         for (let i = 0; i < geometryProps.vertices!.length / 3; i++) {
@@ -93,8 +124,7 @@ export default class GeometryComponent implements Component {
     // }
 
 
-    private padIndices(indices: number[]) : Uint16Array {
-        console.log('==============')
+    private padIndices(indices: number[]): Uint16Array {
         const indexBufferSize = indices.length * Uint16Array.BYTES_PER_ELEMENT;  // Size in bytes (each Uint16 index is 2 bytes)
         console.log(indexBufferSize)
         const paddedIndexBufferSize = (indexBufferSize + 3) & ~3;  // Round up to nearest multiple of 4

@@ -1,31 +1,23 @@
+import CameraComponent from 'core/components/camera/CameraComponent';
 import ProjectionMatrix from "core/components/camera/ProjectionMatrix";
 import Input from "core/components/Input";
-import PropertiesManager from "core/PropertiesManager";
+import PropertiesManager, { WindowProperties } from "core/PropertiesManager";
 import { InputState } from "core/systems/InputSystem";
 import { mat4, vec4 } from "gl-matrix";
+import MathUtil from 'util/MathUtil';
 
 
 export function addTitle(title: string, attachTarget: HTMLElement, properties: PropertiesManager) {
     const parent = attachTarget.querySelector('.views');
 
     const element = document.createElement('div');
-    // element.style.position = `absolute`;
-    // element.style.left = attachTarget.getBoundingClientRect().left + 30 + 'px';
-    // element.style.top = (attachTarget.getBoundingClientRect().bottom - 50 )+ 'px';
-    // element.style.width = '180px';
-    // element.style.height = '45px';
-    // element.style.background = '#FFFFFFAA';
-    // element.style.zIndex = '999';
     element.style.fontSize = '20px';
 
     element.innerHTML = `
         <span class="title-span">${title}</span>
-<!--        <div style="font-size: 14px" class="dimensions"></div>-->
     `;
-    // const dimensionsElement = element.querySelector('.dimensions') as Element;
 
     (parent as Element).append(element);
-    // properties.subscribeToPropertyChange('window', () => getDimensions(attachTarget))
 
     getDimensions(attachTarget);
     function getDimensions(el: Element) {
@@ -66,14 +58,15 @@ export function fpsCounter(properties: PropertiesManager, attachTarget?: Element
 }
 
 export function worldCoordinates(props: PropertiesManager,
+                                 camera: CameraComponent,
                                  projectionMatrix: ProjectionMatrix,
-                                 viewMatrix: mat4,
-                                 inputState: Input) {
-    const parent = document.querySelector('.views') as Element;
+                                 inputState: Input,
+                                 parentElement: Element) {
+    const parent = parentElement.querySelector('.views') as Element;
     const element = document.createElement('div');
 
     function vec4ToString(vec4: vec4): string {
-        return `x: ${vec4[0]} y: ${vec4[1]} z: ${vec4[2]} w: ${vec4[3]}`
+        return `x: ${vec4[0].toFixed(5)} y: ${vec4[1].toFixed(5)} z: ${vec4[2].toFixed(5)}`
     }
 
     element.innerHTML = `
@@ -85,53 +78,21 @@ export function worldCoordinates(props: PropertiesManager,
     const worldXyzHtml = element.querySelector('.world-xyz') as Element;
 
     document.addEventListener('mousemove', e => {
-        const x = inputState.inputState.mousePos[0];
-        const y = inputState.inputState.mousePos[1];
+        const { width, height, hide } = props.getT<WindowProperties>('window');
 
-        const worldPosVec = vec4.fromValues(x, y, -1.0, 1.0);
-        const invProjMatrix = mat4.create();
-        mat4.invert(invProjMatrix, projectionMatrix.get());
+        if (hide) {
+            return;
+        }
 
-        const invViewMatrix = mat4.create();
-        mat4.invert(invViewMatrix, viewMatrix);
+        const ndcMousePos = MathUtil.mousePosToNdc(inputState.inputState.mousePos, width, height);
+        // console.log(`x: ${ndcMousePos[0]} y: ${ndcMousePos[1]}`);
+        const viewCoordinates = MathUtil.ndcToView(ndcMousePos, mat4.invert(mat4.create(), projectionMatrix.get()));
+        // console.log(viewCoordinates)
+        const worldCoordinates = MathUtil.viewToWorld(viewCoordinates, mat4.invert(mat4.create(), camera.viewMatrix()));
 
-        const viewPosition = vec4.create();
-        vec4.transformMat4(viewPosition, worldPosVec, invProjMatrix);
+        // const rayOrigin = cameraPosition; // Camera's position in world space
+        // const rayDirection = normalize(subtractVectors(mouseWorldPos, cameraPosition));
 
-        // Perform the perspective divide (homogeneous coordinates)
-        viewPosition[0] /= viewPosition[3];
-        viewPosition[1] /= viewPosition[3];
-        viewPosition[2] /= viewPosition[3];
-
-        // Transform the point from view space to world space using the inverse view matrix
-        const worldPosition = vec4.create();
-        vec4.transformMat4(worldPosition, viewPosition, invViewMatrix);
-
-        worldXyzHtml.textContent = vec4ToString(worldPosition);
+        worldXyzHtml.textContent = vec4ToString(worldCoordinates);
     })
-
-    return () => {
-        const x = inputState.inputState.mousePos[0];
-        const y = inputState.inputState.mousePos[1];
-        const worldPosVec = vec4.fromValues(x, y, -1.0, 1.0);
-        const invProjMatrix = mat4.create();
-        mat4.invert(invProjMatrix, projectionMatrix.get());
-
-        const invViewMatrix = mat4.create();
-        mat4.invert(invViewMatrix, viewMatrix);
-
-        const viewPosition = vec4.create();
-        vec4.transformMat4(viewPosition, worldPosVec, invProjMatrix);
-
-        // Perform the perspective divide (homogeneous coordinates)
-        viewPosition[0] /= viewPosition[3];
-        viewPosition[1] /= viewPosition[3];
-        viewPosition[2] /= viewPosition[3];
-
-        // Transform the point from view space to world space using the inverse view matrix
-        const worldPosition = vec4.create();
-        vec4.transformMat4(worldPosition, viewPosition, invViewMatrix);
-
-        worldXyzHtml.textContent = vec4ToString(worldPosition);
-    }
 }

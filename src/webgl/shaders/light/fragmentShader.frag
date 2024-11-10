@@ -9,11 +9,11 @@ layout(std140) uniform Material {
 //    float uShininess;
 };
 
-layout(std140) uniform Light {
+layout(std140) uniform Global {
+    mat4 uProjectionView;
+    vec4 uViewPosition;
     vec4 uLightDirection;
     vec4 uLightColor;
-
-    vec4 uViewPosition;// The eye of the camera
 };
 
 uniform sampler2D uSampler;
@@ -24,6 +24,8 @@ in vec3 vFragNormal;
 out vec4 fragColor;
 
 void main() {
+//    fragColor = vec4(1.0, 1.0, 0.0, 1.0);
+
     float uShininess = 10.0;
     vec3 uLightPos = uLightDirection.xyz;
     vec3 uViewPos = uViewPosition.xyz;
@@ -48,4 +50,5 @@ void main() {
 
     vec3 result = ambient + diffuse + specular;
     fragColor = vec4(result, 1.0);
+//    fragColor = vec4(1.0, 0.0, 0.0, 1.0);
 }

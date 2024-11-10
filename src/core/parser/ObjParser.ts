@@ -5,11 +5,6 @@ export interface ObjFile {
     meshes: ObjectGroup[],
 }
 
-export interface InterleavedMesh {
-    geometry: Float32Array,
-    material: ObjectMaterialData,
-}
-
 export interface ObjectGroup {
     groupName: string,
     vertices: number[];        // Flat array of vertex positions
@@ -33,7 +28,7 @@ export interface ObjectMaterialData {
 }
 
 class ObjParser {
-    public parseObjFile(filePath: string, mtlFilePath?: string, interleaved: boolean = false): Promise<ObjFile> {
+    public parseObjFile(filePath: string, mtlFilePath?: string, name: string = 'obj'): Promise<ObjFile> {
         if (mtlFilePath) {
             return Promise.all([
                 fetch(filePath).then(file => file.text()),
@@ -42,8 +37,6 @@ class ObjParser {
                 .then(([obj, mtl]) => {
                     const materialData = this.parseMtl(mtl);
                     const objFile = this.parseObjWithMtl(obj, materialData);
-                    console.log(objFile)
-                    // console.log(objFile)
                     // if (interleaved) {
                     //     const interleaved: InterleavedMesh[] = [];
                     //     objFile.meshes.forEach(m => interleaved.push(this.createSingleBufferData(m as ObjMesh)));
@@ -60,12 +53,8 @@ class ObjParser {
             .then(response => response.text())
             .then(rawContent => {
                 try {
-                    // const objFile = this.parseObj(rawContent);
                     const objFile = this.parseObjectGroups(rawContent);
-                    // console.log('Loaded groups:', objFile);
-                    // const aggrGroups = this.aggregateGroups(objFile); TODO: Should we join all object groups into single mesh? Probably not if we want to use separate materials for each group
-                    // console.log('Aggregated groups:', objFile);
-                    return { name: 'obj', meshes: objFile };
+                    return { name, meshes: objFile };
                 } catch (err) {
                     console.error(err);
                     throw 'wtf';

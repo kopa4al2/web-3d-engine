@@ -1,5 +1,7 @@
+// @ts-nocheck
 import GeometryComponent from "core/components/geometry/GeometryComponent";
 import TextureLoader from "core/loader/TextureLoader";
+import { VertexShaderName } from 'core/resources/cpu/CpuShaderData';
 import { vec3 } from "gl-matrix";
 
 export default class TerrainGeometry extends GeometryComponent {
@@ -10,22 +12,24 @@ export default class TerrainGeometry extends GeometryComponent {
     static readonly WIDTH = 256;
     static readonly HEIGHT = 256;
 
-    constructor(shaderSource: string) {
+    constructor(shaderName = VertexShaderName.TERRAIN) {
         const { vertices, texCoords } = generateTerrainVertices(TerrainGeometry.WIDTH, TerrainGeometry.HEIGHT, TextureLoader.rawImages['heightMap']);
         const normals = calculateNormals(vertices, TerrainGeometry.WIDTH, TerrainGeometry.HEIGHT);
         const indices = createIndices(TerrainGeometry.WIDTH, TerrainGeometry.HEIGHT);
-        const data = GeometryComponent.createSingleBufferData({ indices, texCoords, vertices, normals });
+        const data = GeometryComponent.interleaveData({ indices, texCoords, vertices, normals });
         super({
+            texCoords: [],
             vertices: data,
-            layout: [
-                { dataType: 'float32', elementsPerVertex: 3 },
-                { dataType: 'float32', elementsPerVertex: 2 },
-                { dataType: 'float32', elementsPerVertex: 3 },
-            ],
-            stride: Float32Array.BYTES_PER_ELEMENT * (3 + 3 + 2),
-            vertexCount: vertices.length,
-            indices: new Uint32Array(indices),
-            shaderSource
+            normals: [],
+            indices: indices
+            // layout: [
+            //     { dataType: 'float32', elementsPerVertex: 3 },
+            //     { dataType: 'float32', elementsPerVertex: 2 },
+            //     { dataType: 'float32', elementsPerVertex: 3 },
+            // ],
+            // stride: Float32Array.BYTES_PER_ELEMENT * (3 + 3 + 2),
+            // vertexCount: vertices.length,
+            // shaderName,
         });
     }
 

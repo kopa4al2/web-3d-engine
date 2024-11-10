@@ -87,7 +87,6 @@ export default class Canvas {
     }
 
     private updateDimensions({ width, height, leftOffset, topOffset, hide }: WindowProperties) {
-        log.infoGroup(this.canvasId, leftOffset, hide, width)
         this.width = width;
         this.height = height;
         this.parent.style.width = width + 'px';

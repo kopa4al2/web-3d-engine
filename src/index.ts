@@ -4,55 +4,62 @@ import ProjectionMatrix from "core/components/camera/ProjectionMatrix";
 import EntityManager from "core/EntityManager";
 import Graphics from "core/Graphics";
 import TextureLoader from "core/loader/TextureLoader";
-import ObjParser, { ObjFile } from "core/parser/ObjParser";
 import PropertiesManager, { PartialProperties, Property, PropertyValue } from "core/PropertiesManager";
+import { createVertexLayoutWithData } from 'core/resources/DefaultBindGroupLayouts';
 import EntityComponentSystem from "core/systems/EntityComponentSystem";
+import { isEnabled, testStuff } from 'core/utils/TestStuff';
 import Engine, { OnRenderPlugin } from "Engine";
 import { vec2, vec3 } from "gl-matrix";
-import { enableGpuGraphicsApiSwitch, enableSplitScreenSwitch, enableWireframeSwitch } from "html/Controls";
+import {
+    enableEntitySelect,
+    enableGpuGraphicsApiSwitch,
+    enableSplitScreenSwitch,
+    enableWireframeSwitch
+} from "html/Controls";
+import { enableWebComponentEntitySelect } from 'html/entity-select/EntitySelect';
 import { fpsCounter } from "html/Views";
 import WebGLGraphics from "webgl/WebGLGraphics";
 import WebGPUGraphics from "webgpu/graphics/WebGPUGraphics";
 
-const loadTimer = 'LOAD_TIMER';
+// OVERRIDE SYMBOL TO STRING FOR DEBUGGING
+Symbol.prototype.toString = function () {
+    return this.description || 'N/A';
+}
 
+enableWebComponentEntitySelect();
+
+const loadTimer = 'LOAD_TIMER';
 console.time(loadTimer);
 const onRender: OnRenderPlugin = () => {
     screenProps.flushBuffer()
 };
-export const STATIC: Record<string, ObjFile> = {}
-document.body.onload = async () => {
-    console.timeLog(loadTimer, 'Document loaded')
-    STATIC['cube'] = await ObjParser.parseObjFile('assets/basic-geometry/cube/cube.obj');
-    STATIC['cubeMtl'] = await ObjParser.parseObjFile('assets/basic-geometry/cube/cube.obj', 'assets/basic-geometry/cube/cube.mtl');
-    STATIC['dragon'] = await ObjParser.parseObjFile('assets/advanced/dragon.obj');
-    STATIC['lightBulb'] = await ObjParser.parseObjFile('assets/advanced/light/lightBulb.obj', 'assets/advanced/light/lightBulb.mtl');
-    // STATIC['dragonMtl'] = await ObjParser.parseObjFile('assets/advanced/ExportedDragon.obj', 'assets/advanced/ExportedDragon.mtl');
-    // STATIC['bunny'] = await ObjParser.parseObjFile('assets/advanced/stanford-bunny.obj');
 
-    console.timeLog(loadTimer, 'OBJ files loaded')
+document.body.onload = async () => {
+    if (isEnabled) {
+        testStuff();
+        return;
+    }
+    console.timeLog(loadTimer, 'DOM loaded')
     await Promise.all([
         await TextureLoader.loadTexture('noop', "assets/1x1texture.png"),
-        await TextureLoader.loadTexture('grass', "assets/terrain/grass.jpg"),
-        await TextureLoader.loadTexture('grass-2', "assets/terrain/grass-2.png"),
-        await TextureLoader.loadTexture('mountain-1', "assets/terrain/stone-1.png"),
-        await TextureLoader.loadTexture('water-1', "assets/terrain/sea-water-1.jpg"),
+        await TextureLoader.loadTexture('grassTexture1', "assets/terrain/grass.jpg"),
+        // await TextureLoader.loadTexture('grass-2', "assets/terrain/grass-2.png"),
+        await TextureLoader.loadTexture('mountainTexture1', "assets/terrain/stone-1.png"),
+        await TextureLoader.loadTexture('waterTexture1', "assets/terrain/sea-water-1.jpg"),
         // await TextureLoader.loadTexture('mountain-1', "assets/terrain/mountain-1.jpg"),
-        await TextureLoader.loadTexture('snow-1', "assets/terrain/snow-small.jpg"),
+        await TextureLoader.loadTexture('snowTexture1', "assets/terrain/snow-small.jpg"),
         // await TextureLoader.loadTexture('snow-1', "assets/terrain/snow-1.jpg"),
-        await TextureLoader.loadTexture('texture2', "assets/texture.png"),
-        await TextureLoader.loadTexture('texture1', "assets/texture-2.jpg"),
+        await TextureLoader.loadTexture('texture2', "assets/texture.png", 'uSampler'),
+        await TextureLoader.loadTexture('texture1', "assets/texture-2.jpg", 'uSampler'),
         await TextureLoader.loadTexture('texture', "assets/DALL·E-tex-1.webp"),
         // await TextureLoader.loadHeightMap('heightMap', "assets/terrain/heightmaps/grayscale-terrai-map.webp"),
         // await TextureLoader.loadHeightMap('heightMap', "assets/terrain/heightmaps/render-dobrichx5.png"),
         await TextureLoader.loadHeightMap('heightMap', "assets/terrain/heightmaps/render-dobrichx1.png"),
     ]);
-    console.timeLog(loadTimer, 'terrain textures loaded');
+    console.timeLog(loadTimer, 'textures loaded');
 
-    console.timeLog(loadTimer, 'height map and delle texture loaded')
     enableSplitScreenSwitch(screenProps, document.getElementById('global-controls')!);
     enableGpuGraphicsApiSwitch(screenProps, document.getElementById('global-controls')!);
-
     console.timeLog(loadTimer, 'HTML Controls enabled');
 
     let gpuEngine: Engine | undefined,
@@ -76,7 +83,6 @@ document.body.onload = async () => {
         glEngine = webGlEngine;
         glProps = webGl2Props;
     } else if (screenProps.get('gpuApi') !== 'webgl2') {
-        console.log('active api gpu')
         const { webGpuProps, webgpuEngine } = await initWebGpu({
             'window.width': window.innerWidth,
             'window.leftOffset': 0,
@@ -92,8 +98,6 @@ document.body.onload = async () => {
         });
         glEngine = webGlEngine;
         glProps = webGl2Props;
-    } else {
-        debugger
     }
 
     document.querySelector('canvas')!.focus();
@@ -161,6 +165,7 @@ document.body.onload = async () => {
 
 
     console.timeEnd(loadTimer)
+    console.log("\n\n=============FINISHED ENGINE LOADING====================\n\n")
 };
 
 const screenProps = new PropertiesManager({
@@ -196,7 +201,7 @@ const screenProps = new PropertiesManager({
 const sharedProps: PartialProperties = {
     fieldOfView: Math.PI / 4,
     zNear: 0.01,
-    zFar: 100,
+    zFar: 1000,
 }
 
 async function initWebGlEngine(properties: PartialProperties) {
@@ -299,62 +304,9 @@ async function createEngine(properties: PropertiesManager,
         [fpsCounter(properties, canvas.parent), ...onRender],
     );
     enableWireframeSwitch(properties, canvas.parent);
-    engine.init();
+
+    engine.initializeScene();
     engine.start();
 
     return engine;
-}
-
-function handleOnSplitScreen(webGl2Props: PropertiesManager, webGlEngine: Engine,
-                             webGpuProps: PropertiesManager, webgpuEngine: Engine) {
-    return (globalProps: PropertiesManager) => {
-        const isSplit = globalProps.getBoolean('splitScreen');
-        const isWebGl = globalProps.get('gpuApi') === 'webgl2';
-
-        if (!isSplit) {
-            if (isWebGl) {
-                webGl2Props.updateNestedProperty('window', {
-                    width: window.innerWidth,
-                    leftOffset: 0,
-                    hide: false,
-                });
-                webGpuProps.updateNestedProperty('window', {
-                    width: 0,
-                    leftOffset: 0,
-                    hide: true
-                });
-                webgpuEngine.isRunning = false;
-                webGlEngine.isRunning = true;
-            } else {
-                webGpuProps.updateNestedProperty('window', {
-                    width: window.innerWidth,
-                    leftOffset: 0,
-                    hide: false
-                });
-                webGl2Props.updateNestedProperty('window', {
-                    width: 0,
-                    leftOffset: window.innerWidth,
-                    hide: true,
-                });
-
-                webgpuEngine.isRunning = true;
-                webGlEngine.isRunning = false;
-            }
-            [webGpuProps, webGl2Props].forEach((prop, i) => {
-                prop.updateProperty('splitScreen', false);
-            });
-        } else {
-            [webGpuProps, webGl2Props].forEach((prop, i) => {
-                prop.updateNestedProperty('window', {
-                    width: window.innerWidth / 2,
-                    leftOffset: i * window.innerWidth / 2,
-                    hide: false,
-                });
-                prop.updateProperty('splitScreen', true);
-            });
-
-            webgpuEngine.isRunning = true;
-            webGlEngine.isRunning = true;
-        }
-    };
 }

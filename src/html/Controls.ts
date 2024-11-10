@@ -1,4 +1,6 @@
 import PropertiesManager from "core/PropertiesManager";
+import { EntitySelectPayload } from 'html/entity-select/EntitySelect';
+import { addEventListener } from './CustomEvents';
 
 export function enableWireframeSwitch(properties: PropertiesManager, attachTarget?: Element) {
     const parent = attachTarget?.querySelector('.controls') || document.querySelector('.controls') as Element;
@@ -130,4 +132,23 @@ export function createLightSourceControl(properties: PropertiesManager) {
             properties.updateNestedProperty('light', { sourceX, sourceY, sourceZ, });
         })
     });
+}
+
+// export function enableEntitySelect(attachTarget: Element, entities: string[], onAdd: (entity: string) => void) {
+export function enableEntitySelect(attachTarget: Element, entities: string[], onAdd: (entitySelect: EntitySelectPayload) => void) {
+    const parent = attachTarget.querySelector('.controls') as Element;
+
+    const element = document.createElement('sdi-entity-select');
+    element.setAttribute('entities', entities.toString());
+    addEventListener(element, 'add-entity', e => onAdd(e.detail));
+    // const element = document.createElement('div');
+    /*element.innerHTML = `
+        <sdi-entity-select entities="${entities}"/>
+    `;*/
+
+    // element.querySelector('.add-entity')!.addEventListener('click', e => {
+    //     onAdd(entities[0]);
+    // })
+
+    parent.append(element);
 }

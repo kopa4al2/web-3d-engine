@@ -1,14 +1,16 @@
+struct Global {
+    projectionViewMatrix: mat4x4<f32>,
+    uViewPosition: vec4<f32>, // The eye of the camera
+    lightDirection: vec4<f32>,
+    lightColor: vec4<f32>,
+}
+
 struct Material {
     ambientLight: vec4<f32>,
     diffuseLight: vec4<f32>,
     specularLight: vec4<f32>,
 };
 
-struct Light {
-    lightDirection: vec4<f32>,
-    lightColor: vec4<f32>,
-    uViewPosition: vec4<f32>, // The eye of the camera
-}
 
 struct FragmentInput {
     @location(0) pixelPosition: vec3<f32>,
@@ -16,11 +18,11 @@ struct FragmentInput {
     @location(2) textureCoord: vec2<f32>,
 }
 
-@group(1) @binding(0) var<uniform> material: Material;
-@group(1) @binding(1) var<uniform> light: Light;
+@group(0) @binding(0) var<uniform> light: Global;
 
-@group(1) @binding(2) var texture: texture_2d<f32>;
-@group(1) @binding(3) var samler: sampler;
+@group(1) @binding(0) var<uniform> material: Material;
+@group(1) @binding(1) var texture: texture_2d<f32>;
+@group(1) @binding(2) var samler: sampler;
 
 
 @fragment
@@ -51,6 +53,7 @@ fn main(input: FragmentInput) -> @location(0) vec4<f32> {
     let specular = spec * uLightColor * material.specularLight.xyz;
 
     let result = ambient + diffuse + specular;
+
     return vec4(result, 1.0);
 }
 

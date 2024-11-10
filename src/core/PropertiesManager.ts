@@ -51,7 +51,6 @@ export default class PropertiesManager {
             } else {
                 Object.assign(this.properties[prop as ObjectProperty], value);
                 for (let [key, listeners] of this.listenersMap) {
-                    // log.infoGroup(`Should notify: ${key} for prop: ${prop} with value: ${JSON.stringify(value)}`, this.shouldNotify(key as Property, prop, value as PartialNestedProperty))
                     if (this.shouldNotify(key as Property, prop, value as PartialNestedProperty)) {
                         listeners.forEach(listener => toNotifyMap.add((listener)));
                     }

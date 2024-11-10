@@ -19,10 +19,10 @@ layout(std140) uniform Light {
     vec4 uViewPosition;// The eye of the camera
 };
 
-uniform sampler2D grassTexture;
-uniform sampler2D mountain1Texture;
-uniform sampler2D snow1Texture;
-uniform sampler2D water1Texture;
+uniform sampler2D grassTexture1;
+uniform sampler2D mountainTexture1;
+uniform sampler2D snowTexture1;
+uniform sampler2D waterTexture1;
 
 in vec2 vTexCoord;
 in vec3 vFragPosition;
@@ -49,26 +49,26 @@ void main() {
         //        waterTexCoords.x += sin(uTime + vFragPosition.x * 0.1) * 0.01;
         //        waterTexCoords.y += cos(uTime + vFragPosition.z * 0.1) * 0.01;
 
-        vec4 seaColor = texture(water1Texture, waterTexCoords);
+        vec4 seaColor = texture(waterTexture1, waterTexCoords);
         seaColor.a = 0.5;
 
         vec2 refractedTexCoords = vTexCoord;
         refractedTexCoords += (waterTexCoords - 0.5) * 0.02;
 
-        vec4 rockColor = texture(mountain1Texture, refractedTexCoords);
+        vec4 rockColor = texture(mountainTexture1, refractedTexCoords);
         textureColor = mix(rockColor, seaColor, 0.5);
     } else if (heightFactor < grassThreshold) {
-        textureColor = texture(grassTexture, vTexCoord);
+        textureColor = texture(grassTexture1, vTexCoord);
     } else if (heightFactor < rockThreshold) {
         // Blend grass and rock based on the height
-        vec4 grassColor = texture(grassTexture, vTexCoord);
-        vec4 rockColor = texture(mountain1Texture, vTexCoord);
+        vec4 grassColor = texture(grassTexture1, vTexCoord);
+        vec4 rockColor = texture(mountainTexture1, vTexCoord);
         float blendFactor = (heightFactor - grassThreshold) / (rockThreshold - grassThreshold);
         textureColor = mix(grassColor, rockColor, blendFactor);
     } else {
         // Blend rock and snow
-        vec4 rockColor = texture(mountain1Texture, vTexCoord);
-        vec4 snowColor = texture(snow1Texture, vTexCoord);
+        vec4 rockColor = texture(mountainTexture1, vTexCoord);
+        vec4 snowColor = texture(snowTexture1, vTexCoord);
         float blendFactor = (heightFactor - rockThreshold) / (1.0 - rockThreshold);
         textureColor = mix(rockColor, snowColor, blendFactor);
     }
@@ -95,7 +95,8 @@ void main() {
         vec3 specular = spec * uLightColor.rgb * uMaterialSpecular.rgb;
 
         vec3 result = ambient + diffuse + specular;
-        fragColor = vec4(result, 1.0);
+        fragColor = textureColor;
+//        fragColor = vec4(result, 1.0);
 }
 
 

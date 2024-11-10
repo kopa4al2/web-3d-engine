@@ -42,7 +42,7 @@ export default class InputSystem implements UpdateSystem {
 
     update(deltaTime: number): void {
         this.entityManager.scenes.forEach(scene => {
-            scene.entities.forEach(entity => {
+            scene.getEntities().forEach(entity => {
                 const inputComponent = <Input>this.entityManager.getComponent(entity, Input.ID);
 
                 if (inputComponent) {
@@ -84,6 +84,7 @@ export default class InputSystem implements UpdateSystem {
 
         // const ndcX = (x / width) * 2 - 1;  // Convert to [-1, 1] range
         // const ndcY = 1 - (y / height) * 2; // Convert to [-1, 1] range (Y is flipped)
+        // const ndcY = (1 - event.clientY / canvas.height) * 2 - 1 // Convert to [-1, 1] range (Y is flipped)
         // this.inputBuffer.mousePos[0] = ndcX;
         // this.inputBuffer.mousePos[1] = ndcY;
 
