@@ -77,7 +77,7 @@ export default class EntitySelect extends HTMLElement {
             this.entities = newValue?.split(',') || [];
             this.renderOptions();
         }
-        console.log(`Attribute ${name} changed from ${oldValue} to ${newValue}`);
+        // console.log(`Attribute ${name} changed from ${oldValue} to ${newValue}`);
     }
 
     adoptedCallback() {

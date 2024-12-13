@@ -1,8 +1,7 @@
-import { BindGroupLayoutGroupId } from 'core/Graphics';
+import { BindGroupLayoutId } from 'core/Graphics';
 import { Blend } from 'core/resources/gpu/Blend';
 import { BufferFormat, BufferId } from "core/resources/gpu/BufferDescription";
-import { SamplerId, TextureId } from "core/texture/Texture";
-import Bitmask from 'util/BitMask';
+import { TextureSize } from 'core/texture/Texture';
 
 export interface PipelineOptions {
     wireframe: boolean,
@@ -25,12 +24,14 @@ export interface ShaderProgramDescription {
     label?: string,
     options: PipelineOptions,
 
-    shaderLayoutIds: BindGroupLayoutGroupId[],
+    shaderLayoutIds: BindGroupLayoutId[],
     fragmentShaderSource: string,
 
     vertexShaderSource: string,
     vertexShaderLayout: VertexBufferLayout[],
     vertexShaderStride: number,
+
+    textureArraySize?: TextureSize
 }
 
 export interface IndexBuffer {
@@ -42,19 +43,6 @@ export interface VertexBufferLayout {
     offset: number,
     format: BufferFormat;
     location: number;
-}
-
-export interface BindGroupLayout {
-    label: string,
-    variables: BindGroupEntry[],
-}
-
-export interface BindGroupEntry {
-    type: 'texture' | 'sampler' | 'uniform' | 'storage',
-    id: (BufferId | TextureId | SamplerId),
-    binding: number,
-    visibilityMask: Bitmask<UniformVisibility>,
-    name: string,
 }
 
 export enum UniformVisibility {

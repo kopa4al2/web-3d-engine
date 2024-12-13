@@ -1,13 +1,5 @@
-import SphereGeometry from 'core/components/geometry/SphereGeometry';
-import LightedMaterial from 'core/components/material/LightedMaterial';
-import { defaultTransform } from 'core/components/Transform';
 import EntityManager from 'core/EntityManager';
-import TextureLoader from 'core/loader/TextureLoader';
-import EntityRepository from 'core/repository/EntityRepository';
-import { VertexShaderName } from 'core/resources/cpu/CpuShaderData';
-import Scene from 'core/Scene';
 import { UpdateSystem } from 'core/systems/EntityComponentSystem';
-import { vec3 } from 'gl-matrix';
 
 /**
  * TODO: This may be 'WorldSystem'. Manages when entities need to be added or removed from the scene.

@@ -8,7 +8,6 @@ import { PipelineId } from 'core/Graphics';
 import BoundingSphere from 'core/physics/BoundingSphere';
 import Frustum from 'core/physics/Frustum';
 import { Blend } from 'core/resources/gpu/Blend';
-import { MeshId } from 'core/resources/MeshManager';
 import { mat4, vec3 } from 'gl-matrix';
 import Bitmask from 'util/BitMask';
 import DebugUtil from 'util/DebugUtil';
@@ -22,8 +21,9 @@ export default class Scene {
 
     // For each mesh a tuple with entity - transform
     private readonly meshes: JavaMap<PipelineId, JavaMap<Mesh, [EntityId, ModelMatrix][]>>;
-    public readonly meshesV2: JavaMap<PipelineId, string[]> = new JavaMap();
     private readonly frustum: Frustum;
+
+    private _frustumFn?: (frustum: Frustum) => Mesh;
 
     constructor(public camera: CameraComponent,
                 public projectionMatrix: ProjectionMatrix,
@@ -35,6 +35,14 @@ export default class Scene {
         this.meshes = new JavaMap();
         // this.meshes = new SortedMap<PipelineId, JavaMap<Mesh, [EntityId, ModelMatrix][]>>((m1:PipelineId, m2:PipelineId )=> 1);
         this.frustum = new Frustum();
+    }
+
+    public _setFrustumFn(frustumFn: (frustum: Frustum) => Mesh) {
+        this._frustumFn = frustumFn;
+    }
+
+    public evalFrustumMesh() {
+        return this._frustumFn!(this.frustum);
     }
 
     public addEntity(id: EntityId) {
@@ -61,13 +69,15 @@ export default class Scene {
         // TODO: Handle spatial
         // TODO: Handle bounding box
         this.meshes.clear();
-        this.meshesV2.clear();
+        const culled: Mesh[] = [];
         this.entities.forEach(entity => {
             const [transform, mesh] = this.entityManager.getComponents<Transform, Mesh>(entity, Transform.ID, Mesh.ID)
             if (transform && mesh) {
-                const { meshId, pipelineId, geometry } = mesh;
+                const { pipelineId, geometry } = mesh;
 
-                if (!this.frustum.isSphereWithinFrustum(geometry.getBoundingVolume(BoundingSphere))) {
+                if (!this.frustum.isSphereWithinFrustum(geometry.getBoundingVolume(BoundingSphere), this.camera.viewMatrix())) {
+                    // console.log('Frustum culling: ', mesh.pipelineId)
+                    culled.push(mesh);
                     return;
                 }
 
@@ -75,12 +85,7 @@ export default class Scene {
                     this.meshes.set(pipelineId, new JavaMap<Mesh, [EntityId, ModelMatrix][]>());
                 }
 
-                if (!this.meshesV2.has(pipelineId)) {
-                    this.meshesV2.set(pipelineId, []);
-                }
-
                 const entitiesByMesh = this.meshes.get(pipelineId);
-                this.meshesV2.get(pipelineId).push(mesh.meshId);
                 if (!entitiesByMesh.has(mesh)) {
                     entitiesByMesh.set(mesh, []);
                 }
@@ -89,6 +94,10 @@ export default class Scene {
             }
         });
         this.flags.clearFlag(Scene.CHANGED);
+        if (culled.length > 0) {
+            // rateLimitedLog.log('Culled entities: ', culled);
+            // console.log('Culled entities: ', culled);
+        }
     }
 
     public getEntities(): EntityId[] {
@@ -100,7 +109,8 @@ export default class Scene {
     }
 
     public hasChanged() {
-        return this.flags.hasFlag(Scene.CHANGED);
+        return true; // TODO Temporrary disabled to test
+        // return this.flags.hasFlag(Scene.CHANGED);
     }
 
     private sortEntities() {

@@ -1,9 +1,9 @@
-import { VertexLayout, VertexLayoutEntry } from 'core/resources/cpu/CpuShaderData';
+import { VertexLayout } from 'core/resources/cpu/CpuShaderData';
 
-export type BufferData = Float32Array | Uint16Array | Uint32Array;
+export type BufferData = Float32Array<any> | Uint16Array<any> | Uint32Array<any> | Uint8Array<any> | Int8Array<any>;
+
 export type BufferId = symbol;
 
-export type TextureData = ImageBitmap | ImageData
 
 export interface BufferDescription {
     label?: string,
@@ -17,7 +17,6 @@ export enum BufferFormat {
     FLOAT32x2 = 'float32x2',
 }
 
-// console.log('WebGPu Buffer usage: ', GPUBufferUsage);
 export enum BufferUsage {
     VERTEX = 32,
     INDEX = 16,

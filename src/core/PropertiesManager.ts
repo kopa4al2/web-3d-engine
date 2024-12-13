@@ -1,4 +1,5 @@
 import { InputFlags, InputState, InputType } from "core/systems/InputSystem";
+import DebugUtil from 'util/DebugUtil';
 import JavaMap from "util/JavaMap";
 import log from "util/Logger";
 import ObjectUtils from "util/ObjectUtils";
@@ -13,6 +14,7 @@ export default class PropertiesManager {
     private readonly buffer: JavaMap<Property | AbsoluteProperty, PropertyValue | PartialNestedProperty>;
 
     constructor(private readonly properties: Record<Property, PropertyValue>, overrides?: PartialProperties, public name: string = 'noop') {
+        DebugUtil.addToWindowObject('properties', this);
         this.listenersMap = new JavaMap();
         this.buffer = new JavaMap();
 

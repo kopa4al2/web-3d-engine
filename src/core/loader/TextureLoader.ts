@@ -2,29 +2,38 @@ import Texture from "../texture/Texture";
 
 export default class TextureLoader {
 
+    public static pixelDataTextures: Record<TextureName, Texture> = {}
+
     public static textures: Record<TextureName, Texture> = {
-        grass1: Texture.OPAQUE_TEXTURE,
-        grass2: Texture.OPAQUE_TEXTURE,
-        mountain1: Texture.OPAQUE_TEXTURE,
-        opaque: Texture.OPAQUE_TEXTURE,
-        texture: Texture.OPAQUE_TEXTURE
     };
     public static rawImages: Record<string, ImageData> = {};
 
-    static async loadTexture(name: TextureName, path: string, textureName: string = name): Promise<Texture> {
-        const img = new Image();
-        img.src = path;
-        // console.time(name);
-        await img.decode();
-        // console.timeLog(name, 'decode');
-        TextureLoader.textures[name] = new Texture(textureName, await createImageBitmap(img, { colorSpaceConversion: 'none' }));
-        // console.timeEnd(name);
-        return TextureLoader.textures[name];
-    }
+    // static async loadTexture(name: TextureName, path: string, textureName: string = name): Promise<Texture> {
+    //     const img = new Image();
+    //     img.src = path;
+    //     await img.decode();
+    //     // TextureLoader.textures[name] = new Texture(textureName, await createImageBitmap(img, { colorSpaceConversion: 'none' }));
+    //     TextureLoader.loadFromOffScreenCanvas(name, img);
+    //     return TextureLoader.textures[name];
+    // }
+
+    // static loadFromOffScreenCanvas(name: TextureName, img: HTMLImageElement) {
+    //     const canvas = document.createElement('canvas');
+    //     canvas.width = img.width;
+    //     canvas.height = img.height;
+    //     // console.log(`Texture: ${name} has width: ${img.width} and height: ${img.height}`)
+    //     const context = canvas.getContext('2d', { willReadFrequently: true })!;
+    //     context.drawImage(img, 0, 0, img.width, img.height);
+    //
+    //     // Extract the RGBA pixel data from the canvas
+    //     const imageData = context.getImageData(0, 0, img.width, img.height);
+    //     // const pixelData = new Uint8Array(imageData.data.buffer);
+    //     // @ts-ignore
+    //     TextureLoader.pixelDataTextures[name] = new Texture(name, imageData, { width: imageData.width, height: imageData.height });
+    // }
 
     static async loadHeightMap(name: string, path: string): Promise<ImageData> {
-        return new Promise(resolve => {
-
+        return new Promise<ImageData>(resolve => {
             const img = new Image();
             img.src = path;
 

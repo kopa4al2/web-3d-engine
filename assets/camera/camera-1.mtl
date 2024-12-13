@@ -1,0 +1,33 @@
+# Blender 4.0.2 MTL File: 'None'
+# www.blender.org
+
+newmtl Flat_Panel_Light_Bulb_M
+Ks 1.000000 1.000000 1.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 3
+Pr 0.748767
+Pm 0.500000
+Ps 0.000000
+Pc 0.000000
+Pcr 0.030000
+aniso 0.000000
+anisor 0.000000
+map_Kd C:/Users/Stefan/Downloads/Substance/Flat_Panel_Spot_Light_Texture/Flat_Panel_Light_Bulb_M_Base_color.png
+
+newmtl Flat_Panel_Light_Metal_M
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 3
+Pr 0.748767
+Pm 0.500000
+Ps 0.000000
+Pc 0.000000
+Pcr 0.030000
+aniso 0.000000
+anisor 0.000000
+map_Kd C:/Users/Stefan/Downloads/Substance/Flat_Panel_Spot_Light_Texture/Flat_Panel_Light_Metal_M_Base_color.png
+map_Ks C:/Users/Stefan/Downloads/Substance/Flat_Panel_Spot_Light_Texture/Flat_Panel_Light_Metal_M_Roughness.png
+map_Bump -bm 0.100000 C:/Users/Stefan/Downloads/Substance/Flat_Panel_Spot_Light_Texture/Flat_Panel_Light_Metal_M_Normal.png

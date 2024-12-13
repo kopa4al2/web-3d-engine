@@ -33,7 +33,9 @@ export default class SphereGeometry extends GeometryComponent {
             vertices,
             indices,
             normals,
-            texCoords: uvs
+            texCoords: uvs,
+            tangents: [],
+            bitangents: []
         };
     }
 }

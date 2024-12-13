@@ -1,7 +1,6 @@
-// @ts-nocheck
 import GeometryComponent from "core/components/geometry/GeometryComponent";
 import TextureLoader from "core/loader/TextureLoader";
-import { VertexShaderName } from 'core/resources/cpu/CpuShaderData';
+import { GeometryData } from 'core/mesh/Geometry';
 import { vec3 } from "gl-matrix";
 
 export default class TerrainGeometry extends GeometryComponent {
@@ -9,28 +8,33 @@ export default class TerrainGeometry extends GeometryComponent {
     static readonly HEIGHT_FACTOR = 20.0;
     static readonly MIN_HEIGHT = -10.0;
     static readonly SEA_LEVEL = 0.0;
-    static readonly WIDTH = 256;
-    static readonly HEIGHT = 256;
+    static readonly WIDTH = 512;
+    static readonly HEIGHT = 512;
 
-    constructor(shaderName = VertexShaderName.TERRAIN) {
-        const { vertices, texCoords } = generateTerrainVertices(TerrainGeometry.WIDTH, TerrainGeometry.HEIGHT, TextureLoader.rawImages['heightMap']);
+    // static readonly VERTICES = generateTerrainVertices(TerrainGeometry.WIDTH, TerrainGeometry.HEIGHT, TextureLoader.rawImages['heightMap']);
+
+    // public static readonly GEOMETRY_DESCRIPTOR: GeometryData = {
+    //     indices: createIndices(TerrainGeometry.WIDTH, TerrainGeometry.HEIGHT),
+    //     normals: calculateNormals(TerrainGeometry.VERTICES.vertices, TerrainGeometry.WIDTH, TerrainGeometry.HEIGHT),
+    //     texCoords: TerrainGeometry.VERTICES.texCoords,
+    //     vertices: TerrainGeometry.VERTICES.vertices
+    // }
+
+    public readonly GEOMETRY_DESCRIPTOR: GeometryData;
+
+    constructor() {
+        super({});
+
+        const {
+            vertices,
+            texCoords
+        } = generateTerrainVertices(TerrainGeometry.WIDTH, TerrainGeometry.HEIGHT, TextureLoader.rawImages['heightMap']);
         const normals = calculateNormals(vertices, TerrainGeometry.WIDTH, TerrainGeometry.HEIGHT);
         const indices = createIndices(TerrainGeometry.WIDTH, TerrainGeometry.HEIGHT);
+        this.GEOMETRY_DESCRIPTOR = {
+            vertices, texCoords, normals, indices, tangents: [1, 1, 1], bitangents: [1, 1, 1]
+        }
         const data = GeometryComponent.interleaveData({ indices, texCoords, vertices, normals });
-        super({
-            texCoords: [],
-            vertices: data,
-            normals: [],
-            indices: indices
-            // layout: [
-            //     { dataType: 'float32', elementsPerVertex: 3 },
-            //     { dataType: 'float32', elementsPerVertex: 2 },
-            //     { dataType: 'float32', elementsPerVertex: 3 },
-            // ],
-            // stride: Float32Array.BYTES_PER_ELEMENT * (3 + 3 + 2),
-            // vertexCount: vertices.length,
-            // shaderName,
-        });
     }
 
 }

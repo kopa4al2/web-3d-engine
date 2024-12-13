@@ -1,9 +1,27 @@
 import Canvas from "Canvas";
-import Graphics, { BindGroupId, PipelineId, RenderPass, BindGroupLayoutGroupId, VertexBufferId } from "core/Graphics";
+import Graphics, { BindGroupId, BindGroupLayoutId, PipelineId, RenderPass, UpdateTexture } from "core/Graphics";
 import PropertiesManager from "core/PropertiesManager";
+import BindGroup, {
+    BindGroupDynamicOffset,
+    BindGroupEntry,
+    BindGroupEntryType,
+    TextureBindGroupEntry
+} from "core/resources/BindGroup";
+import BindGroupLayout from "core/resources/BindGroupLayout";
 import { BufferData, BufferDescription, BufferId } from "core/resources/gpu/BufferDescription";
-import { BindGroupLayout, BindGroupEntry, ShaderProgramDescription } from "core/resources/gpu/GpuShaderData";
-import { SamplerId, TextureId } from "core/texture/Texture";
+import { ShaderProgramDescription } from "core/resources/gpu/GpuShaderData";
+import SamplingConfig from "core/texture/SamplingConfig";
+import {
+    GlFace,
+    ImageChannelRange,
+    ImageWithData,
+    SamplerId,
+    TextureDescription,
+    TextureId,
+    TextureType
+} from "core/texture/Texture";
+import { vec3 } from 'gl-matrix';
+import DebugUtil from 'util/DebugUtil';
 import { NamedLogger } from "util/Logger";
 import WebGPUContext from "webgpu/graphics/WebGPUContext";
 import WebGPUDevice from "webgpu/graphics/WebGPUDevice";
@@ -12,29 +30,31 @@ export default class WebGPUGraphics implements Graphics {
 
     private static readonly logger: NamedLogger = new NamedLogger('WebGPUGraphics');
 
-    public readonly buffers: Map<BufferId, GPUBuffer>;
-    private readonly textures: Map<TextureId, GPUTexture>;
-    private readonly samplers: Map<SamplerId, GPUSampler>;
+    public readonly buffers: WeakMap<BufferId, GPUBuffer>;
+    private readonly textures: WeakMap<TextureId, GPUTexture>;
+    private readonly samplers: WeakMap<SamplerId, GPUSampler>;
 
-    public readonly pipelines: Map<PipelineId, GPUPipelineBase>;
-    public readonly bindGroups: Map<PipelineId, GPUBindGroup>;
-    public readonly shaderLayouts: Map<BindGroupLayoutGroupId, GPUBindGroupLayout>;
+    public readonly pipelines: WeakMap<PipelineId, GPUPipelineBase>;
+    public readonly bindGroups: WeakMap<PipelineId, GPUBindGroup>;
+    public readonly shaderLayouts: WeakMap<BindGroupLayoutId, GPUBindGroupLayout>;
 
     private readonly _device: GPUDevice;
     // @ts-ignore
-    private depthTexture: GPUTextureView;
+    // private depthTexture: GPUTextureView;
+    private depthTexture: GPUTexture;
 
     constructor(private gpuDevice: WebGPUDevice,
                 private gpuContext: WebGPUContext,
                 public props: PropertiesManager) {
+        DebugUtil.addToWindowObject('gpuGraphics', this);
         this._device = this.gpuDevice.gpuDevice;
 
-        this.buffers = new Map();
-        this.textures = new Map();
-        this.samplers = new Map();
-        this.pipelines = new Map();
-        this.bindGroups = new Map();
-        this.shaderLayouts = new Map();
+        this.buffers = new WeakMap();
+        this.textures = new WeakMap();
+        this.samplers = new WeakMap();
+        this.pipelines = new WeakMap();
+        this.bindGroups = new WeakMap();
+        this.shaderLayouts = new WeakMap();
 
         this.initDepthTexture(props);
         props.subscribeToAnyPropertyChange(['window.width', 'window.height'], this.initDepthTexture.bind(this));
@@ -55,7 +75,7 @@ export default class WebGPUGraphics implements Graphics {
                 },
             ],
             depthStencilAttachment: {
-                view: this.depthTexture,
+                view: this.depthTexture.createView(),
                 depthLoadOp: 'clear',
                 depthStoreOp: 'store',
                 depthClearValue: 1.0,
@@ -79,8 +99,7 @@ export default class WebGPUGraphics implements Graphics {
         });
 
         const bindGroupLayouts = shader.shaderLayoutIds.map(id => this.shaderLayouts.get(id)!)
-        console.log('Bind group layouts: ', bindGroupLayouts)
-        const layout = device.createPipelineLayout({ bindGroupLayouts, label: `pipeline-layout-${shader.label}` });
+        const layout = device.createPipelineLayout({ bindGroupLayouts, label: `pipeline-layout-${ shader.label }` });
 
         const buffers: GPUVertexBufferLayout[] = [{
             arrayStride: shader.vertexShaderStride,
@@ -88,10 +107,9 @@ export default class WebGPUGraphics implements Graphics {
                 shaderLocation: location || i, format, offset
             }))
         }];
-        const pipelineId = Symbol(`webgpu-pipeline-${shader.label}`);
-
+        const pipelineId = Symbol(`webgpu-pipeline-${ shader.label }`);
         this.pipelines.set(pipelineId, device.createRenderPipeline({
-            label: `pipeline-${shader.label}`,
+            label: `pipeline-${ shader.label }`,
             layout,
             vertex: {
                 module: vertexShader,
@@ -103,6 +121,7 @@ export default class WebGPUGraphics implements Graphics {
                 entryPoint: 'main',
                 targets: [
                     {
+                        // format: 'rgba16float',
                         format: 'bgra8unorm',
                         blend: shader.options.blendMode,
                         writeMask: shader.options.writeMask === 'ALL'
@@ -114,6 +133,7 @@ export default class WebGPUGraphics implements Graphics {
             primitive: {
                 topology: (this.props.getBoolean('wireframe') || shader.options.wireframe) ? 'line-list' : 'triangle-list',
                 frontFace: 'ccw',
+                // cullMode: 'none',
                 cullMode: shader.options.cullFace,
             },
             depthStencil: {
@@ -122,63 +142,90 @@ export default class WebGPUGraphics implements Graphics {
                 depthCompare: shader.options.depthCompare,
             },
         }));
-        // this.pipelines.get(pipelineId)!.getBindGroupLayout()
+        // console.log(`Cullface: ${shader.options.cullFace} TOPOLOGY for ${shader.label}: `, (this.props.getBoolean('wireframe') || shader.options.wireframe) ? 'line-list' : 'triangle-list')
         return pipelineId;
     }
 
-    public removePipeline(pipelineId: PipelineId): void {
-    }
-
-    createVertexBuffer(buffer: BufferDescription, data: BufferData): BufferId {
-        return this.createBufferWithData(buffer, data);
-    };
-
-    public createShaderLayout(layout: BindGroupLayout): BindGroupLayoutGroupId {
-        const id = Symbol(`webgpu-bind-group-layout-${layout.label}`);
-
-        const { variables } = layout;
-        const groupEntries: GPUBindGroupLayoutEntry[] = variables
-            .map(({ type, binding, visibilityMask: { mask: visibility } }) => ({
-                binding: binding,
+    public createShaderLayout(layout: BindGroupLayout): BindGroupLayoutId {
+        const id = Symbol(`webgpu-bind-group-layout-${ layout.label }`);
+        const groupEntries: GPUBindGroupLayoutEntry[] = layout.entries
+            .map(({ type, binding, visibilityMask: { mask: visibility }, dynamicOffset }, index) => ({
+                binding: index,
+                // binding: binding,
                 visibility,
-                ...byType(type)
+                ...generateBufferData(type, dynamicOffset)
             }));
 
-        function byType(type: string): Partial<GPUBindGroupLayoutEntry> {
-            if (type === 'uniform') return { buffer: { type: 'uniform' } }
-            if (type === 'storage') return { buffer: { type: 'read-only-storage' } }
-            if (type === 'texture') return { texture: { sampleType: 'float' } }
-            if (type === 'sampler') return { sampler: {} }
-            throw 'Unknown type: ' + type;
+        function generateBufferData(type: BindGroupEntryType,
+                                    hasDynamicOffset?: { size: number }): Partial<GPUBindGroupLayoutEntry> {
+            switch (type) {
+                case 'uniform':
+                    return hasDynamicOffset
+                        ? { buffer: { type: 'uniform', hasDynamicOffset: true, minBindingSize: hasDynamicOffset.size } }
+                        : { buffer: { type: 'uniform' } }
+                case "texture-array":
+                    return { texture: { viewDimension: '2d-array', sampleType: 'float' } };
+                case "cube-texture":
+                    return { texture: { viewDimension: 'cube', sampleType: 'float' } };
+                case "texture":
+                    return { texture: { sampleType: 'float' } };
+                case "sampler":
+                    return { sampler: {} }
+                case "storage":
+                    return { buffer: { type: 'read-only-storage' } }
+                default:
+                    throw new Error('Unknown type: ' + type);
+
+            }
         }
 
         this.shaderLayouts.set(id, this._device.createBindGroupLayout({
-            // label: `bind-group-layout`,
-            label: `bind-group-layout-${layout.label}`,
+            label: `bind-group-layout-${ layout.label }`,
             entries: groupEntries,
         }));
 
         return id;
     }
 
-    private id: number = 0
-    public createBindGroup(layoutId: BindGroupLayoutGroupId, bindGroups: BindGroupEntry[]): BindGroupId {
-        const id = Symbol(`webgpu-bind-group-${this.id++}`);
+    public createBindGroup(layoutId: BindGroupLayoutId, bindGroup: BindGroup): BindGroupId {
+        const id = Symbol(`webgpu-bind-group-${ bindGroup.label }`);
 
-        const bindingEntries: GPUBindGroupEntry[] = bindGroups.map(({ binding, type, id }) => ({
-            binding: binding,
-            resource: getResourceByType(id, type, this)
+        const bindingEntries: GPUBindGroupEntry[] = bindGroup.entries.map((bindGroupEntry, i) => ({
+            binding: bindGroupEntry.binding,
+            resource: getResourceByType(bindGroupEntry, this)
         }));
 
-        function getResourceByType(id: BufferId, type: string, _this: WebGPUGraphics): GPUBindingResource {
-            if (type === 'uniform' || type === 'storage') return { buffer: _this.buffers.get(id)! }
-            if (type === 'texture') return _this.textures.get(id)!.createView()
-            if (type === 'sampler') return _this.samplers.get(id)!
-            throw 'Unknown type: ' + type;
+        function getResourceByType(entry: BindGroupEntry, _this: WebGPUGraphics): GPUBindingResource {
+            switch (entry.type) {
+                case 'uniform':
+                    const { size } = (entry as BindGroupDynamicOffset);
+
+                    return size
+                        ? { buffer: _this.buffers.get(entry.bufferId)!, size }
+                        : { buffer: _this.buffers.get(entry.bufferId)! }
+                case 'storage':
+                    return { buffer: _this.buffers.get(entry.bufferId)! }
+                case 'texture':
+                    return _this.textures.get(entry.bufferId)!.createView()
+                case 'texture-array':
+                    return _this.textures.get(entry.bufferId)!
+                        .createView({
+                            arrayLayerCount: (entry as TextureBindGroupEntry).depth,
+                            dimension: '2d-array',
+                            baseArrayLayer: 0
+                        });
+                case 'cube-texture':
+                    return _this.textures.get(entry.bufferId)!.createView({ dimension: 'cube' });
+                case 'sampler':
+                    return _this.samplers.get(entry.bufferId)!
+                default:
+                    // @ts-ignore
+                    throw new Error('Unknown type: ' + entry.type);
+            }
         }
 
         this.bindGroups.set(id, this._device.createBindGroup({
-            label: `bind-group-${layoutId.toString()}`,
+            label: `bind-group-${ bindGroup.label }`,
             layout: this.shaderLayouts.get(layoutId)!,
             entries: bindingEntries
         }));
@@ -187,7 +234,7 @@ export default class WebGPUGraphics implements Graphics {
     }
 
     createBuffer(buffer: BufferDescription): BufferId {
-        const bId = Symbol(`buffer_${buffer.label}`);
+        const bId = Symbol(`buffer_${ buffer.label }`);
         const gpuBuffer = this._device.createBuffer({
             label: buffer.label,
             size: buffer.byteLength,
@@ -200,16 +247,12 @@ export default class WebGPUGraphics implements Graphics {
     }
 
     createBufferWithData(buffer: BufferDescription, data: BufferData): BufferId {
-        const bufferId = Symbol(`buffer_d_${buffer.label}`);
+        const bufferId = Symbol(`buffer_d_${ buffer.label }`);
         const gpuBuffer = this._device.createBuffer({
             label: buffer.label,
             size: buffer.byteLength,
-            // usage: (buffer.usage & (~GPUBufferUsage.COPY_DST)),
             usage: buffer.usage,
-            // mappedAtCreation: true,
         });
-        // new Float32Array(gpuBuffer.getMappedRange()).set(data);
-        // gpuBuffer.unmap();
         this._device.queue.writeBuffer(gpuBuffer, 0, data, 0, data.length);
 
         this.buffers.set(bufferId, gpuBuffer);
@@ -217,34 +260,49 @@ export default class WebGPUGraphics implements Graphics {
         return bufferId;
     }
 
-    createTexture(img: ImageBitmap): TextureId {
-        const textureId = Symbol('texture');
+    createTexture(textureDescription: TextureDescription): TextureId {
+        const textureId = Symbol(`texture-${ textureDescription.label || 'gpu' }`);
 
-        const textureGpu = this._device.createTexture({
-            size: [img.width, img.height],
-            format: 'rgba8unorm',
-            usage: GPUTextureUsage.TEXTURE_BINDING
-                | GPUTextureUsage.COPY_DST
-                | GPUTextureUsage.RENDER_ATTACHMENT,
-        });
-
-        this._device.queue.copyExternalImageToTexture(
-            { source: img },
-            { texture: textureGpu },
-            [img.width, img.height]
-        );
+        const textureGpu = this._createWebGpuTexture(textureDescription);
+        if ((<ImageWithData>textureDescription.image).imageData) {
+            this.updateTexture(textureId, { data: textureDescription.image as ImageWithData, x: 0, y: 0, z: 0 })
+        }
 
         this.textures.set(textureId, textureGpu);
+
         return textureId;
     }
 
-    createSampler(): SamplerId {
-        const samplerId = Symbol('sampler');
+    private _createWebGpuTexture(textureDescription: TextureDescription): GPUTexture {
+        const { image } = textureDescription;
+        if (textureDescription.type === TextureType.TEXTURE_ARRAY
+            || textureDescription.type === TextureType.CUBE_MAP) {
+            return this._device.createTexture({
+                size: {
+                    width: image.width,
+                    height: image.height,
+                    depthOrArrayLayers: textureDescription.depth
+                },
+                dimension: '2d',
+                format: image.channel.format,
+                usage: textureDescription.usage,
+            });
+        }
+
+        console.error('Texture: ', textureDescription);
+        throw new Error(`Unknown type: ${ textureDescription.type }`)
+    }
+
+    createSampler(sampler: SamplingConfig): SamplerId {
+        const samplerId = Symbol(`${ sampler }-webgpu-sampler`);
         this.samplers.set(samplerId, this._device.createSampler({
-            magFilter: 'linear',  // Linear filtering for magnification
-            minFilter: 'linear',  // Linear filtering for minification
-            addressModeU: 'repeat',  // Repeat the texture in the U direction
-            addressModeV: 'repeat',  // Repeat the texture in the V direction
+            label: sampler.label,
+            mipmapFilter: sampler.mipmapFilter,
+            magFilter: sampler.magFilter,
+            minFilter: sampler.minFilter,
+            addressModeU: sampler.addressModeU,
+            addressModeV: sampler.addressModeV,
+            addressModeW: sampler.addressModeW,
         }));
 
         return samplerId;
@@ -255,20 +313,95 @@ export default class WebGPUGraphics implements Graphics {
         this._device.queue.writeBuffer(bfr, bufferOffset, data, dataOffset, dataToWriteSize)
     }
 
+
+    public updateTexture(textureId: TextureId, updateTexture: UpdateTexture) {
+        const texture = this.textures.get(textureId)!;
+        const {
+            data: { width, height, channel, imageData },
+            dataOffset = 0, x, y, z
+        } = updateTexture;
+        const bytesPerPixel = ImageChannelRange[channel.dataType];
+        const bytesPerRow = width * bytesPerPixel;
+        // console.groupCollapsed('Update texture: ', textureId.toString())
+        // console.log('Width ', width, ' bytes per pixel: ', bytesPerPixel);
+        // console.log('Bytes per row', bytesPerRow);
+        // console.log('texture: ', texture);
+        // console.log('Request: ', updateTexture);
+        // console.groupEnd()
+        this._device.queue.writeTexture(
+            { texture, mipLevel: 0, origin: { x, y, z }, },
+            imageData,
+            { bytesPerRow: bytesPerRow, rowsPerImage: height, offset: dataOffset },
+            [width, height, 1]);
+    }
+
+    public writeToTexture(textureId: TextureId,
+                          imageData: ImageData,
+                          origin: vec3 = vec3.create(),
+                          sourceWidth: number = imageData.width,
+                          sourceHeight: number = imageData.height
+    ): void {
+        const texture = this.textures.get(textureId)!;
+        const bytesPerRow = sourceWidth * 4;
+        // console.groupCollapsed(textureId.toString())
+        // console.log('imageData: ', imageData, imageData.data, imageData.data.buffer)
+        // console.log('texture: ', texture)
+        // console.log('origin: ', origin)
+        // console.log('Bytes per row: ', bytesPerRow)
+        // console.log('rows per image: ', sourceHeight)
+        // console.log('Multiplied: ', bytesPerRow * sourceHeight)
+        // console.log('Image size : ', imageData.width, imageData.height)
+        // // console.log('Data array size : ', imageDataArray.length)
+        // console.groupEnd()
+        const imageDataArray = new Uint8ClampedArray(imageData.data, 0, bytesPerRow * sourceHeight);
+        this._device.queue.writeTexture({
+                texture,
+                mipLevel: 0,
+                origin: { x: origin[0], y: origin[1], z: origin[2] },
+            },
+            // imageData.data,
+            imageDataArray,
+            {
+                // width * 4 bytes per pixel for RGBA8
+                bytesPerRow: bytesPerRow,
+                rowsPerImage: sourceHeight,
+            },
+            {
+                width: sourceWidth,
+                height: sourceHeight,
+                depthOrArrayLayers: 1,
+            });
+    }
+
+
     getDevice(): WebGPUDevice {
         return this.gpuDevice;
     }
 
-    getContext(): WebGPUContext {
-        return this.gpuContext;
-    }
-
     private initDepthTexture(properties: PropertiesManager) {
+        const width = <number>properties.getAbsolute('window.width');
+        const height = <number>properties.getAbsolute('window.height');
+        if (width === 0 || height === 0) {
+            return;
+        }
+
+        if (!this.depthTexture || this.depthTexture.width !== width || this.depthTexture.height !== height) {
+            if (this.depthTexture) {
+                this.depthTexture.destroy();
+            }
+            this.depthTexture = this._device.createTexture({
+                size: [width, height, 1],
+                format: 'depth24plus',
+                usage: GPUTextureUsage.RENDER_ATTACHMENT,
+            });
+            return;
+        }
+
         this.depthTexture = this._device.createTexture({
-            size: [properties.getAbsolute('window.width'), properties.getAbsolute('window.height'), 1],
+            size: [width, height, 1],
             format: 'depth24plus',
             usage: GPUTextureUsage.RENDER_ATTACHMENT,
-        }).createView();
+        });
     }
 
     public static async initWebGPU(canvas: Canvas, properties: PropertiesManager): Promise<WebGPUGraphics> {
@@ -281,10 +414,16 @@ export default class WebGPUGraphics implements Graphics {
 
         const device = await adapter.requestDevice({ requiredLimits: { maxBindGroups: 4 } });
 
+        device.onuncapturederror = (error) => {
+            // alert('web gpu error')
+            // console.error("WebGPU Error:", error);
+        };
         console.groupCollapsed('WebGPU Adapter limits')
         console.table(adapter.limits)
+        console.log('Prefered canvas format: ', navigator.gpu.getPreferredCanvasFormat())
         console.groupEnd();
 
+        // const swapChainFormat = 'rgba16float';
         const swapChainFormat = 'bgra8unorm';
         context.configure({
             device: device,
@@ -299,6 +438,12 @@ export default class WebGPUGraphics implements Graphics {
 
         return new WebGPUGraphics(new WebGPUDevice(device), new WebGPUContext(context), properties);
     }
+
+    public _rawApi(): GPUDevice {
+        return this._device;
+    }
+
+
 }
 
 export class WebGPURenderPass implements RenderPass {
@@ -317,9 +462,7 @@ export class WebGPURenderPass implements RenderPass {
         return this;
     }
 
-    public setVertexBuffer(slot: number, vertexBufferId: VertexBufferId): RenderPass {
-        // Dirty temporary hack, why do we save separate buffer id for vertex buffer and normal buffer?
-        // const { bufferId } = this.graphics.vertexBuffers[vertexBufferId] || { bufferId: vertexBufferId };
+    public setVertexBuffer(slot: number, vertexBufferId: BufferId): RenderPass {
         this.passEncoder.setVertexBuffer(slot, this.graphics.buffers.get(vertexBufferId)!)
 
         return this;
@@ -352,6 +495,10 @@ export class WebGPURenderPass implements RenderPass {
         return this;
     }
 
+    public drawSimple(indices: number): RenderPass {
+        this.passEncoder.draw(indices);
+        return this;
+    }
 
     submit(): void {
         this.passEncoder.end();
@@ -360,3 +507,20 @@ export class WebGPURenderPass implements RenderPass {
     }
 
 }
+
+// RE CREATE DEPTH TEXTURE
+/*
+
+if (!depthTexture ||
+        depthTexture.width !== canvasTexture.width ||
+        depthTexture.height !== canvasTexture.height) {
+      if (depthTexture) {
+        depthTexture.destroy();
+      }
+      depthTexture = device.createTexture({
+        size: [canvasTexture.width, canvasTexture.height],
+        format: 'depth24plus',
+        usage: GPUTextureUsage.RENDER_ATTACHMENT,
+      });
+    }
+ */

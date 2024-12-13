@@ -11,6 +11,8 @@ export interface ObjectGroup {
     normals: number[];         // Flat array of normals
     texCoords: number[];       // Flat array of texture coordinates
     indices: number[];         // Flat array of indices
+    tangents: number[];
+    bitangents: number[];
     material?: ObjectMaterialData;        // The material associated with this geometry
 }
 
@@ -74,6 +76,8 @@ class ObjParser {
             normals: [],
             texCoords: [],
             indices: [],
+            tangents: [],
+            bitangents: []
         };
         visitedIndices['UNKNOWN'] = {};
 
@@ -90,6 +94,8 @@ class ObjParser {
                         normals: [],
                         texCoords: [],
                         indices: [],
+                        tangents: [],
+                        bitangents: [],
                     };
                 }
                 visitedIndices[parts[1]] = {};
@@ -212,7 +218,9 @@ class ObjParser {
                         vertices: [],
                         texCoords: [],
                         normals: [],
-                        indices: []
+                        indices: [],
+                        tangents: [],
+                        bitangents: [],
                     };
                 }
             } else if (parts[0] === 'f') {
@@ -276,52 +284,6 @@ class ObjParser {
         });
 
         return materials;
-    }
-
-    private aggregateGroups(groups: ObjectGroup[]): ObjectGroup {
-        if (groups.length === 1) {
-            return groups[0];
-        }
-
-        const allVertices = [];
-        const allNormals = [];
-        const allTexCoords = [];
-        const allIndices = [];
-
-        let nameAggregate = ''
-        let vertexOffset = 0;  // To track index offset as we aggregate data
-
-        for (const obj of groups) {
-            // Append vertices, normals, and texture coordinates from each object
-            nameAggregate = nameAggregate + '.' + obj.groupName;
-            for (let vertex of obj.vertices) {
-                allVertices.push(vertex);
-            }
-            for (let norma of obj.normals) {
-                allNormals.push(norma);
-            }
-            for (let texCoord of obj.texCoords) {
-                allTexCoords.push(texCoord);
-            }
-
-            // Adjust indices to account for vertex offset
-            for (let i = 0; i < obj.indices.length; i += 3) {
-                allIndices.push(obj.indices[i] + vertexOffset);  // Position index
-                allIndices.push(obj.indices[i + 1] + vertexOffset);  // Tex coord index (if present)
-                allIndices.push(obj.indices[i + 2] + vertexOffset);  // Normal index (if present)
-            }
-
-            // Update the offset to account for the next object
-            vertexOffset += obj.vertices.length / 3;  // Number of vertices added
-        }
-
-        return {
-            groupName: nameAggregate,
-            indices: allIndices,
-            normals: allNormals,
-            texCoords: allTexCoords,
-            vertices: allVertices
-        }
     }
 }
 

@@ -1,10 +1,5 @@
-import TerrainGeometry from "core/components/geometry/TerrainGeometry";
-import LightedMaterial from "core/components/material/LightedMaterial";
 import MaterialComponent, { defaultMaterialProps, MaterialProps } from "core/components/material/MaterialComponent";
 import { VertexShaderName } from 'core/resources/cpu/CpuShaderData';
-import { UniformVisibility } from 'core/resources/gpu/GpuShaderData';
-import { vec4 } from "gl-matrix";
-import MathUtil from "util/MathUtil";
 import ObjectUtils from "util/ObjectUtils";
 
 export default class TerrainMaterial extends MaterialComponent {

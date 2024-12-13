@@ -1,4 +1,6 @@
+import { GeometryData } from 'core/mesh/Geometry';
 import { mat3, mat4, vec2, vec3, vec4 } from "gl-matrix";
+import DebugUtil from 'util/DebugUtil';
 
 // export interface Frustum extends Iterable<vec4>{
 //     left: vec4,
@@ -10,6 +12,35 @@ import { mat3, mat4, vec2, vec3, vec4 } from "gl-matrix";
 // }
 
 class MathUtil {
+    float32ToFloat16(source: Float32Array) {
+        const float32Array = new Float32Array(1);
+        const uint32Array = new Uint32Array(float32Array.buffer);
+        function toFloat16(value: number) {
+            const floatView = float32Array;
+            const intView = uint32Array;
+
+            floatView[0] = value;
+            const x = intView[0];
+
+            // let sign = (x >> 31) << 15;
+            let exponent = ((x >> 23) & 0xff) - (127 - 15);
+            let mantissa = x & 0x7fffff;
+
+            if (exponent <= 0) {
+                if (exponent < -10) return (x >> 31) << 15;
+                mantissa = (mantissa | 0x800000) >> (1 - exponent);
+                return (x >> 31) << 15 | (mantissa >> 13);
+            } else if (exponent === 0xff - (127 - 15)) {
+                return (x >> 31) << 15 | 0x7c00 | (mantissa ? 1 : 0); // NaN or Inf
+            } else if (exponent > 30) {
+                return (x >> 31) << 15 | 0x7c00; // Overflow, becomes Inf
+            }
+
+            return (x >> 31) << 15 | (exponent << 10) | (mantissa >> 13);
+        }
+
+        return Uint16Array.from(source, toFloat16)
+    }
     clamp(value: number, min: number, max: number) {
         return Math.max(min, Math.min(value, max));
         // return Math.min(Math.max(value, min), max);
@@ -102,6 +133,16 @@ class MathUtil {
         return out;
     }
 
+    // mat4FromArray(array: number[]) {
+    //     const [x, y, z, w] = point;
+    //     out[0] = matrix[0] * x + matrix[4] * y + matrix[8] * z + matrix[12] * w;
+    //     out[1] = matrix[1] * x + matrix[5] * y + matrix[9] * z + matrix[13] * w;
+    //     out[2] = matrix[2] * x + matrix[6] * y + matrix[10] * z + matrix[14] * w;
+    //     out[3] = matrix[3] * x + matrix[7] * y + matrix[11] * z + matrix[15] * w;
+    //
+    //     return out;
+    // }
+
     /*rayIntersectsAABB(rayOrigin, rayDirection, aabbMin, aabbMax) {
         let tmin = (aabbMin[0] - rayOrigin[0]) / rayDirection[0];
         let tmax = (aabbMax[0] - rayOrigin[0]) / rayDirection[0];
@@ -179,66 +220,71 @@ class MathUtil {
         return { center, radius };
     }
 
-  /*  extractFrustumPlanes(viewProjectionMatrix: mat4): Frustum {
-        const planes: Partial<Frustum> = {};
+    /*  extractFrustumPlanes(viewProjectionMatrix: mat4): Frustum {
+          const planes: Partial<Frustum> = {};
 
-        // Temporary vectors for each plane
-        const leftPlane = vec4.create();
-        const rightPlane = vec4.create();
-        const bottomPlane = vec4.create();
-        const topPlane = vec4.create();
-        const nearPlane = vec4.create();
-        const farPlane = vec4.create();
+          // Temporary vectors for each plane
+          const leftPlane = vec4.create();
+          const rightPlane = vec4.create();
+          const bottomPlane = vec4.create();
+          const topPlane = vec4.create();
+          const nearPlane = vec4.create();
+          const farPlane = vec4.create();
 
-        // Extract each plane
-        planes.left = vec4.set(leftPlane,
-            viewProjectionMatrix[3] + viewProjectionMatrix[0],
-            viewProjectionMatrix[7] + viewProjectionMatrix[4],
-            viewProjectionMatrix[11] + viewProjectionMatrix[8],
-            viewProjectionMatrix[15] + viewProjectionMatrix[12]
-        );
-        planes.right = vec4.set(rightPlane,
-            viewProjectionMatrix[3] - viewProjectionMatrix[0],
-            viewProjectionMatrix[7] - viewProjectionMatrix[4],
-            viewProjectionMatrix[11] - viewProjectionMatrix[8],
-            viewProjectionMatrix[15] - viewProjectionMatrix[12]
-        );
-        planes.bottom = vec4.set(bottomPlane,
-            viewProjectionMatrix[3] + viewProjectionMatrix[1],
-            viewProjectionMatrix[7] + viewProjectionMatrix[5],
-            viewProjectionMatrix[11] + viewProjectionMatrix[9],
-            viewProjectionMatrix[15] + viewProjectionMatrix[13]
-        );
-        planes.top = vec4.set(topPlane,
-            viewProjectionMatrix[3] - viewProjectionMatrix[1],
-            viewProjectionMatrix[7] - viewProjectionMatrix[5],
-            viewProjectionMatrix[11] - viewProjectionMatrix[9],
-            viewProjectionMatrix[15] - viewProjectionMatrix[13]
-        );
-        planes.near = vec4.set(nearPlane,
-            viewProjectionMatrix[3] + viewProjectionMatrix[2],
-            viewProjectionMatrix[7] + viewProjectionMatrix[6],
-            viewProjectionMatrix[11] + viewProjectionMatrix[10],
-            viewProjectionMatrix[15] + viewProjectionMatrix[14]
-        );
-        planes.far = vec4.set(farPlane,
-            viewProjectionMatrix[3] - viewProjectionMatrix[2],
-            viewProjectionMatrix[7] - viewProjectionMatrix[6],
-            viewProjectionMatrix[11] - viewProjectionMatrix[10],
-            viewProjectionMatrix[15] - viewProjectionMatrix[14]
-        );
+          // Extract each plane
+          planes.left = vec4.set(leftPlane,
+              viewProjectionMatrix[3] + viewProjectionMatrix[0],
+              viewProjectionMatrix[7] + viewProjectionMatrix[4],
+              viewProjectionMatrix[11] + viewProjectionMatrix[8],
+              viewProjectionMatrix[15] + viewProjectionMatrix[12]
+          );
+          planes.right = vec4.set(rightPlane,
+              viewProjectionMatrix[3] - viewProjectionMatrix[0],
+              viewProjectionMatrix[7] - viewProjectionMatrix[4],
+              viewProjectionMatrix[11] - viewProjectionMatrix[8],
+              viewProjectionMatrix[15] - viewProjectionMatrix[12]
+          );
+          planes.bottom = vec4.set(bottomPlane,
+              viewProjectionMatrix[3] + viewProjectionMatrix[1],
+              viewProjectionMatrix[7] + viewProjectionMatrix[5],
+              viewProjectionMatrix[11] + viewProjectionMatrix[9],
+              viewProjectionMatrix[15] + viewProjectionMatrix[13]
+          );
+          planes.top = vec4.set(topPlane,
+              viewProjectionMatrix[3] - viewProjectionMatrix[1],
+              viewProjectionMatrix[7] - viewProjectionMatrix[5],
+              viewProjectionMatrix[11] - viewProjectionMatrix[9],
+              viewProjectionMatrix[15] - viewProjectionMatrix[13]
+          );
+          planes.near = vec4.set(nearPlane,
+              viewProjectionMatrix[3] + viewProjectionMatrix[2],
+              viewProjectionMatrix[7] + viewProjectionMatrix[6],
+              viewProjectionMatrix[11] + viewProjectionMatrix[10],
+              viewProjectionMatrix[15] + viewProjectionMatrix[14]
+          );
+          planes.far = vec4.set(farPlane,
+              viewProjectionMatrix[3] - viewProjectionMatrix[2],
+              viewProjectionMatrix[7] - viewProjectionMatrix[6],
+              viewProjectionMatrix[11] - viewProjectionMatrix[10],
+              viewProjectionMatrix[15] - viewProjectionMatrix[14]
+          );
 
-        // Normalize each plane
-        [leftPlane, rightPlane, bottomPlane, topPlane, nearPlane, farPlane].forEach(plane => {
-            const length = Math.sqrt(plane[0] ** 2 + plane[1] ** 2 + plane[2] ** 2);
-            vec4.scale(plane, plane, 1 / length);
-        });
+          // Normalize each plane
+          [leftPlane, rightPlane, bottomPlane, topPlane, nearPlane, farPlane].forEach(plane => {
+              const length = Math.sqrt(plane[0] ** 2 + plane[1] ** 2 + plane[2] ** 2);
+              vec4.scale(plane, plane, 1 / length);
+          });
 
-        return planes as Frustum;
-    }*/
+          return planes as Frustum;
+      }*/
 
     normalizePlane(plane: { normal: vec3, distance: number }) {
-        const length = plane.normal.length;
+        const length = Math.sqrt(
+            plane.normal[0] * plane.normal[0] +
+            plane.normal[1] * plane.normal[1] +
+            plane.normal[2] * plane.normal[2]
+        );
+
         vec3.scale(plane.normal, plane.normal, (1 / length));
         plane.distance /= length;
     }
@@ -276,64 +322,6 @@ class MathUtil {
         }
     */
 
-    interleaveGeometry(vertices: number[], textures: number[], normals: number[]) {
-        return vertices.reduce((acc, _, i) => {
-            if (i % 3 !== 0) {
-                return acc;
-            }
-            acc.push(vertices[i * 3], vertices[i * 3 + 1], vertices[i * 3 + 2]);
-            acc.push(textures[i * 2] || 0, textures[i * 2 + 1] || 0);
-            acc.push(normals[i * 3] || 0, normals[i * 3 + 1] || 0, normals[i * 3 + 2] || 1);
-            return acc;
-        }, [] as number []);
-    }
-
-    interleaveArrays(arrays: number[][], strides: number[]): Float32Array {
-        // Validate input lengths
-        if (arrays.length !== strides.length) {
-            throw new Error("Each array must have a corresponding stride.");
-        }
-
-        // Check that each array length is a multiple of its stride
-        arrays.forEach((arr, i) => {
-            if (arr.length % strides[i] !== 0) {
-                throw new Error(`Array at index ${i} has a length that is not a multiple of its stride.`);
-            }
-        });
-
-        // Determine the number of "items" (groups of elements) based on the first array
-        const numItems = arrays[0].length / strides[0];
-
-        // Validate that all arrays have the same number of items
-        arrays.forEach((arr, i) => {
-            if (arr.length / strides[i] !== numItems) {
-                throw new Error("All arrays must represent the same number of items based on their strides.");
-            }
-        });
-
-        // Calculate the total stride (combined length of each item's data)
-        const totalStride = strides.reduce((sum, stride) => sum + stride, 0);
-        // console.log(`Total stride ${totalStride}, stride: ${strides}`)
-        // console.log('Num items: ', numItems)
-
-        // Initialize the interleaved array
-        const interleaved = new Float32Array(numItems * totalStride);
-
-        // Interleave data
-        for (let itemIndex = 0; itemIndex < numItems; itemIndex++) {
-            let offset = 0;
-            for (let arrayIndex = 0; arrayIndex < arrays.length; arrayIndex++) {
-                const stride = strides[arrayIndex];
-                const start = itemIndex * stride;
-                const end = start + stride;
-                interleaved.set(arrays[arrayIndex].slice(start, end), itemIndex * totalStride + offset);
-                offset += stride;
-            }
-        }
-
-        return interleaved;
-    }
-
     prettyPrintMat4(mat4: mat4) {
         let str = "";
         for (let i = 0; i < mat4.length; i++) {
@@ -341,6 +329,154 @@ class MathUtil {
         }
         return str;
     }
+
+    calculateBiTangents(normals: ArrayLike<number>,
+                        tangents: ArrayLike<number>,
+                        vertexCount: number): Float32Array<ArrayBufferLike> {
+        const bitangents = new Float32Array(vertexCount * 3); // VEC3 per vertex
+
+        for (let i = 0; i < vertexCount; i++) {
+            const nx = normals[i * 3];
+            const ny = normals[i * 3 + 1];
+            const nz = normals[i * 3 + 2];
+
+            const tx = tangents[i * 4]; // Tangent x
+            const ty = tangents[i * 4 + 1]; // Tangent y
+            const tz = tangents[i * 4 + 2]; // Tangent z
+            const tw = tangents[i * 4 + 3]; // Tangent.w (handedness)
+
+            // Cross product: B = cross(N, T)
+            const bx = ny * tz - nz * ty;
+            const by = nz * tx - nx * tz;
+            const bz = nx * ty - ny * tx;
+
+            // Scale by handedness: B *= T.w
+            bitangents[i * 3] = bx * tw;
+            bitangents[i * 3 + 1] = by * tw;
+            bitangents[i * 3 + 2] = bz * tw;
+        }
+
+        return bitangents;
+    }
+
+    calculateTBNV({ vertices, normals, texCoords, indices }: GeometryData): GeometryData {
+        const tangents = new Float32Array(vertices.length); // Tangents
+        const bitangents = new Float32Array(vertices.length); // Bitangents
+
+        for (let i = 0; i < indices.length; i += 3) {
+            const i0 = indices[i];
+            const i1 = indices[i + 1];
+            const i2 = indices[i + 2];
+
+            // Get vertices
+            const v0 = vec3.fromValues(
+                vertices[i0 * 3],
+                vertices[i0 * 3 + 1],
+                vertices[i0 * 3 + 2]
+            );
+            const v1 = vec3.fromValues(
+                vertices[i1 * 3],
+                vertices[i1 * 3 + 1],
+                vertices[i1 * 3 + 2]
+            );
+            const v2 = vec3.fromValues(
+                vertices[i2 * 3],
+                vertices[i2 * 3 + 1],
+                vertices[i2 * 3 + 2]
+            );
+
+            // Get UVs
+            const uv0 = vec3.fromValues(texCoords[i0 * 2], texCoords[i0 * 2 + 1], 0);
+            const uv1 = vec3.fromValues(texCoords[i1 * 2], texCoords[i1 * 2 + 1], 0);
+            const uv2 = vec3.fromValues(texCoords[i2 * 2], texCoords[i2 * 2 + 1], 0);
+
+            // Get normals
+            const n0 = vec3.fromValues(
+                normals[i0 * 3],
+                normals[i0 * 3 + 1],
+                normals[i0 * 3 + 2]
+            );
+            const n1 = vec3.fromValues(
+                normals[i1 * 3],
+                normals[i1 * 3 + 1],
+                normals[i1 * 3 + 2]
+            );
+            const n2 = vec3.fromValues(
+                normals[i2 * 3],
+                normals[i2 * 3 + 1],
+                normals[i2 * 3 + 2]
+            );
+
+            // Calculate edges in world space
+            const edge1 = vec3.create();
+            const edge2 = vec3.create();
+            vec3.subtract(edge1, v1, v0);
+            vec3.subtract(edge2, v2, v0);
+
+            // Calculate UV deltas
+            const deltaUV1 = vec3.create();
+            const deltaUV2 = vec3.create();
+            vec3.subtract(deltaUV1, uv1, uv0);
+            vec3.subtract(deltaUV2, uv2, uv0);
+
+            // Compute tangent
+            const f = 1.0 / (deltaUV1[0] * deltaUV2[1] - deltaUV2[0] * deltaUV1[1]);
+            const tangent = vec3.create();
+            vec3.scale(tangent, edge1, deltaUV2[1]);
+            vec3.scaleAndAdd(tangent, tangent, edge2, -deltaUV1[1]);
+            vec3.scale(tangent, tangent, f);
+
+            // Orthogonalize tangent with normal
+            const n0Tangent = vec3.create();
+            vec3.scale(n0Tangent, n0, vec3.dot(n0, tangent));
+            vec3.subtract(tangent, tangent, n0Tangent);
+            vec3.normalize(tangent, tangent);
+
+            // Compute bitangent using cross product
+            const bitangent = vec3.create();
+            vec3.cross(bitangent, n0, tangent);
+            vec3.normalize(bitangent, bitangent);
+
+            // Store tangent and bitangent for each vertex
+            for (const index of [i0, i1, i2]) {
+                tangents[index * 3] += tangent[0];
+                tangents[index * 3 + 1] += tangent[1];
+                tangents[index * 3 + 2] += tangent[2];
+
+                bitangents[index * 3] += bitangent[0];
+                bitangents[index * 3 + 1] += bitangent[1];
+                bitangents[index * 3 + 2] += bitangent[2];
+            }
+        }
+
+        // Normalize tangents and bitangents
+        for (let i = 0; i < tangents.length; i += 3) {
+            const tangent = vec3.fromValues(
+                tangents[i],
+                tangents[i + 1],
+                tangents[i + 2]
+            );
+            const bitangent = vec3.fromValues(
+                bitangents[i],
+                bitangents[i + 1],
+                bitangents[i + 2]
+            );
+
+            vec3.normalize(tangent, tangent);
+            vec3.normalize(bitangent, bitangent);
+
+            tangents[i] = tangent[0];
+            tangents[i + 1] = tangent[1];
+            tangents[i + 2] = tangent[2];
+
+            bitangents[i] = bitangent[0];
+            bitangents[i + 1] = bitangent[1];
+            bitangents[i + 2] = bitangent[2];
+        }
+
+        return { vertices, normals, texCoords, indices, tangents: [...tangents], bitangents: [...bitangents] };
+    }
 }
 
+DebugUtil.addToWindowObject('mathUtil', new MathUtil());
 export default new MathUtil();

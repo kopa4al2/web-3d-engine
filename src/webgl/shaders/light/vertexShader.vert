@@ -2,23 +2,73 @@
 precision highp int;
 precision highp float;
 
-layout(std140) uniform Global {
-    mat4 uProjectionView;
-    vec4 uViewPosition;// The eye of the camera
-    vec4 uLightDirection;
-    vec4 uLightColor;
+const int MAX_DIRECTIONAL_LIGHTS = 2;
+const int MAX_POINT_LIGHTS = 4;
+
+struct PointLight {
+    vec4 position;
+    vec4 color;
+    float intensity;
+    float constantAtt;// Constant attenuation
+    float linearAtt;// Linear attenuation
+    float quadraticAtt;// Quadratic attenuation
+};
+
+struct DirectionalLight {
+    vec4 direction;
+    vec4 color;
+    float intensity;
+};
+
+
+layout(std140) uniform Camera {
+    mat4 projectionViewMatrix;
+    vec4 cameraPosition;// The eye of the camera
+};
+
+layout(std140) uniform Light {
+    DirectionalLight directionalLights[MAX_DIRECTIONAL_LIGHTS];
+    PointLight pointLights[MAX_POINT_LIGHTS];
+    uint numDirectionalLights;
+    uint numPointLights;
+    // vec2 padding
+};
+
+layout(std140) uniform Time {
+    float deltaTime;
+    float timePassed;
+    // vec2 _padding;
 };
 
 layout(location = 0) in vec3 aVertexPosition;
 layout(location = 1) in vec2 textureUV;
 layout(location = 2) in vec3 aNormal;
+layout(location = 3) in vec4 aTangent;
 
-out vec2 vTexCoord;
 out vec3 vFragPosition;
-out vec3 vFragNormal;
+out vec2 vTextureCoord;
+out vec3 vNormal;
+out vec3 vTangent;
+out vec3 vBitangent;
 
 uniform sampler2D instanceDataTexture;
 uniform float textureWidth;
+
+mat4 getInstanceMatrix(float id, float offset);
+
+void main() {
+    mat4 modelMatrix = getInstanceMatrix(float(gl_InstanceID), 0.0);
+    mat4 inverseModel = getInstanceMatrix(float(gl_InstanceID), 4.0);
+
+    vFragPosition = vec3(modelMatrix * vec4(aVertexPosition, 1.0));
+
+    vTextureCoord = textureUV;
+    vNormal = normalize(inverseModel * vec4(aNormal, 0.0)).xyz;
+    vTangent = normalize(modelMatrix * aTangent).xyz;
+    vBitangent = normalize(cross(vNormal, vTangent) * aTangent.w);
+
+    gl_Position = projectionViewMatrix * modelMatrix * vec4(aVertexPosition, 1.0);
+}
 
 mat4 getInstanceMatrix(float id, float offset) {
     float numberOfPixelsTotal = 8.0; // The number of pixels used for data. 1 pixel is 4 floats - 16 bytes. We use 2 mat4 so 2 * 16 = 32 flota - 8 pixels
@@ -36,6 +86,8 @@ mat4 getInstanceMatrix(float id, float offset) {
 
     return mat4(row0, row1, row2, row3);
 }
+
+
 // TODO: Test this
 //mat4 getModelMatrix(int instanceID) {
 //    float row = float(instanceID) * 4.0;
@@ -46,14 +98,3 @@ mat4 getInstanceMatrix(float id, float offset) {
 //    texelFetch(modelMatrixTexture, ivec2(3, int(row + 3.0)), 0)
 //    );
 //}
-
-void main() {
-    mat4 modelMatrix = getInstanceMatrix(float(gl_InstanceID), 0.0);
-    mat4 inverseModel = getInstanceMatrix(float(gl_InstanceID), 4.0);
-
-    vFragPosition = vec3(modelMatrix * vec4(aVertexPosition, 1.0));
-    vFragNormal = mat3(inverseModel) * aNormal;
-
-    gl_Position = uProjectionView * modelMatrix * vec4(aVertexPosition, 1.0);
-    vTexCoord = textureUV;
-}

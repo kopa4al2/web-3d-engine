@@ -1,16 +1,18 @@
-import { VertexBufferId } from 'core/Graphics';
 import BoundingVolume, { BoundingVolumeType } from 'core/mesh/BoundingVolume';
 import BoundingSphere from 'core/physics/BoundingSphere';
-import { VertexLayout, VertexLayoutEntry, VertexShaderName } from 'core/resources/cpu/CpuShaderData';
-import { BufferId } from 'core/resources/gpu/BufferDescription';
+import { VertexLayout, VertexShaderName } from 'core/resources/cpu/CpuShaderData';
+import { BufferData, BufferId } from 'core/resources/gpu/BufferDescription';
 import { vec3 } from 'gl-matrix';
 
 export interface GeometryData {
-    vertices: number[];        // Flat array of vertex positions
-    normals: number[];         // Flat array of normals
-    texCoords: number[];       // Flat array of texture coordinates
-    indices: number[];         // Flat array of indices
+    vertices: number[] | BufferData;        // Flat array of vertex positions
+    normals: number[] | BufferData;         // Flat array of normals
+    texCoords: number[] | BufferData;       // Flat array of texture coordinates
+    indices: number[] | BufferData;         // Flat array of indices
+    tangents: number[] | BufferData;
+    bitangents?: number[] | BufferData;
 }
+
 export interface GeometryDescriptor {
     vertexLayout: VertexLayout,
     vertexShader: VertexShaderName
@@ -20,7 +22,7 @@ export default class Geometry {
 
     private readonly boundingVolumes: Map<BoundingVolumeType, BoundingVolume>;
 
-    constructor(public readonly vertexBuffer: VertexBufferId,
+    constructor(public readonly vertexBuffer: BufferId,
                 public readonly indexBuffer: BufferId,
                 public readonly indices: number,
                 public readonly descriptor: GeometryDescriptor) {

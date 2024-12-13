@@ -1,25 +1,29 @@
 {
   "compilerOptions": {
     "baseUrl": "src",
-    "rootDir": "src",
-    "paths": {
-      "core/*": ["core/*"]
-    },
-    "target": "es2019",
-    "module": "es6",
-    "moduleResolution": "Bundler",
-//    "moduleResolution": "Node",
-    "strict": true,
     "esModuleInterop": true,
-    "strictPropertyInitialization": true,
     "experimentalDecorators": true,
+    "forceConsistentCasingInFileNames": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "outDir": "./dist",
+    "paths": {
+      "core/*": [
+        "core/*"
+      ]
+    },
+    "rootDir": "src",
+    "skipLibCheck": true,
+    "sourceMap": true,
+    "strict": true,
+    "strictPropertyInitialization": true,
+    "target": "ES2023",
     "types": [
       "@webgpu/types"
-    ],
-    "outDir": "./dist",
-    "sourceMap": true
+    ]
   },
   "include": [
-    "src/**/*"
+    "src/**/*",
+    "src/types/**/*"
   ]
 }

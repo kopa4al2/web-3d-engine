@@ -124,7 +124,7 @@ class RateLimitedLogger extends Logger {
     // private queuedMessages: Set<string> = new Set;
     private queuedMessages: RateLimitedLogEntry[] = [];
 
-    constructor(private caller: string, logInterval: number = 3000) {
+    constructor(private caller: string, logInterval: number = 10_000) {
         super();
         this.logInterval = logInterval;
         setInterval(() => this.flushLogs(), logInterval);
@@ -239,6 +239,33 @@ class Observer {
 
         return proxy;
     }
+
+   /* deepObserveV2<T>(obj: T, name?: string): T {
+        const isObject = obj => obj && typeof obj === 'object';
+
+        const deepHandler = {
+            get(target, prop, receiver) {
+                const value = Reflect.get(target, prop, receiver);
+
+                // Recursively wrap nested objects and arrays in proxies
+                if (isObject(value)) {
+                    return createDeepProxy(value, handler);
+                }
+                return value;
+            },
+            set(target, prop, value, receiver) {
+                const oldValue = target[prop];
+                const result = Reflect.set(target, prop, value, receiver);
+
+                // Trigger handler when a change occurs
+                handler(target, prop, value, oldValue);
+                return result;
+            }
+        };
+
+        // Wrap the top-level target in a Proxy and apply deep handler
+        return new Proxy(target, deepHandler);
+    }*/
 
     private createProxy<T extends Object>(object: T,
                                           onChange: (target: T, p: string | symbol, newValue: any, receiver: any) => boolean): T {

@@ -4,20 +4,16 @@ import ProjectionMatrix from "core/components/camera/ProjectionMatrix";
 import EntityManager from "core/EntityManager";
 import Graphics from "core/Graphics";
 import TextureLoader from "core/loader/TextureLoader";
+import GLTFParserOld from 'core/parser/GLTFParserOld';
+import GLTFParser from "core/parser/GLTFParser";
 import PropertiesManager, { PartialProperties, Property, PropertyValue } from "core/PropertiesManager";
-import { createVertexLayoutWithData } from 'core/resources/DefaultBindGroupLayouts';
 import EntityComponentSystem from "core/systems/EntityComponentSystem";
-import { isEnabled, testStuff } from 'core/utils/TestStuff';
 import Engine, { OnRenderPlugin } from "Engine";
-import { vec2, vec3 } from "gl-matrix";
-import {
-    enableEntitySelect,
-    enableGpuGraphicsApiSwitch,
-    enableSplitScreenSwitch,
-    enableWireframeSwitch
-} from "html/Controls";
+import { glMatrix, mat4, vec2, vec3 } from "gl-matrix";
+import { enableGpuGraphicsApiSwitch, enableSplitScreenSwitch, enableWireframeSwitch } from "html/Controls";
 import { enableWebComponentEntitySelect } from 'html/entity-select/EntitySelect';
 import { fpsCounter } from "html/Views";
+import DebugUtil from 'util/DebugUtil';
 import WebGLGraphics from "webgl/WebGLGraphics";
 import WebGPUGraphics from "webgpu/graphics/WebGPUGraphics";
 
@@ -25,6 +21,8 @@ import WebGPUGraphics from "webgpu/graphics/WebGPUGraphics";
 Symbol.prototype.toString = function () {
     return this.description || 'N/A';
 }
+DebugUtil.addToWindowObject('mat4', mat4);
+DebugUtil.addToWindowObject('glMatrix', glMatrix);
 
 enableWebComponentEntitySelect();
 
@@ -35,27 +33,32 @@ const onRender: OnRenderPlugin = () => {
 };
 
 document.body.onload = async () => {
-    if (isEnabled) {
-        testStuff();
-        return;
-    }
     console.timeLog(loadTimer, 'DOM loaded')
+
     await Promise.all([
-        await TextureLoader.loadTexture('noop', "assets/1x1texture.png"),
-        await TextureLoader.loadTexture('grassTexture1', "assets/terrain/grass.jpg"),
-        // await TextureLoader.loadTexture('grass-2', "assets/terrain/grass-2.png"),
-        await TextureLoader.loadTexture('mountainTexture1', "assets/terrain/stone-1.png"),
-        await TextureLoader.loadTexture('waterTexture1', "assets/terrain/sea-water-1.jpg"),
-        // await TextureLoader.loadTexture('mountain-1', "assets/terrain/mountain-1.jpg"),
-        await TextureLoader.loadTexture('snowTexture1', "assets/terrain/snow-small.jpg"),
-        // await TextureLoader.loadTexture('snow-1', "assets/terrain/snow-1.jpg"),
-        await TextureLoader.loadTexture('texture2', "assets/texture.png", 'uSampler'),
-        await TextureLoader.loadTexture('texture1', "assets/texture-2.jpg", 'uSampler'),
-        await TextureLoader.loadTexture('texture', "assets/DALL·E-tex-1.webp"),
-        // await TextureLoader.loadHeightMap('heightMap', "assets/terrain/heightmaps/grayscale-terrai-map.webp"),
-        // await TextureLoader.loadHeightMap('heightMap', "assets/terrain/heightmaps/render-dobrichx5.png"),
-        await TextureLoader.loadHeightMap('heightMap', "assets/terrain/heightmaps/render-dobrichx1.png"),
-    ]);
+        // new GLTFParser().parseGltf('assets/scene/sponza_atrium/gltf/scene.gltf', 'assets/scene/sponza_atrium/gltf/scene.bin'),
+        // new GLTFParser().parseGlb('assets/scene/sponza_atrium/sponza_atrium_3.glb')
+    ])
+
+    console.timeLog(loadTimer, 'GLTF Loaded');
+
+    // TODO: AWAIT!!!
+    //  await Promise.all([
+    //     TextureLoader.loadTexture('barrel', "assets/advanced/barrel/barrel.png"),
+    //     TextureLoader.loadTexture('barrelNormal', "assets/advanced/barrel/barrelNormal.png"),
+    //
+    //     TextureLoader.loadTexture('crate', "assets/advanced/crate/crate.png"),
+    //     TextureLoader.loadTexture('crateNormal', "assets/advanced/crate/crateNormal.png"),
+    //
+    //
+    //     TextureLoader.loadTexture('noop', "assets/1x1texture.png"),
+    //     TextureLoader.loadTexture('grassTexture1', "assets/terrain/grass.jpg"),
+    //     TextureLoader.loadTexture('mountainTexture1', "assets/terrain/stone-1.png"),
+    //     TextureLoader.loadTexture('waterTexture1', "assets/terrain/sea-water-1.jpg"),
+    //     TextureLoader.loadTexture('snowTexture1', "assets/terrain/snow-1.jpg"),
+    //     TextureLoader.loadTexture('texture', "assets/DALL·E-tex-1.webp"),
+    //     TextureLoader.loadHeightMap('heightMap', "assets/terrain/heightmaps/render-dobrichx1.png"),
+    // ]);
     console.timeLog(loadTimer, 'textures loaded');
 
     enableSplitScreenSwitch(screenProps, document.getElementById('global-controls')!);
@@ -139,12 +142,12 @@ document.body.onload = async () => {
             });
 
             stoppedEngineProps.updateNestedProperty('window', { width: 0, leftOffset: 0, hide: true });
-            stoppedEngineProps.flushBuffer();
             engineToStart.isRunning = true;
             engineToStop.isRunning = false;
 
             glProps.updateProperty('splitScreen', false);
             gpuProps.updateProperty('splitScreen', false);
+            stoppedEngineProps.flushBuffer();
         } else {
             gpuEngine.isRunning = true;
             glEngine.isRunning = true;
@@ -178,7 +181,7 @@ const screenProps = new PropertiesManager({
     },
     wireframe: false,
     fieldOfView: Math.PI / 4,
-    zNear: 0.01,
+    zNear: 0.1,
     zFar: 100,
     // splitScreen: false,
     splitScreen: !!localStorage.getItem('splitScreen'),
@@ -200,7 +203,7 @@ const screenProps = new PropertiesManager({
 
 const sharedProps: PartialProperties = {
     fieldOfView: Math.PI / 4,
-    zNear: 0.01,
+    zNear: 0.1,
     zFar: 1000,
 }
 
@@ -215,8 +218,8 @@ async function initWebGlEngine(properties: PartialProperties) {
         },
         wireframe: properties.wireframe || false,
         fieldOfView: Math.PI / 4,
-        zNear: 0.01,
-        zFar: 100,
+        zNear: 0.1,
+        zFar: 1000,
         splitScreen: properties.splitScreen || false,
         gpuApi: 'webgl2',
         window: {
@@ -253,9 +256,9 @@ async function initWebGpu(properties: PartialProperties) {
         },
         wireframe: properties.wireframe || false,
         fieldOfView: Math.PI / 4,
-        zNear: 0.01,
-        zFar: 100,
-        splitScreen: properties.splitScreen || true,
+        zNear: 0.1,
+        zFar: 1000,
+        splitScreen: properties.splitScreen || false,
         gpuApi: 'webgpu',
         window: {
             width: properties['window.width'] as number || window.innerWidth / 2,

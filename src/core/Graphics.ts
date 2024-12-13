@@ -1,11 +1,25 @@
-import { BufferData, BufferDescription, BufferId, TextureData } from "core/resources/gpu/BufferDescription";
-import { BindGroupLayout, BindGroupEntry, ShaderProgramDescription } from "core/resources/gpu/GpuShaderData";
-import { SamplerId, TextureId } from "core/texture/Texture";
+import BindGroup from 'core/resources/BindGroup';
+import BindGroupLayout from 'core/resources/BindGroupLayout';
+import { BufferData, BufferDescription, BufferId } from "core/resources/gpu/BufferDescription";
+import { ShaderProgramDescription } from "core/resources/gpu/GpuShaderData";
+import SamplingConfig from "core/texture/SamplingConfig";
+import {
+    SamplerId,
+    TextureDescription,
+    ImageChannelFormat,
+    TextureId,
+    ImageChannel,
+    ImageWithData, TextureType, GlFace
+} from "core/texture/Texture";
+import { vec3 } from 'gl-matrix';
+
+export enum SupportedGraphicsApi {
+    WEBGL2, WEBGPU
+}
 
 export type PipelineId = symbol;
-export type BindGroupLayoutGroupId = symbol;
+export type BindGroupLayoutId = symbol;
 export type BindGroupId = symbol;
-export type VertexBufferId = symbol;
 
 export interface GraphicsDevice {
 
@@ -15,27 +29,41 @@ export interface GPUContext {
 
 }
 
+export interface UpdateTexture {
+    data: ImageWithData
+    dataOffset?: number,
+    x: number,
+    y: number,
+    z?: number,
+    glFace?: GlFace,
+}
+
 export default interface Graphics {
 
     beginRenderPass(): RenderPass;
 
     initPipeline(shader: ShaderProgramDescription): PipelineId;
 
-    removePipeline?(pipelineId: PipelineId): void;
+    createShaderLayout(layout: BindGroupLayout): BindGroupLayoutId;
 
-    createShaderLayout(layout: BindGroupLayout): BindGroupLayoutGroupId;
-
-    createBindGroup(layoutId: BindGroupLayoutGroupId, bindGroups: BindGroupEntry[]): BindGroupId;
+    createBindGroup(layoutId: BindGroupLayoutId, bindGroups: BindGroup): BindGroupId;
 
     createBuffer(buffer: BufferDescription): BufferId;
 
     createBufferWithData(buffer: BufferDescription, data: BufferData): BufferId;
 
-    createTexture(img: TextureData, name?: string): TextureId;
+    createTexture(textureDescription: TextureDescription): TextureId;
 
-    createSampler(): SamplerId;
+    createSampler(sampler: SamplingConfig): SamplerId;
 
-    writeToBuffer(buffer: BufferId, data: BufferData, bufferOffset?: number, dataOffset?: number, dataToWriteSize?: number): void
+    writeToBuffer(buffer: BufferId, data: BufferData, bufferOffset?: number, dataOffset?: number, dataToWriteSize?: number): void;
+
+    writeToTexture(textureId: TextureId, source: ImageData, coordinates?: vec3, sourceWidth?: number, sourceHeight?: number): void;
+
+    updateTexture(textureId: TextureId, updateTexture: UpdateTexture): void;
+
+    // ONLY FOR DEBUGGING
+    _rawApi(): WebGL2RenderingContext | GPUDevice
 }
 
 export interface RenderPass {
@@ -49,6 +77,8 @@ export interface RenderPass {
     drawInstanced(indexBuffer: BufferId, indices: number, instances: number): RenderPass;
 
     drawIndexed(indexBuffer: BufferId, indices: number): RenderPass;
+
+    drawSimple(indices: number): RenderPass;
 
     submit(): void;
 }

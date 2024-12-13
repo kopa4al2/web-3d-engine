@@ -44,11 +44,9 @@ export default class Canvas {
             if (this.props.getBoolean('splitScreen')) {
                 this.width = window.innerWidth / 2;
                 if (this.props.get<number>('window.leftOffset') > 0) {
-                    let leftOffset = window.innerWidth - this.width;
+                    const leftOffset = window.innerWidth - this.width;
                     this.props.updateNestedProperty('window', { leftOffset })
                     this.parent.style.left = leftOffset + 'px';
-                    // this.htmlElement.style.left = leftOffset + 'px';
-
                 }
             }
 
@@ -64,10 +62,7 @@ export default class Canvas {
     }
 
     getWebGl2Context(): WebGL2RenderingContext {
-        const ctx = this.htmlElement.getContext("webgl2",
-            {
-                depth: true,
-            });
+        const ctx = this.htmlElement.getContext("webgl2", { depth: true, });
 
         if (!ctx) {
             throw 'WebGL2 Is not supported';

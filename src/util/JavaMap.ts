@@ -1,6 +1,12 @@
+import DebugUtil from 'util/DebugUtil';
 import { Comparable, Comparator } from 'util/JavaTypes';
 
 export default class JavaMap<K, V> extends Map<K, V> {
+
+    constructor() {
+        super();
+        DebugUtil.addToWindowObject('JavaMap', JavaMap);
+    }
 
     get(key: K): V {
         return super.get(key) as V;
@@ -36,7 +42,11 @@ export default class JavaMap<K, V> extends Map<K, V> {
         return this.size === 0;
     }
 
-    public static groupBy<T, K extends keyof T, V extends T[K]>(objs: T[], key: K): JavaMap<V, T[]> {
+    public static groupBy<T,
+        K extends keyof T,
+        V extends T[K], U>(objs: T[],
+                           key: K,
+                           remappingFunction: (t: T) => U = (t: T) => t as unknown as U): JavaMap<V, U[]> {
         return objs.reduce((acc, obj) => {
             const keyValue = obj[key] as V;
 
@@ -46,10 +56,10 @@ export default class JavaMap<K, V> extends Map<K, V> {
             }
 
             // Add the object to the corresponding group
-            acc.get(keyValue).push(obj);
+            acc.get(keyValue).push(remappingFunction(obj));
 
             return acc;
-        }, new JavaMap<V, T[]>());
+        }, new JavaMap<V, U[]>());
     }
 
     public static groupByTwoProperties<T,

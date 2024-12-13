@@ -16,7 +16,7 @@ export default class TransformSystem implements UpdateSystem {
             // if (transform && entity.toString().includes('dragon')  || entity.toString().includes('cube')) {
             if (transform && !entity.toString().includes('terrain')) {
                 // transform.rotation[0] += deltaTime * 0.2;  // Rotate by 0.5 radians per second
-                // transform.rotation[1] += deltaTime * 0.5;  // Rotate by 0.5 radians per second
+                // transform.rotation[1] += deltaTime * 0.1;  // Rotate by 0.5 radians per second
                 // transform.rotation[2] += deltaTime * 0.5;  // Rotate by 0.5 radians per second
             }
         }

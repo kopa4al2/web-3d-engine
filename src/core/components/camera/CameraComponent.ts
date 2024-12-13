@@ -1,7 +1,10 @@
-import { mat4, vec2, vec3 } from "gl-matrix";
+import Component from 'core/components/Component';
+import { mat4, vec2, vec3, vec4 } from "gl-matrix";
+import DebugUtil from 'util/DebugUtil';
 import logger from 'util/Logger';
+import MathUtil from 'util/MathUtil';
 
-export default class CameraComponent {
+export default class CameraComponent implements Component {
     static readonly ID: symbol = Symbol('Camera');
     readonly id = CameraComponent.ID;
 
@@ -9,23 +12,34 @@ export default class CameraComponent {
     public deceleration = 100.0;
     public maxSpeed = 30.0;
     public zoomSpeed = 1.0;
+    public right: vec3;
 
     constructor(
         public position: vec3,
-        public forward: vec3,
-        public up: vec3,
-        public sensitivity: number = 0.1,
+        public forward: vec3 = [0, 0, -1],
+        public up: vec3 = [0, 1, 0],
+        public sensitivity: number = 0.3,
         public velocity: vec3 = vec3.create(),
-        public euler: EulerAngles = new EulerAngles(-90, 0.0, 0.0),
-        public targetEuler: EulerAngles = new EulerAngles(-90, 0.0, 0.0)) {
+        public euler: EulerAngles = new EulerAngles(0.0, 0.0, 0.0),
+        public targetEuler: EulerAngles = new EulerAngles(0.0, 0.0, 0.0)) {
+        DebugUtil.addToWindowObject('camera', this);
+        this.right = vec3.cross(vec3.create(), forward, up)
         setInterval(() => {
             logger.debug('Camera position', this);
-        }, 120_000)
+        }, 60_000)
+
+        // setInterval(() => {
+        //     console.log('Camera forward: ', [...this.forward].map(component =>
+        //         Math.abs(component) < 1e-2 ? 0 : Math.abs(component) >= 1e7 ? 1 : component
+        //     ));
+        // }, 10_000)
     }
 
     viewMatrix(): mat4 {
-        let target = vec3.add(vec3.create(), this.position, this.forward);
-        return mat4.lookAt(mat4.create(), this.position, target, this.up);
+        const target = vec3.add(vec3.create(), this.position, this.forward);
+        const viewMat = mat4.lookAt(mat4.create(), this.position, target, this.up);
+        // mat4.rotateX(viewMat, viewMat, Math.PI / 180);
+        return viewMat;
     }
 }
 
@@ -50,8 +64,8 @@ class EulerAngles {
     }
 }
 
-export const FREE_CAMERA = new CameraComponent(
-    vec3.fromValues(6, 24, 44),
-    vec3.fromValues(0.1, -0.5, -0.9),
-    vec3.fromValues(0, 1, 0));
+// export const FREE_CAMERA = new CameraComponent(
+//     vec3.fromValues(6, 24, 44),
+//     vec3.fromValues(0.1, -0.5, -0.9),
+//     vec3.fromValues(0, 1, 0));
 

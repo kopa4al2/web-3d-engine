@@ -22,7 +22,6 @@ export default class EntityManager {
 
     public createEntity(name: EntityName): EntityId {
         const entityId = Symbol(name + '-entity');
-        // const entityId = name;
         this.entities.set(entityId, new Map());
         return entityId;
     }

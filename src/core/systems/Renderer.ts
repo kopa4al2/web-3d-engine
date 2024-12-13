@@ -1,71 +1,124 @@
-import { defaultTransform, randomTransform } from 'core/components/Transform';
-import EntityManager from "core/EntityManager";
-import MeshManager from 'core/resources/MeshManager';
+import { DirectionalLight, PointLight } from 'core/components/camera/LightSource';
+import Mesh from 'core/components/Mesh';
+import { ModelMatrix } from 'core/components/Transform';
+import EntityManager, { EntityId } from "core/EntityManager";
+import Frustum from 'core/physics/Frustum';
+import BufferManager from "core/resources/BufferManager";
+import ResourceManager from "core/resources/ResourceManager";
 import { System } from "core/systems/EntityComponentSystem";
-import { mat4 } from "gl-matrix";
-import { rateLimitedLog } from 'util/Logger';
-import Graphics from "../../core/Graphics";
+import { mat4, vec3, vec4 } from "gl-matrix";
+import JavaMap from 'util/JavaMap';
+import Graphics, { PipelineId, RenderPass } from "../../core/Graphics";
 
-
+/**
+ * Knows of global buffers / textures (to bind them)
+ * Knows of global buffer layout (calculates and writes data to it)
+ * Has to bind all groups / vertex shaders
+ */
 export default class Renderer implements System {
 
     private projectionViewMatrix: mat4 = mat4.create();
 
     constructor(private graphics: Graphics,
                 private entityManager: EntityManager,
-                private meshFactory: MeshManager) {
+                private resourceManager: ResourceManager) {
     }
 
     public update(deltaTime: number): void {
         const scene = this.entityManager.scenes[0];
         scene.update();
 
-        const viewMatrix = mat4.create();
-        mat4.lookAt(viewMatrix, [-1, 3, -2], [0, 0, 0], [0, 1, 0])
 
         mat4.multiply(this.projectionViewMatrix, scene.projectionMatrix.get(), scene.camera.viewMatrix());
-        scene.updateFrustum(this.projectionViewMatrix);
+        // scene.updateFrustum(this.projectionViewMatrix);
     }
 
     render(): void {
         const scene = this.entityManager.scenes[0];
         const { camera, lightSource } = scene;
+        const MAX_DIR_LIGHTS = 2;
+        const MAX_POINT_LIGHTS = 4;
+        const dirLights: DirectionalLight[] = this.mockDirectedLights();
+        const pointLights: PointLight[] = this.mockPointLights();
+        const floatsPerDirLightStruct = 12;
+        const floatsPerPointLightStruct = 12;
+        const bytesForDirLight = Float32Array.BYTES_PER_ELEMENT * MAX_DIR_LIGHTS * floatsPerDirLightStruct;
+        const bytesForSpotLight = Float32Array.BYTES_PER_ELEMENT * MAX_POINT_LIGHTS * floatsPerPointLightStruct;
+        const bytesForMetadata = Uint32Array.BYTES_PER_ELEMENT * 2
+        const bufferData = new ArrayBuffer(bytesForDirLight + bytesForSpotLight + bytesForMetadata);
+        const dataView = new DataView(bufferData);
+        let byteOffset = 0;
 
+        if (dirLights.length > MAX_DIR_LIGHTS) {
+            throw new Error(`Too many directional lights. Max is ${MAX_DIR_LIGHTS}, provided: ${dirLights.length}`);
+        }
+        for (let i = 0; i < MAX_DIR_LIGHTS; i++) {
+            const dirLight = dirLights[i];
+            if (dirLight) {
+                byteOffset = writeFloatArray(dataView, byteOffset, dirLight.direction);
+                byteOffset = writeFloatArray(dataView, byteOffset, dirLight.color);
+                byteOffset = writeFloatArray(dataView, byteOffset, [dirLight.intensity, 0, 0, 0]);
+            } else {
+                // padding
+                byteOffset = writeFloatArray(dataView, byteOffset, new Float32Array(floatsPerDirLightStruct));
+            }
+        }
+        if (byteOffset < bytesForDirLight) {
+            console.warn("[DIRECTIONAL] Byte offset differs from expected. Expected: ", bytesForDirLight, " Actual: ", byteOffset, " Padding: ", bytesForDirLight - byteOffset);
+        }
+
+        if (pointLights.length > MAX_POINT_LIGHTS) {
+            throw new Error(`Too many point lights. Max is ${MAX_POINT_LIGHTS}, provided: ${pointLights.length}`);
+        }
+
+        for (let i = 0; i < MAX_POINT_LIGHTS; i++) {
+            const pointLight = pointLights[i];
+            if (pointLight) {
+                byteOffset = writeFloatArray(dataView, byteOffset, pointLight.position);
+                byteOffset = writeFloatArray(dataView, byteOffset, pointLight.color);
+                byteOffset = writeFloatArray(dataView, byteOffset, [pointLight.intensity, pointLight.constant, pointLight.linear, pointLight.quadratic]);
+            } else {
+                // padding
+                byteOffset = writeFloatArray(dataView, byteOffset, new Float32Array(floatsPerPointLightStruct));
+            }
+        }
+
+        if (byteOffset < bytesForDirLight + bytesForSpotLight) {
+            console.warn(`[POINT] byte offset: ${byteOffset} does not match expected: ${bytesForDirLight + bytesForSpotLight}`);
+        }
+
+        dataView.setUint32(byteOffset, dirLights.length, true);
+        dataView.setUint32(byteOffset + 4, pointLights.length, true);
 
         if (!camera) {
             console.error('No camera present in the scene. Will not attempt render anything');
             return;
         }
         const entitiesToRender = scene.getVisibleEntities();
-        const globalBuffer = this.meshFactory.globalBuffer;
-        const globalBufferBg = this.meshFactory.globalBufferBG;
 
-        const lightData = lightSource.getLightData(1)
-        const viewPosition = new Float32Array([...camera.position, 1])
-
-        this.graphics.writeToBuffer(globalBuffer, this.projectionViewMatrix as Float32Array);
-        this.graphics.writeToBuffer(globalBuffer, viewPosition, 64, 0);
-        this.graphics.writeToBuffer(globalBuffer, lightData, 64 + 16, 0, 4);
-        this.graphics.writeToBuffer(globalBuffer, lightData, 64 + 32, 4, 4);
+        this.resourceManager.bufferManager.writeToGlobalBuffer('Camera', BufferManager.mergeFloat32Arrays([this.projectionViewMatrix as Float32Array, new Float32Array([...camera.position, 1])]));
+        this.resourceManager.bufferManager.writeToGlobalBuffer('Light', new Uint8Array(bufferData));
+        // FAKE DATA
+        this.resourceManager.bufferManager.writeToGlobalBuffer('Time', new Float32Array([1.0, 1.0, 1.0, 1.0]));
 
         const renderPass = this.graphics.beginRenderPass();
-        renderPass.setBindGroup(0, globalBufferBg);
+
+        renderPass.setBindGroup(0, this.resourceManager.globalBindGroup);
 
         for (const [pipeline, meshes] of entitiesToRender) {
             renderPass.usePipeline(pipeline);
-            // pipeline.setAllBindGroups();
-            rateLimitedLog.logMax(entitiesToRender.size, `Using pipeline: ${pipeline.toString()} for ${meshes.size} meshes`);
+
+            // rateLimitedLog.logMax(entitiesToRender.size, `Using pipeline: ${pipeline.toString()} for ${meshes.size} meshes`);
             for (const [mesh, entities] of meshes) {
                 renderPass.setVertexBuffer(0, mesh.geometry.vertexBuffer);
-                mesh.update(renderPass);
-                mesh.render(renderPass);
+                mesh.setBindGroup(this.graphics, renderPass);
+                const { bufferId, bindGroupId } = mesh.instanceBuffers![0];
+                renderPass.setBindGroup(2, bindGroupId);
 
-                renderPass.setBindGroup(0, mesh.instanceBuffer[1]);
                 for (let index = 0; index < entities.length; index++) {
                     const [_, transform] = entities[index];
-
                     this.graphics.writeToBuffer(
-                        mesh.instanceBuffer[0]!,
+                        bufferId,
                         transform as Float32Array,
                         index * (64 + 64)
                     );
@@ -74,18 +127,127 @@ export default class Renderer implements System {
                     mat4.transpose(modelInverseTranspose, modelInverseTranspose);
 
                     this.graphics.writeToBuffer(
-                        mesh.instanceBuffer[0]!,
+                        bufferId,
                         modelInverseTranspose as Float32Array,
                         index * 128 + 64
                     );
                 }
 
-                rateLimitedLog.logMax(meshes.size, `Batching instanced draw for ${entities.length} instances`);
+                // rateLimitedLog.logMax(meshes.size, `Batching instanced draw for ${entities.length} instances`);
                 renderPass.drawInstanced(mesh.geometry.indexBuffer, mesh.geometry.indices, entities.length);
             }
         }
+        // this.renderFrustum(renderPass);
 
         renderPass.submit();
-        return;
     }
+
+    private renderFrustum(renderPass: RenderPass) {
+        const frustumEntities = this.entityManager.getEntitiesHavingAll(Frustum.ID, Mesh.ID);
+        frustumEntities.forEach(frustum => {
+            const mesh = this.entityManager.getComponent<Mesh>(frustum, Mesh.ID);
+            renderPass.usePipeline(mesh.pipelineId)
+            renderPass.setVertexBuffer(0, mesh.geometry.vertexBuffer);
+            // this.graphics.writeToBuffer(mesh.geometry.vertexBuffer, new Float32Array([
+            //     // Near plane
+            //     -0.1, -0.1, 0.1,  // Near bottom-left
+            //     0.1, -0.1, 0.1,  // Near bottom-right
+            //     0.1, 0.1, 0.1,  // Near top-right
+            //     -0.1, 0.1, 0.1,  // Near top-left
+            //
+            //     // Far plane
+            //     -1000, -1000, -1000, // Far bottom-left
+            //     1000, -1000, -1000, // Far bottom-right
+            //     1000, 1000, -1000, // Far top-right
+            //     -1000, 1000, -1000  // Far top-left
+            // ]))
+            renderPass.drawSimple(8);
+            // renderPass.drawIndexed(mesh.geometry.indexBuffer, mesh.geometry.indices);
+        });
+    }
+
+    private mockPointLights(): PointLight[] {
+        return [
+            {
+                position: [25.0, 25.0, 10.0, 1.0],  // Above the object
+                color: [0.0, 0.0, 1.0, 1.0],   // White light
+                intensity: 3.0,                // Bright
+                constant: 1.0,                 // Baseline attenuation
+                linear: 0.05,                  // Slow linear falloff
+                quadratic: 0.01                // Realistic quadratic falloff
+            },
+            {
+                position: [20.0, 10.0, 10.0, 1.0],  // Far light
+                color: [1.0, 0.0, 1.0, 1.0],        // Red light
+                intensity: 2.5,                     // Moderate
+                constant: 1.0,
+                linear: 0.1,
+                quadratic: 0.02
+            },
+            {
+                position: [-30.0, 20.0, 0.0, 1.0],   // Nearby light
+                color: [1.0, 1.0, 0.0, 1.0],        // Blue light
+                intensity: 1.0,                     // Bright spotlight
+                constant: 1.0,
+                linear: 0.005,
+                quadratic: 0.005
+            }
+        ];
+    }
+
+    private mockDirectedLights(): DirectionalLight[] {
+        return [
+            {
+                direction: [-10.0, -5.0, 1.0, 1.0],  // Light coming diagonally from above
+                color: [1.0, 1.0, 1.0, 1.0],         // White light
+                intensity: 1.0                  // Brightness multiplier (acts like scaling)
+            },
+            // {
+            //     direction: [-5.0, -15.0, 0.0, -5.0],  // Light coming diagonally from above
+            //     color: [1.0, 1.0, 1.0, 1.0],         // White light
+            //     intensity: 1.0                  // Brightness multiplier (acts like scaling)
+            // },
+            {
+                direction: [5.0, -1.0, 0.0, 1.0],    // Light coming from the horizon
+                color: [1.0, 0.8, 0.6, 1.0],         // Warm orange tone
+                intensity: 0.6                 // Softer light for a sunset effect
+            }
+        ];
+    }
+}
+
+function getFrustumCorners(viewProjectionMatrix: mat4) {
+    const invVP = mat4.invert(mat4.create(), viewProjectionMatrix);
+    const clipCorners = [
+        [-1, 1, -1, 1], // Near Top Left
+        [1, 1, -1, 1], // Near Top Right
+        [-1, -1, -1, 1], // Near Bottom Left
+        [1, -1, -1, 1], // Near Bottom Right
+        [-1, 1, 1, 1], // Far Top Left
+        [1, 1, 1, 1], // Far Top Right
+        [-1, -1, 1, 1], // Far Bottom Left
+        [1, -1, 1, 1], // Far Bottom Right
+    ];
+
+    // Transform from clip space to world space
+    return clipCorners.map(corner => {
+        const worldCorner = vec4.transformMat4(vec4.create(), corner as vec4, invVP);
+        return vec3.fromValues(
+            worldCorner[0] / worldCorner[3],
+            worldCorner[1] / worldCorner[3],
+            worldCorner[2] / worldCorner[3]
+        );
+    });
+}
+
+
+function writeFloatArray(dataView: DataView, byteOffset: number, array: number[] | Float32Array<any>): number {
+    for (let i = 0; i < array.length; i++) {
+        // Little-endian
+        dataView.setFloat32(byteOffset, array[i], true);
+        // Each float is 4 bytes
+        byteOffset += 4;
+    }
+    // Return the next available byte offset
+    return byteOffset;
 }

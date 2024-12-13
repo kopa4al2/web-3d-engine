@@ -1,4 +1,3 @@
-import Component from 'core/components/Component';
 import Mesh from 'core/components/Mesh';
 import Transform from 'core/components/Transform';
 import EntityManager, { EntityId, EntityName } from 'core/EntityManager';

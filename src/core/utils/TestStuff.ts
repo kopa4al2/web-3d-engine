@@ -1,3 +1,4 @@
+/*
 // @ts-nocheck
 import LightSource from 'core/components/camera/LightSource';
 import ProjectionMatrix from 'core/components/camera/ProjectionMatrix';
@@ -126,7 +127,7 @@ function createBasicShaderLayout(gpuResource: GPUResourceManager) {
                     elementsPerVertex: 3
 
                 }],
-            shaderName: VertexShaderName.BASIC_INSTANCED,
+            shaderName: VertexShaderName.UNUSED_OLD_BASIC_INSTANCED,
             stride: 12,
         },
         {
@@ -248,11 +249,11 @@ function createLightShaderLayout(gpuResource: GPUResourceManager) {
                 { dataType: 'float32', elementsPerVertex: 2 },
                 { dataType: 'float32', elementsPerVertex: 3 },
             ],
-            shaderName: VertexShaderName.BASIC_WITH_LIGHT,
+            shaderName: VertexShaderName.LIT_GEOMETRY,
             stride: Float32Array.BYTES_PER_ELEMENT * (3 + 3 + 2),
         },
         {
-            shaderName: FragmentShaderName.BASIC_WITH_LIGHT,
+            shaderName: FragmentShaderName.PHONG_LIT,
         }, createLightShaderUniforms());
 }
 
@@ -463,3 +464,4 @@ const cubeLightedVertices = new Float32Array([
     0.0, 0.0, 0.0, 1.0, 0.0, 0.0, -1.0, 0.0,
     1.0, 0.0, 0.0, 1.0, 1.0, 0.0, -1.0, 0.0,
 ]);
+*/

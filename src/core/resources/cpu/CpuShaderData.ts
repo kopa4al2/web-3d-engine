@@ -12,25 +12,20 @@ export interface VertexLayoutEntry {
 
 export type BufferDataType = 'float32';
 
-
-export type ShaderProgramName = `${VertexShaderName}_${FragmentShaderName}`;
-
 export enum FragmentShaderName {
+    SKY_BOX,
+    PHONG_LIT,
+    UNLIT,
     BASIC,
-    SPHERE,
     BASIC_INSTANCED,
-    BASIC_WITH_LIGHT,
     TERRAIN,
+    PBR,
 }
 export enum VertexShaderName {
-    BASIC,
-    SPHERE,
-    BASIC_INSTANCED,
-    BASIC_WITH_LIGHT,
+    SKY_BOX,
+    LIT_GEOMETRY,
+    UNLIT_GEOMETRY,
     TERRAIN,
-}
-export enum ShaderStage {
-    ONE = 0,
-    TWO = 1,
-    THREE = 3,
+    LIT_TANGENTS_VEC4,
+    UNUSED_OLD_BASIC_INSTANCED,
 }

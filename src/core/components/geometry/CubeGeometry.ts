@@ -188,7 +188,9 @@ export default class CubeGeometry extends GeometryComponent {
         indices: indices,
         normals: normals,
         texCoords: texCoord,
-        vertices: justVertices
+        vertices: justVertices,
+        tangents: [],
+        bitangents: []
     }
     constructor() {
         super({

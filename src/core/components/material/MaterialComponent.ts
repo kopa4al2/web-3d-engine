@@ -1,12 +1,7 @@
 import Component from "core/components/Component";
-import Graphics, { BindGroupId, BindGroupLayoutGroupId, PipelineId, RenderPass } from 'core/Graphics';
-import { FragmentShaderName, VertexShaderName } from 'core/resources/cpu/CpuShaderData';
-import { BufferId, BufferUsage } from 'core/resources/gpu/BufferDescription';
-import { BindGroupEntry, PipelineOptions, UniformVisibility } from 'core/resources/gpu/GpuShaderData';
-import GPUResourceManager, { BindGroupLayoutCpu, UniformsData } from 'core/resources/GPUResourceManager';
-import Texture, { SamplerId, TextureId } from "core/texture/Texture";
+import { VertexShaderName } from 'core/resources/cpu/CpuShaderData';
+import Texture from "core/texture/Texture";
 import { vec3 } from "gl-matrix";
-import Bitmask from 'util/BitMask';
 import ObjectUtils from 'util/ObjectUtils';
 
 export interface MaterialProps {
@@ -27,7 +22,7 @@ export interface MaterialProps {
 }
 
 export const defaultMaterialProps: MaterialProps = {
-    shaderName: VertexShaderName.BASIC_WITH_LIGHT,
+    shaderName: VertexShaderName.LIT_GEOMETRY,
     // ambient: vec3.fromValues(1.0, 0.15, 0.15),
     ambient: vec3.fromValues(0.15, 0.15, 0.15),
     illuminationModel: 0,

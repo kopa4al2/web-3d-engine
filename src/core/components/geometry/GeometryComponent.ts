@@ -38,15 +38,15 @@ export default class GeometryComponent implements Component {
 
     // public data: GeometryData;
 
-    public vertices: Float32Array;
-    public indices: Uint32Array;
+    // public vertices: Float32Array;
+    // public indices: Uint32Array;
 
-    public constructor(geometryProps: Partial<GeometryProperties>) {
+    public constructor(geometryProps?: Partial<GeometryProperties>) {
         const props = geometryProps as GeometryProperties;
-        this.vertices = geometryProps.skipInterleave
-            ? new Float32Array(props.vertices!)
-            : GeometryComponent.interleaveData(props);
-        this.indices = new Uint32Array(geometryProps.indices!);
+        // this.vertices = geometryProps.skipInterleave
+        //     ? new Float32Array(props.vertices!)
+        //     : GeometryComponent.interleaveData(props);
+        // this.indices = new Uint32Array(geometryProps.indices!);
 
         // this.data = {
         //     vertices: this.vertices,
