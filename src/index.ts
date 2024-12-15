@@ -276,7 +276,6 @@ async function createEngine(
     graphics: Graphics,
     onRender: OnRenderPlugin[]): Promise<Engine> {
     const projectionMatrix = new ProjectionMatrix(properties);
-    const lightSource = new LightSource(properties);
 
     const engine = new Engine(
         label,
@@ -286,7 +285,6 @@ async function createEngine(
         new EntityManager(),
         new EntityComponentSystem(),
         projectionMatrix,
-        lightSource,
         [fpsCounter(properties, canvas.parent), ...onRender],
     );
     enableWireframeSwitch(properties, canvas.parent);

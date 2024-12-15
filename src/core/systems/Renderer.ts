@@ -42,17 +42,11 @@ export default class Renderer implements System {
 
     render(): void {
         const scene = this.entityManager.scenes[0];
-        const { camera, lightSource } = scene;
-        const MAX_DIR_LIGHTS = 2;
-        const MAX_POINT_LIGHTS = 4;
-        // const dirLights: DirectionalLightOld[] = this.mockDirectedLights();
-        // const pointLights: PointLightOld[] = this.mockPointLights();
+        const { camera } = scene;
         const floatsPerDirLightStruct = 12;
         const floatsPerPointLightStruct = 12;
         const bytesForDirLight = Float32Array.BYTES_PER_ELEMENT * DirectionalLight.MAX_DIRECTION_LIGHTS * floatsPerDirLightStruct;
         const bytesForSpotLight = Float32Array.BYTES_PER_ELEMENT * PointLight.MAX_POINT_LIGHTS * floatsPerPointLightStruct;
-        // const bytesForDirLight = Float32Array.BYTES_PER_ELEMENT * MAX_DIR_LIGHTS * floatsPerDirLightStruct;
-        // const bytesForSpotLight = Float32Array.BYTES_PER_ELEMENT * MAX_POINT_LIGHTS * floatsPerPointLightStruct;
         const bytesForMetadata = Uint32Array.BYTES_PER_ELEMENT * 2
         const bufferData = new ArrayBuffer(bytesForDirLight + bytesForSpotLight + bytesForMetadata);
         const dataView = new DataView(bufferData);
@@ -63,22 +57,24 @@ export default class Renderer implements System {
         if (dirLights.length > DirectionalLight.MAX_DIRECTION_LIGHTS) {
             throw new Error(`Too many directional lights. Max is ${DirectionalLight.MAX_DIRECTION_LIGHTS}, provided: ${dirLights.length}`);
         }
-        for (let i = 0; i < DirectionalLight.MAX_DIRECTION_LIGHTS; i++) {
-            const dirLight = dirLights[i];
-            if (dirLight) {
-                byteOffset = writeFloatArray(dataView, byteOffset, dirLight.direction);
-                byteOffset = writeFloatArray(dataView, byteOffset, dirLight.color);
-                byteOffset = writeFloatArray(dataView, byteOffset, [dirLight.intensity, 0, 0, 0]);
-                // dirLight.hasChanged = false;
-            } else {
-                // padding
-                byteOffset = writeFloatArray(dataView, byteOffset, new Float32Array(floatsPerDirLightStruct));
+        if (dirLights.find(l => l.hasChanged)) {
+            for (let i = 0; i < DirectionalLight.MAX_DIRECTION_LIGHTS; i++) {
+                const dirLight = dirLights[i];
+                if (dirLight) {
+                    byteOffset = writeFloatArray(dataView, byteOffset, dirLight.direction);
+                    byteOffset = writeFloatArray(dataView, byteOffset, dirLight.color);
+                    byteOffset = writeFloatArray(dataView, byteOffset, [dirLight.intensity, 0, 0, 0]);
+                    // dirLight.hasChanged = false;
+                } else {
+                    // padding
+                    byteOffset = writeFloatArray(dataView, byteOffset, new Float32Array(floatsPerDirLightStruct));
+                }
             }
+
         }
         if (byteOffset < bytesForDirLight) {
             console.warn("[DIRECTIONAL] Byte offset differs from expected. Expected: ", bytesForDirLight, " Actual: ", byteOffset, " Padding: ", bytesForDirLight - byteOffset);
         }
-
         const pointLights: [PointLight, Transform][] = [];
         for (const lightEntity of scene.getVisibleLights()) {
             const [pointLight, transform] = this.entityManager.getComponents<[PointLight, Transform]>(lightEntity, PointLight.ID, Transform.ID);
@@ -184,6 +180,10 @@ export default class Renderer implements System {
         // this.renderFrustum(renderPass);
 
         renderPass.submit();
+    }
+
+    private extracted(byteOffset: number, dataView: DataView<ArrayBuffer>, floatsPerDirLightStruct: number, bytesForDirLight: number) {
+
     }
 
     private renderFrustum(renderPass: RenderPass) {

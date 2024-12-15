@@ -62,7 +62,6 @@ export default class Engine {
         public entityManager: EntityManager,
         public ecs: EntityComponentSystem,
         public projectionMatrix: ProjectionMatrix,
-        public lightSource: LightSource,
         public onRenderPlugins: OnRenderPlugin[]) {
 
         this.resourceManager = new ResourceManager(graphicsApi);
@@ -72,7 +71,7 @@ export default class Engine {
         this.modelRepository = new ModelRepository(this.geometryFactory, this.materialFactory, new ShaderManager(this.graphicsApi, this.resourceManager), this.resourceManager);
 
         const freeCameraEntity = this.createEntity('CAMERA', this.freeCameraComponent, this.input);
-        this.scene = new Scene(this.freeCameraComponent, this.projectionMatrix, this.lightSource, entityManager, [freeCameraEntity]);
+        this.scene = new Scene(this.freeCameraComponent, this.projectionMatrix, entityManager, [freeCameraEntity]);
         this.entityManager.scenes.push(this.scene);
 
         DebugUtil.addToWindowObject('Engine' + label, this);

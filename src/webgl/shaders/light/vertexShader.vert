@@ -30,23 +30,18 @@ layout(std140) uniform Camera {
     vec4 nearFarFovAspect;
 };
 
-//layout(std140) uniform Camera {
-//    mat4 projectionViewMatrix;
-//    vec4 cameraPosition;// The eye of the camera
-//};
-
 layout(std140) uniform Light {
     DirectionalLight directionalLights[MAX_DIRECTIONAL_LIGHTS];
     PointLight pointLights[MAX_POINT_LIGHTS];
     uint numDirectionalLights;
     uint numPointLights;
-    // vec2 padding
+    vec2 padding;
 };
 
 layout(std140) uniform Time {
     float deltaTime;
     float timePassed;
-    // vec2 _padding;
+    vec2 _padding;
 };
 
 layout(location = 0) in vec3 aVertexPosition;
@@ -72,16 +67,18 @@ void main() {
     vFragPosition = vec3(modelMatrix * vec4(aVertexPosition, 1.0));
 
     vTextureCoord = textureUV;
-    vNormal = normalize(inverseModel * vec4(aNormal, 0.0)).xyz;
-    vTangent = normalize(modelMatrix * aTangent).xyz;
+    mat3 normalMatrix = mat3(inverseModel);
+    vNormal = normalize(normalMatrix * aNormal).xyz;
+//    vNormal = normalize(inverseModel * vec4(aNormal, 1.0)).xyz;
+    vTangent = normalize(normalMatrix * aTangent.xyz);
     vBitangent = normalize(cross(vNormal, vTangent) * aTangent.w);
 
     gl_Position = projectionViewMatrix * modelMatrix * vec4(aVertexPosition, 1.0);
 }
 
 mat4 getInstanceMatrix(float id, float offset) {
-    float numberOfPixelsTotal = 8.0; // The number of pixels used for data. 1 pixel is 4 floats - 16 bytes. We use 2 mat4 so 2 * 16 = 32 flota - 8 pixels
-    float baseIndex = id * 8.0 + offset;  // Each mat4 uses 4 pixels
+    float numberOfPixelsTotal = 8.0;// The number of pixels used for data. 1 pixel is 4 floats - 16 bytes. We use 2 mat4 so 2 * 16 = 32 flota - 8 pixels
+    float baseIndex = id * 8.0 + offset;// Each mat4 uses 4 pixels
     float u0 = baseIndex / textureWidth;
     float u1 = (baseIndex + 1.0) / textureWidth;
     float u2 = (baseIndex + 2.0) / textureWidth;

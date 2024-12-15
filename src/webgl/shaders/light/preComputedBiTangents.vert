@@ -70,9 +70,10 @@ void main() {
     //    vFragNormal = mat3(inverseModel) * aNormal;
 
     vTextureCoord = textureUV;
-    vNormal = normalize(modelMatrix * vec4(aNormal, 0.0)).xyz;
-    vTangent = normalize(modelMatrix * vec4(aTangent, 0.0)).xyz;
-    vBitangent = normalize(modelMatrix * vec4(aBitangent, 0.0)).xyz;
+    mat3 normalMatrix = mat3(inverseModel);
+    vNormal = normalize(normalMatrix * aNormal);
+    vTangent = normalize(normalMatrix * aTangent);
+    vBitangent = normalize(normalMatrix * aBitangent);
 
     gl_Position = projectionViewMatrix * modelMatrix * vec4(aVertexPosition, 1.0);
 }

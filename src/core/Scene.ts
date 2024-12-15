@@ -29,7 +29,6 @@ export default class Scene {
 
     constructor(public camera: CameraComponent,
                 public projectionMatrix: ProjectionMatrix,
-                public lightSource: LightSource,
                 private entityManager: EntityManager,
                 private entities: EntityId[] = []) {
         DebugUtil.addToWindowObject('scene', this);
@@ -115,7 +114,7 @@ export default class Scene {
     }
 
     public getVisibleLights() {
-        return this.entities
+        return this.lights;
     }
 
     public hasChanged() {

@@ -54,13 +54,13 @@ layout (std140) uniform Light {
     PointLight pointLights[MAX_POINT_LIGHTS];
     uint numDirectionalLights;
     uint numPointLights;
-    // vec2 padding
+    vec2 padding;
 };
 
 layout (std140) uniform Time {
     float deltaTime;
     float timePassed;
-    // vec2 _padding;
+    vec2 _padding;
 };
 
 uniform sampler2DArray TexturesArray;
@@ -83,13 +83,10 @@ void main() {
     }
 
     // --- Metallic and Roughness ---
-//    vec2 metallicRoughtnessUv = vec2(0.0, 0.0);
     vec2 metallicRoughtnessUv = metallic_map.uv_scale * vTextureCoord + metallic_map.uv_offset;
     vec3 metallicRoughness = texture(TexturesArray, vec3(metallicRoughtnessUv, metallic_map.texture_layer)).rgb;
     float metallic = metallicRoughness.b;
     float roughness = metallicRoughness.g;
-//    float metallic = min(0.4, metallicRoughness.b);
-//    float roughness = max(0.2, metallicRoughness.g);
 
     // --- Normal Mapping ---
     mat3 TBN = mat3(vTangent, vBitangent, vNormal);
@@ -187,8 +184,8 @@ void main() {
         finalColor += radiance * (diffuse + specular) * NdotL;
     }
 
-    vec3 envSpecular = fresnelEnv * envNdotL * envColor;
-    vec3 envDiffuse = fresnelEnv * envNdotL  * (1.0 - metallic) * (1.0 - fresnelEnv);
+    vec3 envSpecular = fresnelEnv /** envNdotL*/ * envColor;
+    vec3 envDiffuse = fresnelEnv /** envNdotL*/  * (1.0 - metallic) * (1.0 - fresnelEnv);
     finalColor += envDiffuse + envSpecular;
 
     // Ambient Light
@@ -196,8 +193,8 @@ void main() {
 //    finalColor += ambient;
     finalColor += ambient * (1.0 - metallic);
 
-    fragColor = vec4(finalColor, 1.0);
-//    fragColor = vec4(normalTangent, 1.0);
+    fragColor = vec4(finalColor, base_color.a);
+//    fragColor = vec4(normalWorld, base_color.a);
 //    fragColor = vec4(float(numDirectionalLights) / float(MAX_DIRECTIONAL_LIGHTS) , float(numPointLights) / float(MAX_POINT_LIGHTS), 0.0, 1.0);
 //    fragColor = texture(TexturesArray, vec3(vTextureCoord, normal_map.texture_layer));
 }

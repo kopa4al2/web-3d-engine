@@ -50,10 +50,10 @@ fn main(input: VertexInput) -> VertexOutput {
 //    output.normal = extract_mat3_from_mat4(inverseModel) * input.normal;
     output.pixelPosition = (modelMatrix * vec4<f32>(input.position, 1.0)).xyz;
 
-
-    let normal = normalize(extract_mat3_from_mat4(inverseModel) * input.normal);
-    let tangent = normalize(modelMatrix * input.tangent).xyz;
-//    let tangent = normalize(extract_mat3_from_mat4(modelMatrix) * input.tangent.xyz);
+    let normalMatrix = extract_mat3_from_mat4(inverseModel);
+    let normal = normalize(normalMatrix * input.normal);
+//    let tangent = normalize(modelMatrix * input.tangent).xyz;
+    let tangent = normalize(normalMatrix * input.tangent.xyz);
     let bitangent = cross(normal, tangent) * input.tangent.w;
 
     output.tangent = tangent;

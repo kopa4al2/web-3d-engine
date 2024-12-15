@@ -105,8 +105,7 @@ fn main(input: FragmentInput) -> @location(0) vec4<f32> {
     // --- View Direction ---
 //    let blendedNormal = normalize(mix(input.normal, normalWorld, 0.2));
     let viewDir: vec3<f32> = normalize(camera.position.xyz - input.fragPosition);
-//    let reflectedDir = reflect(-viewDir, normalWorld);
-    let reflectedDir = reflect(-viewDir, normalize(input.normal));
+    let reflectedDir = reflect(-viewDir, normalWorld);
     let envColor = textureSample(envMap, envSampler, reflectedDir).rgb;
 
     // Fresnel Reflectance at Normal Incidence
@@ -147,12 +146,10 @@ fn main(input: FragmentInput) -> @location(0) vec4<f32> {
         let G = Gv * Gl;
 
         // Specular term
-        let specular = (D * fresnel * G) / (4.0 * NdotV * NdotL);
-//        let specular = (D * fresnel * G) / (4.0 * NdotV * NdotL + 0.001);
+        let specular = (D * fresnel * G) / (4.0 * NdotV * NdotL + 0.001);
 
         // Diffuse term (Lambertian)
         let diffuse = (1.0 - fresnel) * (1.0 - metallic) * baseColor.rgb;
-//        let diffuse = max((1.0 - fresnel) * (1.0 - metallic), 0.0) * baseColor.rgb;
 
         // Combine light contributions
         let radiance = light.color.rgb * light.intensity;
@@ -190,15 +187,14 @@ fn main(input: FragmentInput) -> @location(0) vec4<f32> {
 
         // Diffuse term (Lambertian)
         let diffuse = (1.0 - fresnel) * (1.0 - metallic) * baseColor.rgb;
-//        let diffuse = max((1.0 - fresnel) * (1.0 - metallic), 0.0) * baseColor.rgb;
 
         let radiance = dirLight.color.rgb * dirLight.intensity;
         finalColor += radiance * (diffuse + specular) * NdotL;
     }
 
     // --- Environment Map Contributions ---
-    let envSpecular = fresnelEnv /** envNdotL*/ * envColor;
-    let envDiffuse = fresnelEnv /** envNdotL*/  * (1.0 - metallic) * (1.0 - fresnelEnv);
+    let envSpecular = fresnelEnv * envNdotL * envColor;
+    let envDiffuse = fresnelEnv * envNdotL  * (1.0 - metallic) * (1.0 - fresnelEnv);
 
     finalColor += envDiffuse + envSpecular;
 
@@ -210,4 +206,5 @@ fn main(input: FragmentInput) -> @location(0) vec4<f32> {
 //    return vec4<f32>(textureSample(globalTextures, globalSampler, input.textureCoord, 10).rgb, 1.0);
 
       return vec4<f32>(finalColor, baseColor.a);
+//      return vec4<f32>(normalWorld, baseColor.a);
 }
