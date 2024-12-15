@@ -5,7 +5,6 @@ import ProjectionMatrix from "core/components/camera/ProjectionMatrix";
 import Component from "core/components/Component";
 import TerrainGeometry from 'core/components/geometry/TerrainGeometry';
 import Input from "core/components/Input";
-import mesh from "core/components/Mesh";
 import Mesh from "core/components/Mesh";
 import Transform, { defaultTransform } from "core/components/Transform";
 import EntityFactory from 'core/entities/EntityFactory';
@@ -18,12 +17,10 @@ import Material from 'core/mesh/material/Material';
 import { TerrainMaterialProperties } from 'core/mesh/material/MaterialProperties';
 import BoundingSphere from 'core/physics/BoundingSphere';
 import PropertiesManager from "core/PropertiesManager";
-import entityRepository from "core/repository/EntityRepository";
 import ModelRepository from 'core/repository/ModelRepository';
 import { VertexShaderName } from 'core/resources/cpu/CpuShaderData';
 import ResourceManager from 'core/resources/ResourceManager';
-// import MeshManager, { RenderFlags, ShapeFlags } from 'core/resources/MeshManager';
-import ShaderManager from "core/resources/ShaderManager";
+import ShaderManager from "core/resources/shader/ShaderManager";
 import Scene from "core/Scene";
 import FreeCameraSystem from "core/systems/camera/FreeCameraSystem";
 import ViewFrustumSystem from 'core/systems/camera/ViewFrustumSystem';
@@ -36,15 +33,19 @@ import TransformSystem from "core/systems/TransformSystem";
 import { vec2, vec3, vec4 } from "gl-matrix";
 import { enableEntitySelect } from 'html/Controls';
 import { worldCoordinates } from 'html/Views';
+import OrderComponent from "core/components/OrderComponent";
+import DirectionalLight from 'core/light/DirectionalLight';
+import PointLight from 'core/light/PointLight';
+import DebugUtil from './util/DebugUtil';
 
 export default class Engine {
 
-    public isRunning = false;
+    private isRunning = false;
+    private frameRequest = 0;
 
     private lastFrame: number = 0;
 
     private readonly resourceManager: ResourceManager;
-    // private readonly meshFactory: MeshManager;
     private readonly entityFactory: EntityFactory;
     private readonly materialFactory: MaterialFactory;
     private readonly geometryFactory: GeometryFactory;
@@ -54,6 +55,7 @@ export default class Engine {
     private readonly freeCameraComponent: CameraComponent = this.createFreeCamera();
 
     constructor(
+        private label: string,
         public graphicsApi: Graphics,
         public canvas: Canvas,
         public properties: PropertiesManager,
@@ -64,7 +66,6 @@ export default class Engine {
         public onRenderPlugins: OnRenderPlugin[]) {
 
         this.resourceManager = new ResourceManager(graphicsApi);
-        // this.meshFactory = new MeshManager(this.resourceManager);
         this.entityFactory = new EntityFactory(this.entityManager);
         this.materialFactory = new MaterialFactory(this.resourceManager);
         this.geometryFactory = new GeometryFactory(this.resourceManager);
@@ -73,60 +74,43 @@ export default class Engine {
         const freeCameraEntity = this.createEntity('CAMERA', this.freeCameraComponent, this.input);
         this.scene = new Scene(this.freeCameraComponent, this.projectionMatrix, this.lightSource, entityManager, [freeCameraEntity]);
         this.entityManager.scenes.push(this.scene);
+
+        DebugUtil.addToWindowObject('Engine' + label, this);
     }
 
     start(): void {
-        console.log('Engine starting...');
+        console.log('Engine starting...', this.label);
         this.isRunning = true;
         requestAnimationFrame(this.loop.bind(this));
     }
 
+    stop(): void {
+        console.log('Engine stopping...', this.label);
+        cancelAnimationFrame(this.frameRequest);
+        this.isRunning = false;
+    }
+
     loop(now: number) {
-        if (this.isRunning) {
-            const deltaTime = (now - this.lastFrame) / 1000;  // Convert deltaTime to seconds
+        try {
             this.onRenderPlugins.forEach(plugin => plugin());
             this.properties.flushBuffer();
-            this.ecs.update(deltaTime);
-            this.ecs.render();
+            if (this.isRunning) {
+                const deltaTime = ( now - this.lastFrame ) / 1000;  // Convert deltaTime to seconds
+                this.ecs.update(deltaTime);
+                this.ecs.render();
 
-            this.lastFrame = now;
+                this.lastFrame = now;
+                this.frameRequest = requestAnimationFrame(this.loop.bind(this));
+            }
+        } catch (error) {
+            console.error(`Error occurred in engine: ${this.label} isRunning: ${this.isRunning}`, error);
         }
-
-        requestAnimationFrame(this.loop.bind(this));
     }
 
     initializeScene(): void {
-        // this.modelRepository.createSkyBox()
-        //     .then(m => this.scene.a)
+
         // this.initializeTerrain();
 
-
-        // const baseTexture = this.gpuResourceFactory.createTexture('BASIC', TextureLoader.textures['texture']);
-        // const waterTexture = this.gpuResourceFactory.createTexture('BASIC', TextureLoader.textures['waterTexture1']);
-        // const textures = { 'uSampler': waterTexture };
-
-        // const textured = this.materialFactory.litMaterial('Textured', {
-        //     ambient: vec4.fromValues(0.3, 0.3, 0.3, 1.0),
-        //     diffuse: vec4.fromValues(1.0, 1.0, 1.0, 1.0),
-        //     specular: vec4.fromValues(0.4, 0.4, 0.4, 1.0),
-        //     illuminationModel: 0,
-        //     shininess: 0,
-        //     // textures: [waterTexture],
-        // });
-
-        // const litElectricMaterial = this.materialFactory.litMaterial('LitElectric', new PhongMaterialProperties(
-        //     vec4.fromValues(0.2, 0.2, 0.2, 1.0),
-        //     vec4.fromValues(0.45, 1.0, 0.07, 1.0),
-        //     vec4.fromValues(0.2, 0.2, 0.2, 1.0),
-        //     // 1.0
-        // ));
-        //
-        // const litMagenta = this.materialFactory.litMaterial('LitMagenta', new PhongMaterialProperties(
-        //     vec4.fromValues(0.2, 0.2, 0.2, 1.0),
-        //     vec4.fromValues(1.0, 0.0, 1.0, 1.0),
-        //     vec4.fromValues(0.2, 0.2, 0.2, 1.0),
-        //     // 20.0
-        // ));
 
         // const renderCube = (transform: vec3) => this.createEntityWithBoundingSphere('CubeLit',
         //     VertexShaderName.LIT_GEOMETRY, CubeGeometry.GEOMETRY_DESCRIPTOR,
@@ -157,29 +141,6 @@ export default class Engine {
                 );
             })
 
-        // const renderWavefront = (model: keyof typeof ModelRepository.wavefrontFiles, transform?: Transform) => ModelRepository.wavefrontFiles[model]().then(obj => {
-        //     obj.meshes.forEach(objMesh => {
-        //         console.log(objMesh)
-        //         const objMaterial = objMesh.material;
-        //         if (objMaterial) {
-        //             console.log(`Obj file ${model} has its own material: `, objMaterial);
-        //         }
-        //         const material = objMaterial ? this.materialFactory.litMaterial(
-        //                 `${model}-${objMesh.groupName}`,
-        //                 new PhongMaterialProperties(
-        //                     objMaterial.ambient ? MathUtil.vec4(objMaterial.ambient, 1.0) : vec4.fromValues(0.2, 0.2, 0.2, 1.0),
-        //                     objMaterial.diffuse ? MathUtil.vec4(objMaterial.diffuse, 1.0) : vec4.fromValues(0.53, 0.11, 0.75, 1.0),
-        //                     objMaterial.specular ? MathUtil.vec4(objMaterial.specular, 1.0) : vec4.fromValues(0.35, 0.35, 0.35, 1.0),
-        //                     // objMaterial.shininess || 10.0
-        //                 ))
-        //             : litMagenta;
-        //
-        //         this.createEntityWithBoundingSphere(`${model}-${objMesh.groupName}`,
-        //             VertexShaderName.LIT_GEOMETRY, objMesh, material, transform || defaultTransform());
-        //     });
-        // })
-
-
         const entities = {
             // dragon: (coordinates: vec3) => renderDragon(coordinates),
             lightBulb: (transform: vec3) => renderLightBulb(transform),
@@ -194,17 +155,32 @@ export default class Engine {
 
         // renderWavefront('barrel', defaultTransform().translate([-5, 10, -5]));
 
+        this.modelRepository.createSkyBox().then(m => {this.scene.addEntities(this.entityFactory.createEntity(`SKY_BOX`, m, new OrderComponent(1)));});
+        const sunLight = new DirectionalLight({
+            direction: [-10.0, -5.0, 1.0, 1.0],
+            color: [1.0, 1.0, 1.0, 1.0],
+            intensity: 1.0
+        });
+        const sunLightEntity = this.entityFactory.createEntity('Sun', sunLight);
+        this.scene.addEntities(sunLightEntity);
+
+        const redLight = new PointLight({
+                position: [0, 0, 0, 0],
+                color: [1.0, 0.0, 1.0, 1.0],
+                intensity: 2.5,
+                constantAttenuation: 1.0,
+                linearAttenuation: 0.1,
+                quadraticAttenuation: 0.02
+            });
+        this.scene.addEntities(this.entityFactory.createEntity('RedPointLight', redLight, defaultTransform()));
+
         this.loadAndAddMesh(() => this.modelRepository.createCrate(), [-5, 10, 10])
+
         // this.loadAndAddMesh(() => this.modelRepository.createCrate(), [10, 15, -15])
 
 
         function traverse(mesh: Mesh, onRender: (m: Mesh) => void) {
             if (mesh.pipelineId) {
-                // setTimeout(() => {
-                //     mesh.material.update(t => {
-                //         // console.log(`Material: `, mesh.material.label, 'properties: ', t, mesh.material)
-                //     });
-                // }, 1000);
                 onRender(mesh);
             }
 
@@ -212,13 +188,15 @@ export default class Engine {
                 traverse(subMesh, onRender);
             }
         }
+
         this.modelRepository.drawScene()
             .then(meshes => {
                 traverse(meshes, mesh => {
-                    const entityId = this.entityFactory.createEntityInstance(mesh.geometry.vertexBuffer.toString(), mesh, mesh.transform.scaleBy(30));
+                    const entityId = this.entityFactory.createEntityInstance(mesh.geometry.vertexBuffer.toString(), mesh, mesh.transform.scaleBy(15));
                     this.scene.addEntities(entityId);
                 });
             });
+
         // this.modelRepository.lightBulb().then(mesh => {
         //     this.scene.addEntities(
         //         this.entityFactory.createEntityInstance('lightBulb', mesh, defaultTransform().scaleBy(10).translate([-8, -15, -5])),
@@ -236,13 +214,13 @@ export default class Engine {
         //         this.entityFactory.createEntityInstance('dragon', mesh, defaultTransform().scaleBy(0.5).translate([10, 10, 10])),
         //     )
         // })
-       /* this.modelRepository.createCrate(false)
-            .then(mesh => {
-                this.scene.addEntities(
-                    this.entityFactory.createEntityInstance('crate', mesh, defaultTransform().scaleBy(0.05).translate([-13, 35, 25])),
-                    this.entityFactory.createEntityInstance('crate', mesh, defaultTransform().scaleBy([0.16, 0.08, 0.08]).translate([15, 15, -32]))
-                )
-            })*/
+        /* this.modelRepository.createCrate(false)
+             .then(mesh => {
+                 this.scene.addEntities(
+                     this.entityFactory.createEntityInstance('crate', mesh, defaultTransform().scaleBy(0.05).translate([-13, 35, 25])),
+                     this.entityFactory.createEntityInstance('crate', mesh, defaultTransform().scaleBy([0.16, 0.08, 0.08]).translate([15, 15, -32]))
+                 )
+             })*/
 
         // const frustumGeometry = this.geometryFactory.createFrustumDescriptor(VertexShaderName.UNUSED_OLD_BASIC);
         // const frustumMaterial = this.materialFactory.viewFrustumMaterial();
@@ -397,10 +375,10 @@ export default class Engine {
         const freeCameraComponent = new CameraComponent(vec3.fromValues(0, 25, 46));
 
         // Manually rotate the camera
-        freeCameraComponent.euler.asVec3()[0] = -99;
-        freeCameraComponent.euler.asVec3()[1] = -16;
-        freeCameraComponent.targetEuler.asVec3()[0] = -99;
-        freeCameraComponent.targetEuler.asVec3()[1] = -16;
+        // freeCameraComponent.euler.asVec3()[0] = -99;
+        // freeCameraComponent.euler.asVec3()[1] = -16;
+        // freeCameraComponent.targetEuler.asVec3()[0] = -99;
+        // freeCameraComponent.targetEuler.asVec3()[1] = -16;
 
         // freeCameraComponent.targetEuler.asVec3()[0] = 0;
         // freeCameraComponent.targetEuler.asVec3()[1] = 0;
@@ -451,8 +429,8 @@ export default class Engine {
     //     this.scene.addEntity(this.createEntity(name), mesh, transform.createModelMatrix())
     //     this.scene.addEntity(this.createEntity(`${name}-bounding_sphere`), meshBoundingBox, transform.createModelMatrix())
     // }
-    private loadAndAddMesh(createCrate: (cache?: boolean) => Promise<Mesh>, translate: number[] = [0, 0, 0]) {
-        createCrate()
+    private loadAndAddMesh(meshCreator: (cache?: boolean) => Promise<Mesh>, translate: number[] = [0, 0, 0]) {
+        meshCreator()
             .then(mesh => {
                 this.scene.addEntities(
                     this.entityFactory.createEntityInstance(`${mesh.material.label}`, mesh, mesh.transform.translate(translate)),

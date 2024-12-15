@@ -26,22 +26,14 @@ interface GpuBufferData {
 }
 
 export default class Material {
-    private readonly bufferInfo: Partial<GpuBufferData>;
-    // public readonly properties: MaterialProperties;
     private hasChanged: boolean;
 
     constructor(public readonly label: string,
                 public readonly descriptor: MaterialDescriptor,
                 public readonly properties: MaterialProperties,
-                private readonly behaviour: MaterialBehaviour[] = [],
-                /*private readonly*/ bufferInfo?: Partial<GpuBufferData>) {
+                private readonly behaviour: MaterialBehaviour[] = []) {
         DebugUtil.addToWindowObject('mat_' + label, this);
         this.hasChanged = true;
-        if (!bufferInfo) {
-            this.bufferInfo = {};
-        } else {
-            this.bufferInfo = bufferInfo;
-        }
     }
 
     update<T extends MaterialProperties>(mutator: (t: T) => void) {
@@ -49,19 +41,6 @@ export default class Material {
         this.hasChanged = true;
         console.warn('Material updated')
     }
-
-    /*public setBufferData(bindGroupId: BindGroupId,
-                         bufferId: BufferId,
-                         bindGroupIndex: number,
-                         dynamicOffset?: number) {
-        if (this.bufferInfo.bindGroupIndex) {
-            console.warn('Setting buffer data that is already set');
-        }
-        this.bufferInfo.bindGroupIndex = bindGroupIndex;
-        this.bufferInfo.bindGroupId = bindGroupId;
-        this.bufferInfo.bufferId = bufferId;
-        this.bufferInfo.dynamicOffset = dynamicOffset;
-    }*/
 
     public setBindGroups(graphics: Graphics, renderPass: RenderPass) {
         if (this.behaviour.length > 0) {
@@ -75,13 +54,5 @@ export default class Material {
 
             return;
         }
-
-        const { bufferId, bindGroupId, bindGroupIndex } = this.bufferInfo as GpuBufferData;
-        if (this.hasChanged) {
-            graphics.writeToBuffer(bufferId, this.properties.getBufferData());
-            this.hasChanged = false;
-        }
-
-        renderPass.setBindGroup(bindGroupIndex, bindGroupId);
     }
 }

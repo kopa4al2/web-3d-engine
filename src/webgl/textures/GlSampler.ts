@@ -24,15 +24,15 @@ export default class GlSampler {
     }
 
     public static samplerFilterToGL(gl: WebGL2RenderingContext, filter: SamplerFilter, mipmapFilter?: SamplerFilter) {
-        // TODO: Temporary disable mipmap filtering
-        if (filter === 'linear') {
-            return gl.LINEAR;
-        } else if (filter === 'nearest') {
-            return gl.NEAREST;
-        } else {
-            throw new Error(`Unknown sampler filter: ${ filter }`);
-        }
-        /*if (mipmapFilter === 'linear' && filter === 'linear') {
+        // // TODO: Temporary disable mipmap filtering
+        // if (filter === 'linear') {
+        //     return gl.LINEAR;
+        // } else if (filter === 'nearest') {
+        //     return gl.NEAREST;
+        // } else {
+        //     throw new Error(`Unknown sampler filter: ${ filter }`);
+        // }
+        if (mipmapFilter === 'linear' && filter === 'linear') {
             return gl.LINEAR_MIPMAP_LINEAR;
         } else if (mipmapFilter === 'nearest' && filter === 'linear') {
             return gl.NEAREST_MIPMAP_LINEAR;
@@ -46,7 +46,7 @@ export default class GlSampler {
             return gl.NEAREST;
         } else {
             throw new Error(`Unknown sampler filter: ${ filter }`);
-        }*/
+        }
     };
 
     public static setSamplerFilterToGL(gl: WebGL2RenderingContext, samplerProps: SamplingConfig, target: GlTarget, fn: GlFunc) {

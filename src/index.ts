@@ -33,33 +33,7 @@ const onRender: OnRenderPlugin = () => {
 };
 
 document.body.onload = async () => {
-    console.timeLog(loadTimer, 'DOM loaded')
-
-    await Promise.all([
-        // new GLTFParser().parseGltf('assets/scene/sponza_atrium/gltf/scene.gltf', 'assets/scene/sponza_atrium/gltf/scene.bin'),
-        // new GLTFParser().parseGlb('assets/scene/sponza_atrium/sponza_atrium_3.glb')
-    ])
-
-    console.timeLog(loadTimer, 'GLTF Loaded');
-
-    // TODO: AWAIT!!!
-    //  await Promise.all([
-    //     TextureLoader.loadTexture('barrel', "assets/advanced/barrel/barrel.png"),
-    //     TextureLoader.loadTexture('barrelNormal', "assets/advanced/barrel/barrelNormal.png"),
-    //
-    //     TextureLoader.loadTexture('crate', "assets/advanced/crate/crate.png"),
-    //     TextureLoader.loadTexture('crateNormal', "assets/advanced/crate/crateNormal.png"),
-    //
-    //
-    //     TextureLoader.loadTexture('noop', "assets/1x1texture.png"),
-    //     TextureLoader.loadTexture('grassTexture1', "assets/terrain/grass.jpg"),
-    //     TextureLoader.loadTexture('mountainTexture1', "assets/terrain/stone-1.png"),
-    //     TextureLoader.loadTexture('waterTexture1', "assets/terrain/sea-water-1.jpg"),
-    //     TextureLoader.loadTexture('snowTexture1', "assets/terrain/snow-1.jpg"),
-    //     TextureLoader.loadTexture('texture', "assets/DALL·E-tex-1.webp"),
-    //     TextureLoader.loadHeightMap('heightMap', "assets/terrain/heightmaps/render-dobrichx1.png"),
-    // ]);
-    console.timeLog(loadTimer, 'textures loaded');
+    console.timeLog(loadTimer, 'DOM loaded');
 
     enableSplitScreenSwitch(screenProps, document.getElementById('global-controls')!);
     enableGpuGraphicsApiSwitch(screenProps, document.getElementById('global-controls')!);
@@ -78,6 +52,7 @@ document.body.onload = async () => {
         const { webGpuProps, webgpuEngine } = await initWebGpu(engineProps);
         gpuEngine = webgpuEngine;
         gpuProps = webGpuProps;
+        gpuEngine.start();
 
         const { webGl2Props, webGlEngine } = await initWebGlEngine({
             ...engineProps,
@@ -85,6 +60,7 @@ document.body.onload = async () => {
         });
         glEngine = webGlEngine;
         glProps = webGl2Props;
+        glEngine.start();
     } else if (screenProps.get('gpuApi') !== 'webgl2') {
         const { webGpuProps, webgpuEngine } = await initWebGpu({
             'window.width': window.innerWidth,
@@ -93,6 +69,7 @@ document.body.onload = async () => {
         });
         gpuEngine = webgpuEngine;
         gpuProps = webGpuProps;
+        gpuEngine.start();
     } else if (screenProps.get('gpuApi') === 'webgl2') {
         const { webGl2Props, webGlEngine } = await initWebGlEngine({
             'window.width': window.innerWidth,
@@ -101,6 +78,7 @@ document.body.onload = async () => {
         });
         glEngine = webGlEngine;
         glProps = webGl2Props;
+        glEngine.start();
     }
 
     document.querySelector('canvas')!.focus();
@@ -135,22 +113,24 @@ document.body.onload = async () => {
             const engineToStop = isWebGl ? gpuEngine : glEngine;
             const stoppedEngineProps = isWebGl ? gpuProps : glProps;
 
+
+            engineToStop.stop();
+            // await Promise.resolve(setTimeout(() => {}, 100));
+            engineToStart.start();
+
+            stoppedEngineProps.updateNestedProperty('window', { width: 0, leftOffset: 0, hide: true });
             startedEngineProps.updateNestedProperty('window', {
                 leftOffset: 0,
                 width: window.innerWidth,
                 hide: false,
             });
 
-            stoppedEngineProps.updateNestedProperty('window', { width: 0, leftOffset: 0, hide: true });
-            engineToStart.isRunning = true;
-            engineToStop.isRunning = false;
-
             glProps.updateProperty('splitScreen', false);
             gpuProps.updateProperty('splitScreen', false);
             stoppedEngineProps.flushBuffer();
         } else {
-            gpuEngine.isRunning = true;
-            glEngine.isRunning = true;
+            gpuEngine.start();
+            glEngine.start();
             glProps.updateProperty('splitScreen', true);
             gpuProps.updateProperty('splitScreen', true);
             glProps.updateNestedProperty('window', {
@@ -168,7 +148,7 @@ document.body.onload = async () => {
 
 
     console.timeEnd(loadTimer)
-    console.log("\n\n=============FINISHED ENGINE LOADING====================\n\n")
+    console.log("=============FINISHED ENGINE LOADING====================")
 };
 
 const screenProps = new PropertiesManager({
@@ -241,7 +221,7 @@ async function initWebGlEngine(properties: PartialProperties) {
         'webgl2');
     canvas.addToDOM();
     const graphics = new WebGLGraphics(canvas, webGl2Props);
-    const webGlEngine = await createEngine(webGl2Props, canvas, graphics, [onRender]);
+    const webGlEngine = await createEngine('WebGl', webGl2Props, canvas, graphics, [onRender]);
     return { webGl2Props, webGlEngine };
 }
 
@@ -281,7 +261,7 @@ async function initWebGpu(properties: PartialProperties) {
     canvas.addToDOM();
 
     const graphics = await WebGPUGraphics.initWebGPU(canvas, webGpuProps);
-    const webgpuEngine = await createEngine(webGpuProps, canvas, graphics, [onRender]);
+    const webgpuEngine = await createEngine('WebGPU', webGpuProps, canvas, graphics, [onRender]);
     return { webGpuProps, webgpuEngine };
 }
 
@@ -289,14 +269,17 @@ function createProperties(sharedProperties: PartialProperties, currentProperties
     return new PropertiesManager(currentProperties, sharedProperties, name)
 }
 
-async function createEngine(properties: PropertiesManager,
-                            canvas: Canvas,
-                            graphics: Graphics,
-                            onRender: OnRenderPlugin[]): Promise<Engine> {
+async function createEngine(
+    label: string,
+    properties: PropertiesManager,
+    canvas: Canvas,
+    graphics: Graphics,
+    onRender: OnRenderPlugin[]): Promise<Engine> {
     const projectionMatrix = new ProjectionMatrix(properties);
     const lightSource = new LightSource(properties);
 
     const engine = new Engine(
+        label,
         graphics,
         canvas,
         properties,
@@ -309,7 +292,7 @@ async function createEngine(properties: PropertiesManager,
     enableWireframeSwitch(properties, canvas.parent);
 
     engine.initializeScene();
-    engine.start();
+    // engine.start();
 
     return engine;
 }

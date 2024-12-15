@@ -2,12 +2,25 @@ import Graphics from 'core/Graphics';
 import { TextureName } from 'core/loader/TextureLoader';
 import { TextureArrayIndex } from 'core/mesh/material/MaterialProperties';
 import { DefaultSampling } from "core/texture/SamplingConfig";
-import Texture, { GlFace, TextureId, TextureSize, TextureType, TextureUsage } from 'core/texture/Texture';
+import Texture, {
+    GlFace,
+    ImageChannelRange,
+    TextureId,
+    TextureSize,
+    TextureType,
+    TextureUsage
+} from 'core/texture/Texture';
 import TexturePacker from "core/texture/TexturePacker";
 import PromiseQueue from "core/utils/PromiseQueue";
 import { vec2 } from 'gl-matrix';
 import DebugUtil from "../../util/DebugUtil";
+import HDRLoader from "core/loader/HDRLoader";
+import { HDRImageData } from "parse-hdr";
 
+const normalFormat = 'rgba8unorm';
+const hdrImgFormat = 'rgba16float';
+const usedType = 'uint8';
+const usedFormat = normalFormat;
 interface GlobalTextureData {
     width: number,
     height: number,
@@ -56,24 +69,38 @@ export default class TextureManager {
         // console.groupEnd()
     }
 
-    public async addEnvironmentMap(path: string, names: string[]) {
-        // const images = await HDRLoader.loadHDRImages(path, names);
-        const images = await Promise.all(names.map(relative => this.loadImage(path + relative)))
+    public async loadCubeMap(path: string, names: string[], isHdr = false) {
+        return this.promiseQueue.addTask(() => this._loadCubeMap(path, names, isHdr));
+    }
 
+    private async _loadCubeMap(path: string, names: string[], isHdr = false) {
+        const images = isHdr
+            ? await HDRLoader.loadHDRImagesV2(path, names)
+            // ? await HDRLoader.loadHDRImages(path, names)
+            // : await Promise.all(names.map(relative => this.loadImageAsUint8(path + relative)));
+            : await Promise.all(names.map(relative => this.loadImage(path + relative)));
 
         const width = images[0].width;
         const height = images[0].height;
+
+        // const width = isHdr ? ( images[0] as HDRImageData ).shape[0] : ( images[0] as ImageData ).width;
+        // const height = isHdr ? ( images[0] as HDRImageData ).shape[1] : ( images[0] as ImageData ).height;
         const textureId = this.getEnvironmentMap();
 
         images.forEach((img, idx) => {
+            // const numberOfChannels = 4; // rgba
+            // const bytesPerChannel = ImageChannelRange[usedType];
+            // const expectedSize = width * height * numberOfChannels * bytesPerChannel;
+            // console.log(width, height)
+            // console.log('expectedSize', expectedSize, 'actualSize: ', img.data.byteLength, 'expected length:', width * height * numberOfChannels, 'actual length: ', img.data.length, 'bytes per channel: ', bytesPerChannel);
             this.graphics.updateTexture(textureId, {
                 x: 0, y: 0, z: idx,
                 data: {
                     width, height,
                     imageData: img.data,
                     channel: {
-                        format: 'rgba8unorm',
-                        dataType: 'UINT8',
+                        format: usedFormat,
+                        dataType: usedType,
                     },
                 },
                 glFace: GlFace.X + idx
@@ -93,11 +120,13 @@ export default class TextureManager {
         const cubeMap = this.graphics.createTexture({
             label: 'env-cube-map',
             image: {
-                width: 1024, height: 1024,
+                width: 4096, height: 4096,
+                // width: 1024, height: 1024,
                 channel: {
-                    // format: 'rgba16float', // for hdr format
-                    format: 'rgba8unorm',
-                    dataType: 'UINT8'
+                    format: usedFormat,
+                    dataType: usedType,
+                    // format: 'rgba8unorm',
+                    // dataType: 'uint8'
                 },
             },
             usage: TextureUsage.TEXTURE_BINDING | TextureUsage.COPY_DST,
@@ -114,7 +143,7 @@ export default class TextureManager {
 
     public async createTextureFromValues(label: string, data: Uint8ClampedArray, imgWidth: number, imgHeight: number) {
         if (this.cachedTextures.get(label)) {
-            console.warn(`Loaded texture from cache: ${ label }`)
+            console.warn(`Loaded texture from cache: ${label}`)
             return this.cachedTextures.get(label)!.index;
         }
         return await this.promiseQueue.addTask(() => this._createTextureFromValues(label, data, imgWidth, imgHeight));
@@ -124,7 +153,7 @@ export default class TextureManager {
         const textureId = this.getTextureArrayIdForSize(TextureManager.MAX_TEXTURE_ARRAY_SIZE);
         const addedTexture = this.texturePacker.addTexture(imgWidth, imgHeight);
         if (addedTexture === null) {
-            throw new Error(`Could not add texture: ${ label }`)
+            throw new Error(`Could not add texture: ${label}`)
         }
         const {
             layer, uv,
@@ -143,14 +172,6 @@ export default class TextureManager {
                 }
             },
         });
-        // this.graphics.writeToTexture(textureId, new ImageData(data, width, height),
-        //     vec3.fromValues(x, y, layer),
-        //     width, height);
-        // this.cachedTextures.set(label, new Texture(label, data, {
-        //     textureUvScale: vec2.create(),
-        //     textureLayer: layer,
-        //     textureUvOffset: vec2.create()
-        // }, { width, height }))
 
         return {
             textureLayer: layer,
@@ -176,7 +197,7 @@ export default class TextureManager {
             });
         }
         this.loadingTextures.add(path);
-        console.debug(`Texture path: ${ path } not found in cache.`);
+        console.debug(`Texture path: ${path} not found in cache.`);
         const imageData = await this.loadImage(path);
         if (!this.isSupportedSize(imageData.width, imageData.height)) {
             console.error('Texture is not in supported sizes. texture: ', imageData);
@@ -220,14 +241,14 @@ export default class TextureManager {
         if (!this.globalTextures.has(sizeSerialized)) {
             console.log('Creating global texture');
             const textureId = this.graphics.createTexture({
-                label: `texture-array-${ sizeSerialized }`,
+                label: `texture-array-${sizeSerialized}`,
                 image: {
                     width: size.width, height: size.height,
                     channel: {
                         format: 'rgba8unorm',
                         dataType: 'uint8'
                     }
-                }, usage: TextureUsage.COPY_DST | TextureUsage.TEXTURE_BINDING,
+                }, usage: TextureUsage.COPY_DST | TextureUsage.TEXTURE_BINDING | TextureUsage.RENDER_ATTACHMENT,
                 depth: TextureManager.TEXTURE_ARRAY_LAYERS,
                 type: TextureType.TEXTURE_ARRAY,
                 // samplingConfig: DefaultSampling
@@ -246,15 +267,37 @@ export default class TextureManager {
         return this.globalTextures.get(sizeSerialized)!;
     }
 
-    private async loadImage(path: string): Promise<ImageData> {
-        const img = new Image();
-        img.src = path;
-        await img.decode();
-
-        return this.loadFromOffScreenCanvas(img);
+    private async loadImageAsUint8(path: string): Promise<ArrayBufferLike> {
+        return fetch(path)
+            .then(res => res.blob())
+            .then(blob => createImageBitmap(blob))
+            .then(bitmap => this.loadFromOffScreenCanvas(bitmap).data.buffer);
     }
 
-    private loadFromOffScreenCanvas(img: HTMLImageElement): ImageData {
+    private async loadImageAsBitMap(path: string): Promise<ImageBitmap> {
+        return fetch(path)
+            .then(res => res.blob())
+            .then(blob => createImageBitmap(blob))
+    }
+
+    private async loadImage(path: string): Promise<ImageData> {
+        // const img = new Image();
+        // img.src = path;
+        // try {
+        //     await img.decode();
+        // } catch (error) {
+        //     console.log('Error happened when decoding: ', error, ' trying again');
+        //     await img.decode();
+        //     // throw new Error('error');
+        // }
+        return fetch(path)
+            .then(res => res.blob())
+            .then(createImageBitmap)
+            .then(this.loadFromOffScreenCanvas);
+        // return this.loadFromOffScreenCanvas(img);
+    }
+
+    private loadFromOffScreenCanvas(img: HTMLImageElement | ImageBitmap): ImageData {
         const canvas = document.createElement('canvas');
         canvas.width = img.width;
         canvas.height = img.height;
@@ -266,10 +309,7 @@ export default class TextureManager {
     }
 
     private isSupportedSize(width: number, height: number) {
-        // 1024 is max texture size for now - hard coded
         return 1024 % width === 0 || 1024 % height === 0;
-        // return (width === 1024 && height === 1024)
-        //     || (width === 1920 && height === 1080)
     }
 }
 

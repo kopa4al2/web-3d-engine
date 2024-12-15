@@ -2,6 +2,9 @@
 precision highp int;
 precision highp float;
 
+const int MAX_DIRECTIONAL_LIGHTS = 2;
+const int MAX_POINT_LIGHTS = 4;
+
 struct PointLight {
     vec4 position;
     vec4 color;
@@ -20,7 +23,12 @@ struct DirectionalLight {
 
 layout(std140) uniform Camera {
     mat4 projectionViewMatrix;
-    vec4 cameraPosition;// The eye of the camera
+    mat4 projectionMatrix;
+    mat4 viewMatrix;
+    vec4 cameraPosition;
+    vec4 cameraForward;
+    vec4 cameraUp;
+    vec4 nearFarFovAspect;
 };
 
 layout(std140) uniform Light {
@@ -37,36 +45,19 @@ layout(std140) uniform Time {
     // vec2 _padding;
 };
 
-const vec3 cubeVertices[8] = vec3[8](
-    vec3(-1.0, -1.0, -1.0), // 0
-    vec3( 1.0, -1.0, -1.0), // 1
-    vec3( 1.0,  1.0, -1.0), // 2
-    vec3(-1.0,  1.0, -1.0), // 3
-    vec3(-1.0, -1.0,  1.0), // 4
-    vec3( 1.0, -1.0,  1.0), // 5
-    vec3( 1.0,  1.0,  1.0), // 6
-    vec3(-1.0,  1.0,  1.0)  // 7
-);
-
-// Define the 36 vertices for the cube (2 triangles per face, 6 faces total)
-const vec3 positions[36] = vec3[36](
-    cubeVertices[0], cubeVertices[1], cubeVertices[2], // -Z face
-    cubeVertices[2], cubeVertices[3], cubeVertices[0],
-    cubeVertices[4], cubeVertices[5], cubeVertices[6], // +Z face
-    cubeVertices[6], cubeVertices[7], cubeVertices[4],
-    cubeVertices[0], cubeVertices[4], cubeVertices[7], // -X face
-    cubeVertices[7], cubeVertices[3], cubeVertices[0],
-    cubeVertices[1], cubeVertices[5], cubeVertices[6], // +X face
-    cubeVertices[6], cubeVertices[2], cubeVertices[1],
-    cubeVertices[3], cubeVertices[7], cubeVertices[6], // +Y face
-    cubeVertices[6], cubeVertices[2], cubeVertices[3],
-    cubeVertices[0], cubeVertices[4], cubeVertices[5], // -Y face
-    cubeVertices[5], cubeVertices[1], cubeVertices[0]
-);
+layout(location = 0) in vec3 aVertexPosition;
 
 out vec3 vWorldDir;
 
 void main() {
-    vWorldDir = (cameraPosition * vec4(positions[gl_VertexID], 0.0)).xyz;
-    gl_Position = projectionViewMatrix * vec4(positions[gl_VertexID], 1.0);
+    vWorldDir = aVertexPosition;
+    
+    mat4 viewMatrixWithoutTranslation = viewMatrix;
+    viewMatrixWithoutTranslation[3][0] = 0.0;       // Zero out translation (x)
+    viewMatrixWithoutTranslation[3][1] = 0.0;       // Zero out translation (y)
+    viewMatrixWithoutTranslation[3][2] = 0.0;       // Zero out translation (z)
+    gl_Position = projectionMatrix * viewMatrixWithoutTranslation * vec4(aVertexPosition, 1.0);
+    
+    // Push the skybox to the far plane
+    gl_Position.z = gl_Position.w - 0.0001;
 }

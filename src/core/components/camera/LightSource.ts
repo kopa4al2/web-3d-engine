@@ -47,14 +47,14 @@ export default class LightSource implements Component {
     }
 }
 
-export interface DirectionalLight {
+export interface DirectionalLightOld {
     direction: [number, number, number, number];  // Direction vector (normalized)
     color: [number, number, number, number];      // RGB color of the light
     intensity: number;                    // Brightness multiplier
 }
 
 
-export interface PointLight {
+export interface PointLightOld {
     position: [number, number, number, number];  // World-space position of the light
     color: [number, number, number, number];    // RGB color of the light
     intensity: number;                  // Intensity multiplier

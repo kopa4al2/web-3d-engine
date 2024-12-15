@@ -2,8 +2,13 @@ const MAX_DIRECTIONAL_LIGHTS = 2;
 const MAX_POINT_LIGHTS = 4;
 
 struct Camera {
-    projectionViewMatrix: mat4x4<f32>,
-    position: vec4<f32>, // The eye of the camera
+    projectionViewMatrix: mat4x4<f32>,  // 64 bytes
+    projectionMatrix: mat4x4<f32>,      // 64 bytes
+    viewMatrix: mat4x4<f32>,            // 64 bytes
+    position: vec4<f32>,                // 16 bytes
+    forward: vec4<f32>,                 // 16 bytes
+    up: vec4<f32>,                      // 16 bytes
+    nearFarFovAspect: vec4<f32>,        // 16 bytes
 }
 
 struct Light {

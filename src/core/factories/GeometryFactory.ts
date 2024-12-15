@@ -8,6 +8,7 @@ export type GeometryStride = [keyof GeometryData, number][];
 
 
 const SHADER_GEOMETRIES = new JavaMap<VertexShaderName, GeometryStride>();
+SHADER_GEOMETRIES.set(VertexShaderName.SKY_BOX, [['vertices', 3]])
 SHADER_GEOMETRIES.set(VertexShaderName.UNLIT_GEOMETRY, [['vertices', 3], ['texCoords', 2], ['normals', 3]])
 // SHADER_GEOMETRIES.set(VertexShaderName.LIT_GEOMETRY, [['vertices', 3], ['texCoords', 2], ['normals', 3], ['tangents', 4]])
 SHADER_GEOMETRIES.set(VertexShaderName.LIT_GEOMETRY, [['vertices', 3], ['texCoords', 2], ['normals', 3], ['tangents', 3], ['bitangents', 3]])

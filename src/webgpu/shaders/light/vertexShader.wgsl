@@ -1,5 +1,11 @@
-struct Global {
-    projectionViewMatrix: mat4x4<f32>
+struct Camera {
+    projectionViewMatrix: mat4x4<f32>,  // 64 bytes
+    viewMatrix: mat4x4<f32>,            // 64 bytes
+    cameraPosition: vec4<f32>,          // 16 bytes
+    cameraForward: vec4<f32>,           // 16 bytes
+    cameraRight: vec4<f32>,             // 16 bytes
+    cameraUp: vec4<f32>,                // 16 bytes
+    nearFarPlanes: vec2<f32>,           // 8 bytes, aligned to 16 bytes
 }
 
 struct InstanceData {
@@ -26,7 +32,7 @@ struct VertexOutput {
 };
 
 
-@group(0) @binding(0) var<uniform> global: Global;
+@group(0) @binding(0) var<uniform> global: Camera;
 
 @group(2) @binding(0) var<storage, read> instanceData: array<InstanceData>;
 

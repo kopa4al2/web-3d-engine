@@ -38,8 +38,8 @@ export default class Canvas {
         addTitle(this.canvasId, this.parent, this.props);
 
         window.addEventListener('resize', ThrottleUtil.debounce(e => {
-            this.width = MathUtil.clamp(window.innerWidth, 800, 1920);
-            this.height = MathUtil.clamp(window.innerHeight, 600, 1080);
+            this.width = MathUtil.clamp(window.innerWidth, 800, 3840);
+            this.height = MathUtil.clamp(window.innerHeight, 600, 2160);
 
             if (this.props.getBoolean('splitScreen')) {
                 this.width = window.innerWidth / 2;

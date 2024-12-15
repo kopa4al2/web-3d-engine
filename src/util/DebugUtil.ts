@@ -26,11 +26,12 @@ export default class DebugUtil {
         // return `N/A ${ number }`;
     }
 
-    public static glCheckError(gl: WebGL2RenderingContext, texture: WebGLTexture) {
+    public static glCheckError(gl: WebGL2RenderingContext, texture: WebGLTexture, ...any: any) {
         const error = gl.getError();
         if (error !== gl.NO_ERROR) {
             console.log('ActiveTexture: ', gl.getParameter(gl.ACTIVE_TEXTURE), 'TEXTURE0', gl.TEXTURE0, 'diff: ', gl.getParameter(gl.ACTIVE_TEXTURE) - gl.TEXTURE0); // Ensure it's gl.TEXTURE0
             console.log('Is texture: ', gl.isTexture(texture)); // Ensure the texture is valid
+            console.log('Extra info: ', any)
             console.error('WebGL Error:', DebugUtil.glEnumToString(error));
         }
     }

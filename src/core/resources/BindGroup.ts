@@ -1,7 +1,7 @@
 import { BindGroupId, BindGroupLayoutId } from 'core/Graphics';
 import { BufferId } from 'core/resources/gpu/BufferDescription';
 import { UniformVisibility } from 'core/resources/gpu/GpuShaderData';
-import { ShaderStructName } from 'core/resources/ShaderStruct';
+import { ShaderStructName } from 'core/resources/shader/ShaderStruct';
 import { SamplerId, TextureId } from 'core/texture/Texture';
 import Bitmask from 'util/BitMask';
 

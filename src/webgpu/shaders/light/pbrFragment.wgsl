@@ -5,8 +5,13 @@ const PI = radians(180.0);
 const TAU = radians(360.0);
 
 struct Camera {
-    projectionViewMatrix: mat4x4<f32>,
-    position: vec4<f32>, // The eye of the camera
+    projectionViewMatrix: mat4x4<f32>,  // 64 bytes
+    projectionMatrix: mat4x4<f32>,      // 64 bytes
+    viewMatrix: mat4x4<f32>,            // 64 bytes
+    position: vec4<f32>,                // 16 bytes
+    forward: vec4<f32>,                 // 16 bytes
+    up: vec4<f32>,                      // 16 bytes
+    nearFarFovAspect: vec4<f32>,        // 16 bytes
 }
 
 struct Light {
@@ -198,147 +203,11 @@ fn main(input: FragmentInput) -> @location(0) vec4<f32> {
     finalColor += envDiffuse + envSpecular;
 
     // Ambient Light
-    let ambient = vec3<f32>(0.1); // Fixed ambient term
+    let ambient = vec3<f32>(0.1);
     finalColor += ambient * (1.0 - metallic);
-//    finalColor += ambient;
 
 //    return vec4<f32>(textureSample(globalTextures, globalSampler, vec2(0.0, 0.0), 0).rgb, 1.0);
 //    return vec4<f32>(textureSample(globalTextures, globalSampler, input.textureCoord, 10).rgb, 1.0);
 
       return vec4<f32>(finalColor, baseColor.a);
 }
-
-
-// OLD
-/*
-const MAX_DIRECTIONAL_LIGHTS = 2;
-const MAX_POINT_LIGHTS = 4;
-
-struct Camera {
-    projectionViewMatrix: mat4x4<f32>,
-    position: vec4<f32>, // The eye of the camera
-}
-
-struct Light {
-    directionalLights: array<DirectionalLight, MAX_DIRECTIONAL_LIGHTS>,
-    pointLights: array<PointLight, MAX_POINT_LIGHTS>,
-    numDirectionalLights: u32,
-    numPointLights: u32,
-    _padding: vec2<f32>,
-}
-
-struct Time {
-    deltaTime: f32,
-    timePassed: f32,
-    _padding: vec2<f32>,
-}
-
-struct PBRMaterial {
-    albedo_map: i32,       // Index for albedo texture in the texture array
-    normal_map: i32,       // Index for normal map in the texture array
-    metallic_map: i32,     // Index for metallic texture in the texture array
-    roughness_map: i32,    // Index for roughness texture in the texture array
-    uv_offset: vec2<f32>,  // UV offset for texture mapping
-    uv_scale: vec2<f32>,   // UV scale for texture mapping
-};
-
-struct PointLight {
-    position: vec4<f32>,
-    color: vec4<f32>,
-    intensity: f32,
-    constantAtt: f32,  // Constant attenuation
-    linearAtt: f32,    // Linear attenuation
-    quadraticAtt: f32, // Quadratic attenuation
-};
-
-struct DirectionalLight {
-    direction: vec4<f32>,
-    color: vec4<f32>,
-    intensity: f32,
-};
-
-struct FragmentInput {
-    @location(0) fragPosition: vec3<f32>,
-    @location(1) normal: vec3<f32>,
-    @location(2) textureCoord: vec2<f32>,
-    @location(3) tangent: vec3<f32>,
-    @location(4) bitangent: vec3<f32>,
-    @interpolate(flat) @location(5) instanceID: u32,
-}
-
-@group(0) @binding(0) var<uniform> camera: Camera;
-@group(0) @binding(1) var<uniform> light: Light;
-@group(0) @binding(2) var<uniform> time: Time;
-@group(0) @binding(3) var globalTextures: texture_2d_array<f32>;
-@group(0) @binding(4) var globalSampler: sampler;
-
-
-@group(1) @binding(0) var<uniform> material: PBRMaterial;
-
-@fragment
-fn main(input: FragmentInput) -> @location(0) vec4<f32> {
-    let albedo = textureSample(globalTextures, globalSampler, input.textureCoord, material.albedo_map).rgb;
-    let TBN: mat3x3<f32> = mat3x3<f32>(input.tangent, input.bitangent, input.normal);
-    var normalTangent = textureSample(globalTextures, globalSampler, input.textureCoord, material.normal_map).rgb;
-    normalTangent = normalize(normalTangent * 2.0 - 1.0);
-    let normalWorld: vec3<f32> = normalize(TBN * normalTangent);
-    let viewDir: vec3<f32> = normalize(camera.position.xyz - input.fragPosition);
-
-
-    var finalColor: vec3<f32> = vec3<f32>(0.0);
-    var testColor: vec3<f32> = vec3<f32>(0.0);
-    // --- Point Lights ---
-    for (var i = 0u; i < light.numPointLights; i = i + 1u) {
-        let light = light.pointLights[i];
-
-        // Light direction and distance
-        let lightDir = normalize(light.position.xyz - input.fragPosition);
-        let distance = length(light.position.xyz - input.fragPosition);
-
-        // Attenuation
-        let attenuation = 1.0 / (light.constantAtt + light.linearAtt * distance + light.quadraticAtt * distance * distance);
-
-        // Diffuse
-        let diff = max(dot(normalWorld, lightDir), 0.0);
-        let diffuse = diff * light.color.rgb * albedo.rgb * light.intensity;
-
-        // Specular shading (Blinn-Phong)
-        let halfwayDir: vec3<f32> = normalize(lightDir + viewDir);
-        let spec: f32 = pow(max(dot(normalWorld, halfwayDir), 0.0), 32.0); // Shininess factor
-        let specular: vec3<f32> = spec * light.color.rgb;
-
-        // Combine and add to final color
-        finalColor += attenuation * (diffuse + specular);
-    }
-
-    // --- Directional Lights ---
-    for (var i = 0u; i < light.numDirectionalLights; i = i + 1u) {
-        let dirLight = light.directionalLights[i];
-
-        // Light direction
-        let lightDir = normalize(-dirLight.direction.xyz);
-
-        // Diffuse
-        let diff = max(dot(normalWorld, lightDir), 0.0);
-        let diffuse = diff * dirLight.color.rgb * albedo.rgb * dirLight.intensity;
-
-        // Specular
-        let reflectDir = reflect(-lightDir, normalWorld);
-        let spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0); // Shininess = 32
-        let specular = spec * dirLight.color.rgb * dirLight.intensity * 15.0;
-
-        finalColor += diffuse + specular;
-        testColor += specular;
-    }
-
-    // Ambient Light
-    let ambient = vec3<f32>(0.1); // Fixed ambient term
-    finalColor += ambient;
-
-//    return vec4<f32>(light.pointLights[0].color.rgb, 1.0);
-//    return vec4<f32>(light.directionalLights[0].color.rgb, 1.0);
-//    return vec4<f32>(clamp(f32(light.numDirectionalLights) / f32(MAX_DIRECTIONAL_LIGHTS), 0.0, 1.0), clamp(f32(light.numPointLights) / f32(MAX_POINT_LIGHTS), 0.0, 1.0), 0.0, 1.0);
-    return vec4<f32>(finalColor, 1.0);
-//    return vec4<f32>(viewDir, 1.0);
-}
-*/

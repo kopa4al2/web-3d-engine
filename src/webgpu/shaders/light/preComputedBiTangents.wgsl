@@ -42,7 +42,6 @@ fn main(input: VertexInput) -> VertexOutput {
 
     output.position = global.projectionViewMatrix * modelMatrix * vec4<f32>(input.position, 1);
 
-//    output.normal = extract_mat3_from_mat4(inverseModel) * input.normal;
     output.pixelPosition = (modelMatrix * vec4<f32>(input.position, 1.0)).xyz;
 
     let inverseNormal = extract_mat3_from_mat4(inverseModel) * input.normal;
@@ -60,12 +59,6 @@ fn main(input: VertexInput) -> VertexOutput {
 
 fn extract_mat3_from_mat4(m: mat4x4<f32>) -> mat3x3<f32> {
     return mat3x3<f32>(m[0].xyz, m[1].xyz, m[2].xyz);
-
-//    return mat3x3<f32>(
-//        vec3<f32>(m[0].x, m[0].y, m[0].z),
-//        vec3<f32>(m[1].x, m[1].y, m[1].z),
-//        vec3<f32>(m[2].x, m[2].y, m[2].z)
-//    );
 }
 
 //fn transformTBN(

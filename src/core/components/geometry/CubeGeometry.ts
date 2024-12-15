@@ -208,3 +208,42 @@ export default class CubeGeometry extends GeometryComponent {
         });
     }
 }
+
+
+const cubeVertices = new Float32Array([
+    // Front face
+    -1.0, -1.0,  1.0,  // bottom left
+    1.0, -1.0,  1.0,  // bottom right
+    1.0,  1.0,  1.0,  // top right
+    -1.0,  1.0,  1.0,  // top left
+
+    // Back face
+    -1.0, -1.0, -1.0,  // bottom left
+    -1.0,  1.0, -1.0,  // top left
+    1.0,  1.0, -1.0,  // top right
+    1.0, -1.0, -1.0,  // bottom right
+
+    // Left face
+    -1.0, -1.0, -1.0,  // bottom back
+    -1.0, -1.0,  1.0,  // bottom front
+    -1.0,  1.0,  1.0,  // top front
+    -1.0,  1.0, -1.0,  // top back
+
+    // Right face
+    1.0, -1.0, -1.0,  // bottom back
+    1.0,  1.0, -1.0,  // top back
+    1.0,  1.0,  1.0,  // top front
+    1.0, -1.0,  1.0,  // bottom front
+
+    // Top face
+    -1.0,  1.0, -1.0,  // back left
+    -1.0,  1.0,  1.0,  // front left
+    1.0,  1.0,  1.0,  // front right
+    1.0,  1.0, -1.0,  // back right
+
+    // Bottom face
+    -1.0, -1.0, -1.0,  // back left
+    1.0, -1.0, -1.0,  // back right
+    1.0, -1.0,  1.0,  // front right
+    -1.0, -1.0,  1.0,  // front left
+]);

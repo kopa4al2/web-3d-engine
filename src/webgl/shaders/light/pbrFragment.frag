@@ -38,9 +38,15 @@ layout (std140) uniform PBRMaterial {
     vec4 base_color;
 };
 
-layout (std140) uniform Camera {
+
+layout(std140) uniform Camera {
     mat4 projectionViewMatrix;
-    vec4 cameraPosition;// The eye of the camera
+    mat4 projectionMatrix;
+    mat4 viewMatrix;
+    vec4 cameraPosition;
+    vec4 cameraForward;
+    vec4 cameraUp;
+    vec4 nearFarFovAspect;
 };
 
 layout (std140) uniform Light {
@@ -77,12 +83,13 @@ void main() {
     }
 
     // --- Metallic and Roughness ---
+//    vec2 metallicRoughtnessUv = vec2(0.0, 0.0);
     vec2 metallicRoughtnessUv = metallic_map.uv_scale * vTextureCoord + metallic_map.uv_offset;
     vec3 metallicRoughness = texture(TexturesArray, vec3(metallicRoughtnessUv, metallic_map.texture_layer)).rgb;
-//    float metallic = 0.6;
-//    float roughness = 0.3;
-    float metallic = min(0.4, metallicRoughness.b);
-    float roughness = max(0.2, metallicRoughness.g);
+    float metallic = metallicRoughness.b;
+    float roughness = metallicRoughness.g;
+//    float metallic = min(0.4, metallicRoughness.b);
+//    float roughness = max(0.2, metallicRoughness.g);
 
     // --- Normal Mapping ---
     mat3 TBN = mat3(vTangent, vBitangent, vNormal);
@@ -140,8 +147,7 @@ void main() {
 
         // Diffuse term (Lambertian)
         vec3 diffuse = (1.0 - fresnel) * (1.0 - metallic) * baseColor.rgb;
-//        vec3 diffuse = max((1.0 - fresnel) * (1.0 - metallic), 0.0) * baseColor.rgb;
-        // Combine light contributions
+        
         vec3 radiance = light.color.rgb * light.intensity;
         finalColor += attenuation * radiance * (diffuse + specular) * NdotL;
     }
@@ -176,15 +182,13 @@ void main() {
 
         // Diffuse term (Lambertian)
         vec3 diffuse = (1.0 - fresnel) * (1.0 - metallic) * baseColor.rgb;
-//        vec3 diffuse = max((1.0 - fresnel) * (1.0 - metallic), 0.0) * baseColor.rgb;
-        // Combine light contributions
+        
         vec3 radiance = dirLight.color.rgb * dirLight.intensity;
         finalColor += radiance * (diffuse + specular) * NdotL;
     }
 
-    // --- Environment Map Contributions ---
-    vec3 envSpecular = fresnelEnv /*** envNdotL*/ * envColor;
-    vec3 envDiffuse = fresnelEnv /*** envNdotL*/  * (1.0 - metallic) * (1.0 - fresnelEnv);
+    vec3 envSpecular = fresnelEnv * envNdotL * envColor;
+    vec3 envDiffuse = fresnelEnv * envNdotL  * (1.0 - metallic) * (1.0 - fresnelEnv);
     finalColor += envDiffuse + envSpecular;
 
     // Ambient Light

@@ -23,4 +23,17 @@ export default class BufferUtils {
         // Return the next available byte offset
         return byteOffset;
     }
+    
+    public static mergeFloat32Arrays(arrays: (Float32Array | number[])[]): Float32Array {
+        const totalLength = arrays.reduce((sum, arr) => sum + arr.length, 0);
+        const result = new Float32Array(totalLength);
+
+        let offset = 0;
+        for (const arr of arrays) {
+            result.set(arr, offset);
+            offset += arr.length;
+        }
+
+        return result;
+    }
 }

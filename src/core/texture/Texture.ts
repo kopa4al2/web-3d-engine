@@ -27,12 +27,9 @@ export type TextureDescription = { type: TextureType.TEXTURE_2D } & BaseTextureD
 export type ImageChannelFormat = 'rgba8unorm' | 'rgba8unorm-srgb' | 'rgba16float' | 'rgba32float'
 
 export const ImageChannelRange = {
-    UINT8: 4,
     uint8: 4,
-    UINT16: 8,
     uint16: 8,
-    FLOAT: 32,
-    float: 32,
+    float: 16,
 } as const;
 
 export interface ImageChannel {
@@ -46,7 +43,7 @@ export interface Image {
     height: number,
 }
 
-export type ImageWithData = Image & { imageData: ArrayBufferView }
+export type ImageWithData = Image & { imageData: ArrayBufferView | ImageBitmap }
 
 export interface BaseTextureDescriptor {
     label?: string,

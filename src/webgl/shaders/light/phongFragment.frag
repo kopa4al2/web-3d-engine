@@ -24,7 +24,12 @@ struct DirectionalLight {
 
 layout(std140) uniform Camera {
     mat4 projectionViewMatrix;
-    vec4 cameraPosition;// The eye of the camera
+    mat4 projectionMatrix;
+    mat4 viewMatrix;
+    vec4 cameraPosition;
+    vec4 cameraForward;
+    vec4 cameraUp;
+    vec4 nearFarFovAspect;
 };
 
 layout(std140) uniform Light {

@@ -8,10 +8,11 @@ import ObjParser from 'core/parser/ObjParser';
 import { VertexShaderName } from 'core/resources/cpu/CpuShaderData';
 import { BufferUsage } from "core/resources/gpu/BufferDescription";
 import ResourceManager from 'core/resources/ResourceManager';
-import ShaderManager from "core/resources/ShaderManager";
+import ShaderManager from 'core/resources/shader/ShaderManager';
 import Texture from "core/texture/Texture";
 import { vec4 } from "gl-matrix";
 import MathUtil from 'util/MathUtil';
+import Cube from "core/geometries/Cube";
 
 
 const cacheablePromise = <T>(promise: Promise<T>): () => Promise<T> => {
@@ -33,15 +34,20 @@ class ModelRepository {
                 private materialFactory: MaterialFactory,
                 private shaderManager: ShaderManager,
                 private resourceManager: ResourceManager) {
-        // this.resourceManager.textureManager.addEnvironmentMap('assets/environment-map/PureSkyCubemap/', ['px.hdr', 'nx.hdr', 'py.hdr', 'ny.hdr', 'pz.hdr', 'nz.hdr']);
-        // this.resourceManager.textureManager.addEnvironmentMap('assets/environment-map/Forest1024hdr/', ['px.hdr', 'nx.hdr', 'py.hdr', 'ny.hdr', 'pz.hdr', 'nz.hdr']);
-        this.resourceManager.textureManager.addEnvironmentMap('assets/environment-map/SkyPng/', ['px.png', 'nx.png', 'py.png', 'ny.png', 'pz.png', 'nz.png']);
-        // this.resourceManager.textureManager.addEnvironmentMap('assets/environment-map/ForestPng/', ['px.png', 'nx.png', 'py.png', 'ny.png', 'pz.png', 'nz.png']);
+        // this.resourceManager.textureManager.loadCubeMap('assets/environment-map/snow-4k-hdr/', ['px.hdr', 'nx.hdr', 'py.hdr', 'ny.hdr', 'pz.hdr', 'nz.hdr'], true);
+        // this.resourceManager.textureManager.loadCubeMap('assets/environment-map/PureSkyCubemap/', ['px.hdr', 'nx.hdr', 'py.hdr', 'ny.hdr', 'pz.hdr', 'nz.hdr'], true);
+        // this.resourceManager.textureManager.loadCubeMap('assets/environment-map/Forest1024hdr/', ['px.hdr', 'nx.hdr', 'py.hdr', 'ny.hdr', 'pz.hdr', 'nz.hdr'], true);
+        // this.resourceManager.textureManager.loadCubeMap('assets/environment-map/forest-4k-png/', ['px.png', 'nx.png', 'py.png', 'ny.png', 'pz.png', 'nz.png']);
+        this.resourceManager.textureManager.loadCubeMap('assets/environment-map/snow-4k-png/', ['px.png', 'nx.png', 'py.png', 'ny.png', 'pz.png', 'nz.png']);
 
     }
 
     async createSkyBox() {
-        return this.shaderManager.createSkyBox();
+        const geometry = this.geometryFactory.createGeometry('skybox', VertexShaderName.SKY_BOX, Cube.geometry);
+        const material = this.materialFactory.skybox();
+        const pipeline = this.shaderManager.createPipeline(geometry, material);
+        
+        return new Mesh(pipeline, geometry, material, defaultTransform().scaleBy(30));
     }
 
     async createCrate(cache: boolean = true): Promise<Mesh> {
@@ -81,7 +87,7 @@ class ModelRepository {
         })
 
         const pipeline = this.shaderManager.createPipeline(geometry, material);
-        const mesh = new Mesh(pipeline, geometry, material, defaultTransform().scaleBy(0.1), [{
+        const mesh = new Mesh(pipeline, geometry, material, defaultTransform().scaleBy(0.05), [{
             bindGroupId: vertexBindGroup,
             bufferId: vertexInstancedBuffer
         }]);

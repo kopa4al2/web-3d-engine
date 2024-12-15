@@ -39,9 +39,8 @@ export default class WebGPUGraphics implements Graphics {
     public readonly shaderLayouts: WeakMap<BindGroupLayoutId, GPUBindGroupLayout>;
 
     private readonly _device: GPUDevice;
-    // @ts-ignore
-    // private depthTexture: GPUTextureView;
-    private depthTexture: GPUTexture;
+    
+    private depthTexture?: GPUTexture;
 
     constructor(private gpuDevice: WebGPUDevice,
                 private gpuContext: WebGPUContext,
@@ -69,13 +68,13 @@ export default class WebGPUGraphics implements Graphics {
             colorAttachments: [
                 {
                     view: context.getCurrentTexture().createView(),
-                    clearValue: { r: 0.2, g: 0.2, b: 0.2, a: 1.0 }, // Clear color
+                    clearValue: { r: 0.2, g: 0.2, b: 0.2, a: 1.0 },
                     loadOp: 'clear',
                     storeOp: 'store',
                 },
             ],
             depthStencilAttachment: {
-                view: this.depthTexture.createView(),
+                view: this.depthTexture!.createView(),
                 depthLoadOp: 'clear',
                 depthStoreOp: 'store',
                 depthClearValue: 1.0,
@@ -122,6 +121,7 @@ export default class WebGPUGraphics implements Graphics {
                 targets: [
                     {
                         // format: 'rgba16float',
+                        // format: 'rgba8unorm',
                         format: 'bgra8unorm',
                         blend: shader.options.blendMode,
                         writeMask: shader.options.writeMask === 'ALL'
@@ -320,6 +320,18 @@ export default class WebGPUGraphics implements Graphics {
             data: { width, height, channel, imageData },
             dataOffset = 0, x, y, z
         } = updateTexture;
+       
+        if (imageData instanceof ImageBitmap) {
+            this._device.queue.copyExternalImageToTexture(
+                { source: imageData }, // The ImageBitmap
+                {
+                    texture,
+                    origin: { x, y, z },
+                },
+                [imageData.width, imageData.height, 1]
+            );
+            return;
+        }
         const bytesPerPixel = ImageChannelRange[channel.dataType];
         const bytesPerRow = width * bytesPerPixel;
         // console.groupCollapsed('Update texture: ', textureId.toString())
@@ -381,21 +393,18 @@ export default class WebGPUGraphics implements Graphics {
     private initDepthTexture(properties: PropertiesManager) {
         const width = <number>properties.getAbsolute('window.width');
         const height = <number>properties.getAbsolute('window.height');
+        console.log('GPU dimensions updated', width, height);
         if (width === 0 || height === 0) {
+            this.depthTexture?.destroy();
+            this.depthTexture = undefined;
             return;
         }
-
-        if (!this.depthTexture || this.depthTexture.width !== width || this.depthTexture.height !== height) {
-            if (this.depthTexture) {
-                this.depthTexture.destroy();
-            }
-            this.depthTexture = this._device.createTexture({
-                size: [width, height, 1],
-                format: 'depth24plus',
-                usage: GPUTextureUsage.RENDER_ATTACHMENT,
-            });
-            return;
-        }
+        //
+        // if (!this.depthTexture || this.depthTexture.width !== width || this.depthTexture.height !== height) {
+        //     if (this.depthTexture) {
+        //         this.depthTexture.destroy();
+        //     }
+        // }
 
         this.depthTexture = this._device.createTexture({
             size: [width, height, 1],

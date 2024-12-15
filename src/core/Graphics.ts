@@ -58,7 +58,7 @@ export default interface Graphics {
 
     writeToBuffer(buffer: BufferId, data: BufferData, bufferOffset?: number, dataOffset?: number, dataToWriteSize?: number): void;
 
-    writeToTexture(textureId: TextureId, source: ImageData, coordinates?: vec3, sourceWidth?: number, sourceHeight?: number): void;
+    writeToTexture?(textureId: TextureId, source: ImageData, coordinates?: vec3, sourceWidth?: number, sourceHeight?: number): void;
 
     updateTexture(textureId: TextureId, updateTexture: UpdateTexture): void;
 

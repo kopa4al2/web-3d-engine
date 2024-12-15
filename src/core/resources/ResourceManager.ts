@@ -1,16 +1,12 @@
-import Graphics, { BindGroupId, BindGroupLayoutId, PipelineId } from 'core/Graphics';
-import { TextureName } from 'core/loader/TextureLoader';
-import { GeometryDescriptor } from 'core/mesh/Geometry';
-import { MaterialDescriptor } from 'core/mesh/material/Material';
+import Graphics, { BindGroupId, BindGroupLayoutId } from 'core/Graphics';
 import BindGroup from 'core/resources/BindGroup';
 import BindGroupLayout from 'core/resources/BindGroupLayout';
 import BufferManager from 'core/resources/BufferManager';
 import { FragmentShaderName, VertexShaderName } from 'core/resources/cpu/CpuShaderData';
 import { BufferData, BufferDescription } from 'core/resources/gpu/BufferDescription';
 import { DEFAULT_PIPELINE_OPTIONS, PipelineOptions } from 'core/resources/gpu/GpuShaderData';
-import ShaderManager from 'core/resources/ShaderManager';
+import ShaderManager from 'core/resources/shader/ShaderManager';
 import TextureManager from 'core/resources/TextureManager';
-import { SamplerId, TextureId } from 'core/texture/Texture';
 import DebugUtil from 'util/DebugUtil';
 import logger from 'util/Logger';
 import ObjectUtils from 'util/ObjectUtils';
@@ -99,21 +95,23 @@ export default class ResourceManager {
                 },
                 {
                     type: 'cube-texture',
+                    name: 'EnvCubeMap',
                     bufferId: this.textureManager.getEnvironmentMap(),
                     binding: 5,
-                    name: 'EnvCubeMap',
                 }, {
                     type: 'sampler',
+                    name: 'EnvSampler',
                     bufferId: this.graphics.createSampler({
                         label: 'env-sampler',
                         magFilter: 'linear',
                         minFilter: 'linear',
+                        // mipmapFilter: 'linear',
                         addressModeU: 'clamp-to-edge',
                         addressModeV: 'clamp-to-edge',
+                        addressModeW: 'clamp-to-edge',
                         targetTexture: this.textureManager.getEnvironmentMap(),
                     }),
                     binding: 6,
-                    name: 'EnvSampler',
                 },
             ]
         });

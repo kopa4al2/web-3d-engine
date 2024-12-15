@@ -1,5 +1,5 @@
 import Mesh from "core/components/Mesh";
-import Transform, { defaultTransform } from "core/components/Transform";
+import Transform from "core/components/Transform";
 import GeometryFactory from "core/factories/GeometryFactory";
 import MaterialFactory from "core/factories/MaterialFactory";
 import Geometry from "core/mesh/Geometry";
@@ -9,7 +9,7 @@ import { VertexShaderName } from "core/resources/cpu/CpuShaderData";
 import { BlendPresets } from "core/resources/gpu/Blend";
 import { BufferData, BufferUsage } from "core/resources/gpu/BufferDescription";
 import ResourceManager from "core/resources/ResourceManager";
-import ShaderManager from "core/resources/ShaderManager";
+import ShaderManager from "core/resources/shader/ShaderManager";
 import TextureManager from "core/resources/TextureManager";
 import Texture from "core/texture/Texture";
 import { mat4, vec4 } from 'gl-matrix';

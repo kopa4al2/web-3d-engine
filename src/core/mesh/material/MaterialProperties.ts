@@ -12,14 +12,6 @@ export interface TextureArrayIndex {
 
 export default interface MaterialProperties {
     getBufferData(): BufferData;
-
-    getTextures?(): TextureArrayIndex[]
-
-    initializeBindGroups?(layoutId: BindGroupLayoutId, graphics: Graphics): [{
-        bindGroupIndex: number,
-        bindGroupId: BindGroupId,
-        bufferId: BufferId,
-    }]
 }
 
 export class UnlitMaterial implements MaterialProperties {
@@ -129,3 +121,10 @@ export class TerrainMaterialProperties implements MaterialProperties {
     }
 
 }
+
+export const NOOP_MATERIAL: MaterialProperties = {
+    getBufferData(): BufferData {
+        return new Float32Array();
+    }
+
+} 

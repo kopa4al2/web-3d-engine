@@ -28,19 +28,17 @@ struct TextureMap {
     vec2 uv_scale;
     uint texture_layer;
     float _padding;
-    //    vec3 _padding;
+//    vec3 _padding;
 };
 
-layout (std140) uniform PBRMaterial {
-    TextureMap albedo_map;
-    TextureMap normal_map;
-    TextureMap metallic_map;
-    vec4 base_color;
-};
-
-layout (std140) uniform Camera {
+layout(std140) uniform Camera {
     mat4 projectionViewMatrix;
-    vec4 cameraPosition;// The eye of the camera
+    mat4 projectionMatrix;
+    mat4 viewMatrix;
+    vec4 cameraPosition;
+    vec4 cameraForward;
+    vec4 cameraUp;
+    vec4 nearFarFovAspect;
 };
 
 layout (std140) uniform Light {
@@ -48,13 +46,13 @@ layout (std140) uniform Light {
     PointLight pointLights[MAX_POINT_LIGHTS];
     uint numDirectionalLights;
     uint numPointLights;
-    // vec2 padding
+// vec2 padding
 };
 
 layout (std140) uniform Time {
     float deltaTime;
     float timePassed;
-    // vec2 _padding;
+// vec2 _padding;
 };
 
 uniform samplerCube EnvCubeMap;
@@ -63,5 +61,6 @@ in vec3 vWorldDir;
 out vec4 fragColor;
 
 void main() {
+    //    fragColor = vec4(1.0, 0.0, 0.0, 1.0);
     fragColor = texture(EnvCubeMap, vWorldDir);
 }

@@ -5,13 +5,22 @@ import DebugUtil from 'util/DebugUtil';
 export default class ProjectionMatrix {
 
     public projectionMatrix: mat4;
+    public zNear!: number;
+    public zFar!: number;
+    public fov!: number;
+    public aspectRatio!: number;
 
     constructor(private properties: PropertiesManager) {
         DebugUtil.addToWindowObject('projectionMatrix', this);
         this.projectionMatrix = this.setProjectionMatrix(this.properties);
+        // this.zFar = properties.get('zFar');
+        // this.zNear = properties.get('zNear');
+        // this.fov = properties.get('fieldOfView');
+        // this.aspectRatio = properties.get<number>('window.width') / properties.get<number>('window.height');
         properties.subscribeToAnyPropertyChange(
             ['gpuApi', 'fieldOfView', 'zNear', 'zFar', 'window.width', 'window.height'],
             props => this.projectionMatrix = this.setProjectionMatrix(props));
+        console.log(this.projectionMatrix);
     }
 
     public get() {
@@ -24,8 +33,12 @@ export default class ProjectionMatrix {
         const fov = properties.get<number>('fieldOfView');
         const far = properties.get<number>('zFar');
         const near = properties.get<number>('zNear');
-
         const aspectRatio = properties.get<number>('window.width') / properties.get<number>('window.height');
+        
+        this.zNear = near;
+        this.zFar = far;
+        this.fov = fov;
+        this.aspectRatio = aspectRatio;
 
         const projectionMatrix = mat4.create();
         if (!isWebGl) {

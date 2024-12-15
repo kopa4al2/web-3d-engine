@@ -226,27 +226,6 @@ export default class WebGLGraphics implements Graphics {
         GlTexture.writeToTexture(this.glContext, texture, updateTexture);
     }
 
-
-    public writeToTexture(textureId: TextureId,
-                          imageData: ImageData,
-                          origin: vec3 = vec3.create(),
-                          sourceWidth: number = imageData.width,
-                          sourceHeight: number = imageData.height
-    ): void {
-        throw new Error('!!!')
-        const gl = this.glContext;
-        gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.textures.get(textureId)!.glTexture)
-        gl.texSubImage3D(
-            gl.TEXTURE_2D_ARRAY,
-            0,
-            origin[0], origin[1], origin[2],          // Layer index as depth
-            sourceWidth, sourceHeight, 1,
-            gl.RGBA,
-            gl.UNSIGNED_BYTE,
-            new Uint8Array(imageData.data.buffer)
-        );
-    }
-
     createTexture(textureDescription: TextureDescription): TextureId {
         const textureId = Symbol(`texture-${ textureDescription.label || 'gl2' }`);
         const activeTexture = this.textureUnitCounter++;
@@ -415,7 +394,12 @@ export class WebGLRenderPass implements RenderPass {
         } = shaderDescription
 
         this.drawMode = wireframe ? gl.LINES : this.drawMode;
-        gl.cullFace(cullFace === 'front' ? gl.FRONT : gl.BACK);
+        if (cullFace === 'none') {
+            gl.disable(gl.CULL_FACE);
+        } else {
+            gl.enable(gl.CULL_FACE)
+            gl.cullFace(cullFace === 'front' ? gl.FRONT : gl.BACK);
+        }
         BlendModeConverter.setBlendMode(gl, blendMode);
         BlendModeConverter.setDepthCompare(gl, depthCompare);
         gl.depthMask(depthWriteEnabled);

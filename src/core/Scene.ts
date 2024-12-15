@@ -12,6 +12,8 @@ import { mat4, vec3 } from 'gl-matrix';
 import Bitmask from 'util/BitMask';
 import DebugUtil from 'util/DebugUtil';
 import JavaMap from 'util/JavaMap';
+import OrderComponent from "core/components/OrderComponent";
+import PointLight from 'core/light/PointLight';
 
 
 export default class Scene {
@@ -22,8 +24,8 @@ export default class Scene {
     // For each mesh a tuple with entity - transform
     private readonly meshes: JavaMap<PipelineId, JavaMap<Mesh, [EntityId, ModelMatrix][]>>;
     private readonly frustum: Frustum;
+    private lights: EntityId[];
 
-    private _frustumFn?: (frustum: Frustum) => Mesh;
 
     constructor(public camera: CameraComponent,
                 public projectionMatrix: ProjectionMatrix,
@@ -33,16 +35,15 @@ export default class Scene {
         DebugUtil.addToWindowObject('scene', this);
         this.flags.setFlag(Scene.CHANGED);
         this.meshes = new JavaMap();
-        // this.meshes = new SortedMap<PipelineId, JavaMap<Mesh, [EntityId, ModelMatrix][]>>((m1:PipelineId, m2:PipelineId )=> 1);
         this.frustum = new Frustum();
+        this.lights = [];
     }
 
-    public _setFrustumFn(frustumFn: (frustum: Frustum) => Mesh) {
-        this._frustumFn = frustumFn;
-    }
-
-    public evalFrustumMesh() {
-        return this._frustumFn!(this.frustum);
+    public setSkyBox(skyBox: Mesh): void {
+        if (!this.meshes.has(skyBox.pipelineId)) {
+            this.meshes.set(skyBox.pipelineId, new JavaMap());
+        }
+        this.meshes.get(skyBox.pipelineId).set(skyBox, []);
     }
 
     public addEntity(id: EntityId) {
@@ -68,15 +69,20 @@ export default class Scene {
         // TODO: Do not clear every time
         // TODO: Handle spatial
         // TODO: Handle bounding box
+        this.lights = [];
         this.meshes.clear();
         const culled: Mesh[] = [];
         this.entities.forEach(entity => {
-            const [transform, mesh] = this.entityManager.getComponents<Transform, Mesh>(entity, Transform.ID, Mesh.ID)
-            if (transform && mesh) {
+            const [transform, mesh] = this.entityManager.getComponents<[Transform, Mesh]>(entity, Transform.ID, Mesh.ID);
+            const isLight = this.entityManager.hasAnyComponent(entity, PointLight.ID);
+
+            if (isLight) {
+                this.lights.push(entity);
+            } else if (mesh) {
                 const { pipelineId, geometry } = mesh;
 
                 if (!this.frustum.isSphereWithinFrustum(geometry.getBoundingVolume(BoundingSphere), this.camera.viewMatrix())) {
-                    // console.log('Frustum culling: ', mesh.pipelineId)
+                    console.warn('Frustum culling: ', mesh.pipelineId)
                     culled.push(mesh);
                     return;
                 }
@@ -90,7 +96,7 @@ export default class Scene {
                     entitiesByMesh.set(mesh, []);
                 }
 
-                entitiesByMesh.get(mesh).push([entity, transform.createModelMatrix()]);
+                entitiesByMesh.get(mesh).push([entity, transform ? transform.createModelMatrix() : mat4.create()]);
             }
         });
         this.flags.clearFlag(Scene.CHANGED);
@@ -108,6 +114,10 @@ export default class Scene {
         return this.meshes;
     }
 
+    public getVisibleLights() {
+        return this.entities
+    }
+
     public hasChanged() {
         return true; // TODO Temporrary disabled to test
         // return this.flags.hasFlag(Scene.CHANGED);
@@ -116,11 +126,17 @@ export default class Scene {
     private sortEntities() {
         // const blendModes: Record<BlendMode, number> = { 'none': 0, 'alpha': 1, 'additive': 2 };
         this.entities.sort((e1, e2) => {
-            const [transform1, mesh1] = this.entityManager.getComponents<Transform, Mesh>(e1, Transform.ID, Mesh.ID);
-            const [transform2, mesh2] = this.entityManager.getComponents<Transform, Mesh>(e2, Transform.ID, Mesh.ID);
+            const [transform1, mesh1, order1] = this.entityManager.getComponents<[Transform, Mesh, OrderComponent]>(e1, Transform.ID, Mesh.ID, OrderComponent.ID);
+            const [transform2, mesh2, order2] = this.entityManager.getComponents<[Transform, Mesh, OrderComponent]>(e2, Transform.ID, Mesh.ID, OrderComponent.ID);
+
+            if (order1 || order2) {
+                return ( order2?.order || -1 ) - ( order1?.order || -1 );
+            }
+
             if (!mesh1 || !mesh2) {
                 return -1;
             }
+
             const blendMode1 = mesh1.material.descriptor.properties.blendMode as Blend;
             const blendMode2 = mesh2.material.descriptor.properties.blendMode as Blend;
 

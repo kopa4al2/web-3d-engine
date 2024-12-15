@@ -1,14 +1,15 @@
-import { DirectionalLight, PointLight } from 'core/components/camera/LightSource';
+import { DirectionalLightOld, PointLightOld } from 'core/components/camera/LightSource';
 import Mesh from 'core/components/Mesh';
-import { ModelMatrix } from 'core/components/Transform';
-import EntityManager, { EntityId } from "core/EntityManager";
+import Transform from 'core/components/Transform';
+import EntityManager from "core/EntityManager";
 import Frustum from 'core/physics/Frustum';
-import BufferManager from "core/resources/BufferManager";
 import ResourceManager from "core/resources/ResourceManager";
 import { System } from "core/systems/EntityComponentSystem";
 import { mat4, vec3, vec4 } from "gl-matrix";
-import JavaMap from 'util/JavaMap';
-import Graphics, { PipelineId, RenderPass } from "../../core/Graphics";
+import Graphics, { RenderPass } from "../../core/Graphics";
+import BufferUtils from "../../util/BufferUtils";
+import DirectionalLight from 'core/light/DirectionalLight';
+import PointLight from 'core/light/PointLight';
 
 /**
  * Knows of global buffers / textures (to bind them)
@@ -18,6 +19,11 @@ import Graphics, { PipelineId, RenderPass } from "../../core/Graphics";
 export default class Renderer implements System {
 
     private projectionViewMatrix: mat4 = mat4.create();
+
+    private toRender = {
+        dirLights: [],
+        pointLights: [],
+    }
 
     constructor(private graphics: Graphics,
                 private entityManager: EntityManager,
@@ -31,6 +37,7 @@ export default class Renderer implements System {
 
         mat4.multiply(this.projectionViewMatrix, scene.projectionMatrix.get(), scene.camera.viewMatrix());
         // scene.updateFrustum(this.projectionViewMatrix);
+        // this.toRender()
     }
 
     render(): void {
@@ -38,26 +45,31 @@ export default class Renderer implements System {
         const { camera, lightSource } = scene;
         const MAX_DIR_LIGHTS = 2;
         const MAX_POINT_LIGHTS = 4;
-        const dirLights: DirectionalLight[] = this.mockDirectedLights();
-        const pointLights: PointLight[] = this.mockPointLights();
+        // const dirLights: DirectionalLightOld[] = this.mockDirectedLights();
+        // const pointLights: PointLightOld[] = this.mockPointLights();
         const floatsPerDirLightStruct = 12;
         const floatsPerPointLightStruct = 12;
-        const bytesForDirLight = Float32Array.BYTES_PER_ELEMENT * MAX_DIR_LIGHTS * floatsPerDirLightStruct;
-        const bytesForSpotLight = Float32Array.BYTES_PER_ELEMENT * MAX_POINT_LIGHTS * floatsPerPointLightStruct;
+        const bytesForDirLight = Float32Array.BYTES_PER_ELEMENT * DirectionalLight.MAX_DIRECTION_LIGHTS * floatsPerDirLightStruct;
+        const bytesForSpotLight = Float32Array.BYTES_PER_ELEMENT * PointLight.MAX_POINT_LIGHTS * floatsPerPointLightStruct;
+        // const bytesForDirLight = Float32Array.BYTES_PER_ELEMENT * MAX_DIR_LIGHTS * floatsPerDirLightStruct;
+        // const bytesForSpotLight = Float32Array.BYTES_PER_ELEMENT * MAX_POINT_LIGHTS * floatsPerPointLightStruct;
         const bytesForMetadata = Uint32Array.BYTES_PER_ELEMENT * 2
         const bufferData = new ArrayBuffer(bytesForDirLight + bytesForSpotLight + bytesForMetadata);
         const dataView = new DataView(bufferData);
         let byteOffset = 0;
 
-        if (dirLights.length > MAX_DIR_LIGHTS) {
-            throw new Error(`Too many directional lights. Max is ${MAX_DIR_LIGHTS}, provided: ${dirLights.length}`);
+        const dirLights = this.entityManager.getComponentsWithId<DirectionalLight>(DirectionalLight.ID);
+
+        if (dirLights.length > DirectionalLight.MAX_DIRECTION_LIGHTS) {
+            throw new Error(`Too many directional lights. Max is ${DirectionalLight.MAX_DIRECTION_LIGHTS}, provided: ${dirLights.length}`);
         }
-        for (let i = 0; i < MAX_DIR_LIGHTS; i++) {
+        for (let i = 0; i < DirectionalLight.MAX_DIRECTION_LIGHTS; i++) {
             const dirLight = dirLights[i];
             if (dirLight) {
                 byteOffset = writeFloatArray(dataView, byteOffset, dirLight.direction);
                 byteOffset = writeFloatArray(dataView, byteOffset, dirLight.color);
                 byteOffset = writeFloatArray(dataView, byteOffset, [dirLight.intensity, 0, 0, 0]);
+                // dirLight.hasChanged = false;
             } else {
                 // padding
                 byteOffset = writeFloatArray(dataView, byteOffset, new Float32Array(floatsPerDirLightStruct));
@@ -67,16 +79,31 @@ export default class Renderer implements System {
             console.warn("[DIRECTIONAL] Byte offset differs from expected. Expected: ", bytesForDirLight, " Actual: ", byteOffset, " Padding: ", bytesForDirLight - byteOffset);
         }
 
-        if (pointLights.length > MAX_POINT_LIGHTS) {
-            throw new Error(`Too many point lights. Max is ${MAX_POINT_LIGHTS}, provided: ${pointLights.length}`);
+        const pointLights: [PointLight, Transform][] = [];
+        for (const lightEntity of scene.getVisibleLights()) {
+            const [pointLight, transform] = this.entityManager.getComponents<[PointLight, Transform]>(lightEntity, PointLight.ID, Transform.ID);
+
+            if (pointLight) {
+                pointLights.push([pointLight, transform]);
+            }
         }
 
-        for (let i = 0; i < MAX_POINT_LIGHTS; i++) {
+
+        if (pointLights.length > PointLight.MAX_POINT_LIGHTS) {
+            throw new Error(`Too many point lights. Max is ${PointLight.MAX_POINT_LIGHTS}, provided: ${pointLights.length}`);
+        }
+
+        for (let i = 0; i < PointLight.MAX_POINT_LIGHTS; i++) {
             const pointLight = pointLights[i];
             if (pointLight) {
-                byteOffset = writeFloatArray(dataView, byteOffset, pointLight.position);
+            // if (i < pointLights.length) {
+                const [pointLight, transform] = pointLights[i];
+                const position = vec4.transformMat4(vec4.create(), vec4.fromValues(...pointLight.position), transform.createModelMatrix());
+
+                byteOffset = writeFloatArray(dataView, byteOffset, position);
                 byteOffset = writeFloatArray(dataView, byteOffset, pointLight.color);
-                byteOffset = writeFloatArray(dataView, byteOffset, [pointLight.intensity, pointLight.constant, pointLight.linear, pointLight.quadratic]);
+                // byteOffset = writeFloatArray(dataView, byteOffset, [pointLight.intensity, pointLight.constant, pointLight.linear, pointLight.quadratic]);
+                byteOffset = writeFloatArray(dataView, byteOffset, [pointLight.intensity, pointLight.constantAttenuation, pointLight.linearAttenuation, pointLight.quadraticAttenuation]);
             } else {
                 // padding
                 byteOffset = writeFloatArray(dataView, byteOffset, new Float32Array(floatsPerPointLightStruct));
@@ -96,7 +123,19 @@ export default class Renderer implements System {
         }
         const entitiesToRender = scene.getVisibleEntities();
 
-        this.resourceManager.bufferManager.writeToGlobalBuffer('Camera', BufferManager.mergeFloat32Arrays([this.projectionViewMatrix as Float32Array, new Float32Array([...camera.position, 1])]));
+        const viewMatrix = scene.camera.viewMatrix();
+        const projectionMatrix = scene.projectionMatrix;
+        const data = BufferUtils.mergeFloat32Arrays([
+            this.projectionViewMatrix as Float32Array,
+            projectionMatrix.get(),
+            viewMatrix,
+            new Float32Array([...camera.position, 1]),
+            new Float32Array([...camera.forward, 1]), // TODO: This may not be correct
+            new Float32Array([...camera.up, 1]), // TODO: This may not be correct
+            new Float32Array([projectionMatrix.zNear, projectionMatrix.zFar, projectionMatrix.fov, projectionMatrix.aspectRatio]),
+        ]);
+        // console.log(data.byteLength)
+        this.resourceManager.bufferManager.writeToGlobalBuffer('Camera', data);
         this.resourceManager.bufferManager.writeToGlobalBuffer('Light', new Uint8Array(bufferData));
         // FAKE DATA
         this.resourceManager.bufferManager.writeToGlobalBuffer('Time', new Float32Array([1.0, 1.0, 1.0, 1.0]));
@@ -112,7 +151,12 @@ export default class Renderer implements System {
             for (const [mesh, entities] of meshes) {
                 renderPass.setVertexBuffer(0, mesh.geometry.vertexBuffer);
                 mesh.setBindGroup(this.graphics, renderPass);
-                const { bufferId, bindGroupId } = mesh.instanceBuffers![0];
+                if (!mesh.instanceBuffers) {
+                    renderPass.drawIndexed(mesh.geometry.indexBuffer, mesh.geometry.indices);
+                    continue;
+                }
+
+                const { bufferId, bindGroupId } = mesh.instanceBuffers[0];
                 renderPass.setBindGroup(2, bindGroupId);
 
                 for (let index = 0; index < entities.length; index++) {
@@ -120,7 +164,7 @@ export default class Renderer implements System {
                     this.graphics.writeToBuffer(
                         bufferId,
                         transform as Float32Array,
-                        index * (64 + 64)
+                        index * ( 64 + 64 )
                     );
                     const modelInverseTranspose = mat4.create();
                     mat4.invert(modelInverseTranspose, transform);
@@ -166,36 +210,36 @@ export default class Renderer implements System {
         });
     }
 
-    private mockPointLights(): PointLight[] {
+    private mockPointLights(): PointLightOld[] {
         return [
-            {
-                position: [25.0, 25.0, 10.0, 1.0],  // Above the object
-                color: [0.0, 0.0, 1.0, 1.0],   // White light
-                intensity: 3.0,                // Bright
-                constant: 1.0,                 // Baseline attenuation
-                linear: 0.05,                  // Slow linear falloff
-                quadratic: 0.01                // Realistic quadratic falloff
-            },
-            {
-                position: [20.0, 10.0, 10.0, 1.0],  // Far light
-                color: [1.0, 0.0, 1.0, 1.0],        // Red light
-                intensity: 2.5,                     // Moderate
-                constant: 1.0,
-                linear: 0.1,
-                quadratic: 0.02
-            },
-            {
-                position: [-30.0, 20.0, 0.0, 1.0],   // Nearby light
-                color: [1.0, 1.0, 0.0, 1.0],        // Blue light
-                intensity: 1.0,                     // Bright spotlight
-                constant: 1.0,
-                linear: 0.005,
-                quadratic: 0.005
-            }
+            // {
+            //     position: [25.0, 25.0, 10.0, 1.0],  // Above the object
+            //     color: [0.0, 0.0, 1.0, 1.0],   // White light
+            //     intensity: 3.0,                // Bright
+            //     constant: 1.0,                 // Baseline attenuation
+            //     linear: 0.05,                  // Slow linear falloff
+            //     quadratic: 0.01                // Realistic quadratic falloff
+            // },
+            // {
+            //     position: [20.0, 10.0, 10.0, 1.0],  // Far light
+            //     color: [1.0, 0.0, 1.0, 1.0],        // Red light
+            //     intensity: 2.5,                     // Moderate
+            //     constant: 1.0,
+            //     linear: 0.1,
+            //     quadratic: 0.02
+            // },
+            // {
+            //     position: [-30.0, 20.0, 0.0, 1.0],   // Nearby light
+            //     color: [1.0, 1.0, 0.0, 1.0],        // Blue light
+            //     intensity: 1.0,                     // Bright spotlight
+            //     constant: 1.0,
+            //     linear: 0.005,
+            //     quadratic: 0.005
+            // }
         ];
     }
 
-    private mockDirectedLights(): DirectionalLight[] {
+    private mockDirectedLights(): DirectionalLightOld[] {
         return [
             {
                 direction: [-10.0, -5.0, 1.0, 1.0],  // Light coming diagonally from above
