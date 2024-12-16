@@ -1,6 +1,4 @@
 import PropertiesManager, { WindowProperties } from "core/PropertiesManager";
-import { addTitle } from "html/Views";
-import log from "util/Logger";
 import MathUtil from "util/MathUtil";
 import ThrottleUtil from "util/ThrottleUtil";
 
@@ -35,7 +33,7 @@ export default class Canvas {
     addToDOM(parentElement?: HTMLElement): Canvas {
         const wrapper = parentElement || this.parent;
         wrapper.appendChild(this.htmlElement);
-        addTitle(this.canvasId, this.parent, this.props);
+        // addTitle(this.canvasId, this.parent, this.props);
 
         window.addEventListener('resize', ThrottleUtil.debounce(e => {
             this.width = MathUtil.clamp(window.innerWidth, 800, 3840);

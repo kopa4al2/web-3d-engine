@@ -1,41 +1,43 @@
-import Canvas from "Canvas";
-import CameraComponent from "core/components/camera/CameraComponent";
-import LightSource from "core/components/camera/LightSource";
-import ProjectionMatrix from "core/components/camera/ProjectionMatrix";
-import Component from "core/components/Component";
+import Canvas from 'Canvas';
+import CameraComponent from 'core/components/camera/CameraComponent';
+import ProjectionMatrix from 'core/components/camera/ProjectionMatrix';
+import Component from 'core/components/Component';
 import TerrainGeometry from 'core/components/geometry/TerrainGeometry';
-import Input from "core/components/Input";
-import Mesh from "core/components/Mesh";
-import Transform, { defaultTransform } from "core/components/Transform";
+import Input from 'core/components/Input';
+import Mesh from 'core/components/Mesh';
+import OrderComponent from 'core/components/OrderComponent';
+import Transform, { defaultTransform } from 'core/components/Transform';
 import EntityFactory from 'core/entities/EntityFactory';
-import EntityManager, { EntityId, EntityName } from "core/EntityManager";
+import EntityManager, { EntityId, EntityName } from 'core/EntityManager';
 import GeometryFactory from 'core/factories/GeometryFactory';
 import MaterialFactory from 'core/factories/MaterialFactory';
-import Graphics from "core/Graphics";
+import Graphics from 'core/Graphics';
+import DirectionalLight from 'core/light/DirectionalLight';
+import PointLight from 'core/light/PointLight';
 import { GeometryData } from 'core/mesh/Geometry';
 import Material from 'core/mesh/material/Material';
 import { TerrainMaterialProperties } from 'core/mesh/material/MaterialProperties';
 import BoundingSphere from 'core/physics/BoundingSphere';
-import PropertiesManager from "core/PropertiesManager";
+import PropertiesManager from 'core/PropertiesManager';
 import ModelRepository from 'core/repository/ModelRepository';
 import { VertexShaderName } from 'core/resources/cpu/CpuShaderData';
 import ResourceManager from 'core/resources/ResourceManager';
-import ShaderManager from "core/resources/shader/ShaderManager";
-import Scene from "core/Scene";
-import FreeCameraSystem from "core/systems/camera/FreeCameraSystem";
+import ShaderManager from 'core/resources/shader/ShaderManager';
+import Scene from 'core/Scene';
+import FreeCameraSystem from 'core/systems/camera/FreeCameraSystem';
 import ViewFrustumSystem from 'core/systems/camera/ViewFrustumSystem';
-import EntityComponentSystem from "core/systems/EntityComponentSystem";
-import InputSystem from "core/systems/InputSystem";
-import Renderer from "core/systems/Renderer";
+import EntityComponentSystem from 'core/systems/EntityComponentSystem';
+import InputSystem from 'core/systems/InputSystem';
+import Renderer from 'core/systems/Renderer';
 import SceneSystem from 'core/systems/SceneSystem';
-import TerrainSystem from "core/systems/terrain/TerrainSystem";
-import TransformSystem from "core/systems/TransformSystem";
-import { vec2, vec3, vec4 } from "gl-matrix";
-import { enableEntitySelect } from 'html/Controls';
-import { worldCoordinates } from 'html/Views';
-import OrderComponent from "core/components/OrderComponent";
-import DirectionalLight from 'core/light/DirectionalLight';
-import PointLight from 'core/light/PointLight';
+import TerrainSystem from 'core/systems/terrain/TerrainSystem';
+import TransformSystem from 'core/systems/TransformSystem';
+import { vec2, vec3, vec4 } from 'gl-matrix';
+// import { enableEntitySelect, LightControls } from 'html/Controls';
+// import { worldCoordinates } from 'html/Views';
+import { LightControl } from "./engine/ui/controls/LightControl";
+import UILayout from "./engine/ui/UILayout";
+import { SdiColor, SdiDirection } from './types/engine-types/EngineTypes';
 import DebugUtil from './util/DebugUtil';
 
 export default class Engine {
@@ -54,6 +56,8 @@ export default class Engine {
     private readonly input: Input = this.createInput();
     private readonly freeCameraComponent: CameraComponent = this.createFreeCamera();
 
+    private readonly lightControls: LightControl;
+
     constructor(
         private label: string,
         public graphicsApi: Graphics,
@@ -62,7 +66,10 @@ export default class Engine {
         public entityManager: EntityManager,
         public ecs: EntityComponentSystem,
         public projectionMatrix: ProjectionMatrix,
+        private uiLayout: UILayout,
         public onRenderPlugins: OnRenderPlugin[]) {
+
+        this.lightControls = new LightControl(uiLayout);
 
         this.resourceManager = new ResourceManager(graphicsApi);
         this.entityFactory = new EntityFactory(this.entityManager);
@@ -94,7 +101,7 @@ export default class Engine {
             this.onRenderPlugins.forEach(plugin => plugin());
             this.properties.flushBuffer();
             if (this.isRunning) {
-                const deltaTime = ( now - this.lastFrame ) / 1000;  // Convert deltaTime to seconds
+                const deltaTime = (now - this.lastFrame) / 1000;  // Convert deltaTime to seconds
                 this.ecs.update(deltaTime);
                 this.ecs.render();
 
@@ -102,7 +109,7 @@ export default class Engine {
                 this.frameRequest = requestAnimationFrame(this.loop.bind(this));
             }
         } catch (error) {
-            console.error(`Error occurred in engine: ${this.label} isRunning: ${this.isRunning}`, error);
+            console.error(`Error occurred in engine: ${ this.label } isRunning: ${ this.isRunning }`, error);
         }
     }
 
@@ -154,23 +161,34 @@ export default class Engine {
 
         // renderWavefront('barrel', defaultTransform().translate([-5, 10, -5]));
 
-        this.modelRepository.createSkyBox().then(m => {this.scene.addEntities(this.entityFactory.createEntity(`SKY_BOX`, m, new OrderComponent(1)));});
+        this.modelRepository.createSkyBox().then(m => {
+            this.scene.addEntities(this.entityFactory.createEntity(`SKY_BOX`, m, new OrderComponent(1)));
+        });
         const sunLight = new DirectionalLight({
-            direction: [-10.0, -5.0, 1.0, 1.0],
-            color: [1.0, 1.0, 1.0, 1.0],
+            direction: new SdiDirection(-0.1, -0.5, 0.1, 1.0),
+            color: new SdiColor(1.0, 1.0, 1.0, 1.0),
             intensity: 1.0
         });
+        const dirLight2 = new DirectionalLight({
+            direction: new SdiDirection(0.0, 0.5, 0.0, 1.0),
+            color: new SdiColor(1.0, 1.0, 1.0, 1.0),
+            intensity: 1.0
+        });
+        this.lightControls.addDirLight('Sun light', sunLight);
+        this.lightControls.addDirLight('Custom light', dirLight2);
         const sunLightEntity = this.entityFactory.createEntity('Sun', sunLight);
-        this.scene.addEntities(sunLightEntity);
+        const eDirLight2 = this.entityFactory.createEntity('DirLight2', dirLight2);
+        this.scene.addEntities(sunLightEntity, eDirLight2);
 
         const redLight = new PointLight({
-                position: [0, 0, 0, 0],
-                color: [1.0, 0.0, 1.0, 1.0],
-                intensity: 2.5,
-                constantAttenuation: 1.0,
-                linearAttenuation: 0.1,
-                quadraticAttenuation: 0.02
-            });
+            position: [0, 0, 0, 0],
+            color: new SdiColor([1.0, 0.0, 1.0, 1.0]),
+            intensity: 2.5,
+            constantAttenuation: 1.0,
+            linearAttenuation: 0.1,
+            quadraticAttenuation: 0.02
+        });
+        this.lightControls.addPointLight('Red light', redLight);
         this.scene.addEntities(this.entityFactory.createEntity('RedPointLight', redLight, defaultTransform()));
 
         this.loadAndAddMesh(() => this.modelRepository.createCrate(), [-5, 10, 10])
@@ -233,13 +251,13 @@ export default class Engine {
         // entities.lightBulb(vec3.fromValues(-8, 4, 22));
         // entities.lightBulb(vec3.fromValues(-12, 9, 9));
 
-        enableEntitySelect(this.canvas.parent, Object.keys(entities),
-            e => {
-                console.log('ADD ', e);
-                const { selectedEntity, coordinates } = e;
-                // @ts-ignore
-                entities[selectedEntity](coordinates, selectedEntity);
-            })
+        // enableEntitySelect(this.canvas.parent, Object.keys(entities),
+        //     e => {
+        //         console.log('ADD ', e);
+        //         const { selectedEntity, coordinates } = e;
+        //         // @ts-ignore
+        //         entities[selectedEntity](coordinates, selectedEntity);
+        //     })
         this.ecs.registerUpdateSystems(
             new SceneSystem(this.entityManager),
             new InputSystem(this.entityManager, this.properties, this.canvas.htmlElement),
@@ -251,7 +269,7 @@ export default class Engine {
             new Renderer(this.graphicsApi, this.entityManager, this.resourceManager),
             new ViewFrustumSystem(this.entityManager, this.graphicsApi, this.properties),
             new TerrainSystem(this.graphicsApi));
-        worldCoordinates(this.properties, this.freeCameraComponent, this.projectionMatrix, this.input, this.canvas.parent);
+        // worldCoordinates(this.properties, this.freeCameraComponent, this.projectionMatrix, this.input, this.canvas.parent);
     }
 
     private initializeTerrain() {
@@ -323,7 +341,7 @@ export default class Engine {
                                            geometryData: GeometryData,
                                            material: Material,
                                            transformation: Transform) {
-        const geometry = this.geometryFactory.createGeometry(`${label}-geometry`, vertexShader, geometryData);
+        const geometry = this.geometryFactory.createGeometry(`${ label }-geometry`, vertexShader, geometryData);
         const boundingSphere = new BoundingSphere(geometryData.vertices, geometryData.indices);
         geometry.addBoundingVolume(BoundingSphere, boundingSphere);
 
@@ -432,8 +450,8 @@ export default class Engine {
         meshCreator()
             .then(mesh => {
                 this.scene.addEntities(
-                    this.entityFactory.createEntityInstance(`${mesh.material.label}`, mesh, mesh.transform.translate(translate)),
-                    this.entityFactory.createEntityInstance(`${mesh.material.label}`, mesh, mesh.transform.translate([3, 40, 5])),
+                    this.entityFactory.createEntityInstance(`${ mesh.material.label }`, mesh, mesh.transform.translate(translate)),
+                    this.entityFactory.createEntityInstance(`${ mesh.material.label }`, mesh, mesh.transform.translate([3, 40, 5])),
                     // this.entityFactory.createEntityInstance('crate', mesh, mesh.transform.scaleBy(0.05).translate([0, 0, 0])),
                     // this.entityFactory.createEntityInstance('crate', mesh, mesh.transform.scaleBy(0.1).translate([8, -41, -67])),
                     // this.entityFactory.createEntityInstance('crate', mesh, mesh.transform.scaleBy([0.16, 0.08, 0.08]).translate([15, 25, -2])),

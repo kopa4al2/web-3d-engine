@@ -1,10 +1,11 @@
 import CameraComponent from "core/components/camera/CameraComponent";
-import LightSource from "core/components/camera/LightSource";
 import ProjectionMatrix from "core/components/camera/ProjectionMatrix";
 import Mesh from 'core/components/Mesh';
+import OrderComponent from "core/components/OrderComponent";
 import Transform, { ModelMatrix } from 'core/components/Transform';
 import EntityManager, { EntityId } from "core/EntityManager";
 import { PipelineId } from 'core/Graphics';
+import PointLight from 'core/light/PointLight';
 import BoundingSphere from 'core/physics/BoundingSphere';
 import Frustum from 'core/physics/Frustum';
 import { Blend } from 'core/resources/gpu/Blend';
@@ -12,8 +13,6 @@ import { mat4, vec3 } from 'gl-matrix';
 import Bitmask from 'util/BitMask';
 import DebugUtil from 'util/DebugUtil';
 import JavaMap from 'util/JavaMap';
-import OrderComponent from "core/components/OrderComponent";
-import PointLight from 'core/light/PointLight';
 
 
 export default class Scene {

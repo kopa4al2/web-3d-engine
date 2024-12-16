@@ -37,8 +37,8 @@ class ModelRepository {
         // this.resourceManager.textureManager.loadCubeMap('assets/environment-map/snow-4k-hdr/', ['px.hdr', 'nx.hdr', 'py.hdr', 'ny.hdr', 'pz.hdr', 'nz.hdr'], true);
         // this.resourceManager.textureManager.loadCubeMap('assets/environment-map/PureSkyCubemap/', ['px.hdr', 'nx.hdr', 'py.hdr', 'ny.hdr', 'pz.hdr', 'nz.hdr'], true);
         // this.resourceManager.textureManager.loadCubeMap('assets/environment-map/Forest1024hdr/', ['px.hdr', 'nx.hdr', 'py.hdr', 'ny.hdr', 'pz.hdr', 'nz.hdr'], true);
-        // this.resourceManager.textureManager.loadCubeMap('assets/environment-map/forest-4k-png/', ['px.png', 'nx.png', 'py.png', 'ny.png', 'pz.png', 'nz.png']);
-        this.resourceManager.textureManager.loadCubeMap('assets/environment-map/snow-4k-png/', ['px.png', 'nx.png', 'py.png', 'ny.png', 'pz.png', 'nz.png']);
+        this.resourceManager.textureManager.loadCubeMap('assets/environment-map/forest-4k-png/', ['px.png', 'nx.png', 'py.png', 'ny.png', 'pz.png', 'nz.png']);
+        // this.resourceManager.textureManager.loadCubeMap('assets/environment-map/snow-4k-png/', ['px.png', 'nx.png', 'py.png', 'ny.png', 'pz.png', 'nz.png']);
 
     }
 
@@ -63,8 +63,8 @@ class ModelRepository {
         const metallicRoughnessMap = await this.resourceManager.textureManager
             .create1x1Texture(Texture.DEFAULT_METALLIC_ROUGHNESS_MAP, new Uint8ClampedArray([
                 255,
-                Math.floor(0.3 * 255), // G = Roughness
-                Math.floor(0.1 * 255), // B = Metallic
+                Math.floor(1.0 * 255), // G = Roughness
+                Math.floor(1.0 * 255), // B = Metallic
                 255,]));
         const albedo = await this.resourceManager.textureManager.addToGlobalTexture('assets/advanced/crate/crate.png');
         const normal = await this.resourceManager.textureManager.addToGlobalTexture('assets/advanced/crate/crateNormal.png');

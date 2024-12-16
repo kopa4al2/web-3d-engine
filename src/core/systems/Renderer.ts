@@ -61,8 +61,8 @@ export default class Renderer implements System {
             for (let i = 0; i < DirectionalLight.MAX_DIRECTION_LIGHTS; i++) {
                 const dirLight = dirLights[i];
                 if (dirLight) {
-                    byteOffset = writeFloatArray(dataView, byteOffset, dirLight.direction);
-                    byteOffset = writeFloatArray(dataView, byteOffset, dirLight.color);
+                    byteOffset = writeFloatArray(dataView, byteOffset, dirLight.direction.toArray());
+                    byteOffset = writeFloatArray(dataView, byteOffset, dirLight.color.toArray());
                     byteOffset = writeFloatArray(dataView, byteOffset, [dirLight.intensity, 0, 0, 0]);
                     // dirLight.hasChanged = false;
                 } else {
@@ -97,7 +97,7 @@ export default class Renderer implements System {
                 const position = vec4.transformMat4(vec4.create(), vec4.fromValues(...pointLight.position), transform.createModelMatrix());
 
                 byteOffset = writeFloatArray(dataView, byteOffset, position);
-                byteOffset = writeFloatArray(dataView, byteOffset, pointLight.color);
+                byteOffset = writeFloatArray(dataView, byteOffset, pointLight.color.toArray());
                 // byteOffset = writeFloatArray(dataView, byteOffset, [pointLight.intensity, pointLight.constant, pointLight.linear, pointLight.quadratic]);
                 byteOffset = writeFloatArray(dataView, byteOffset, [pointLight.intensity, pointLight.constantAttenuation, pointLight.linearAttenuation, pointLight.quadraticAttenuation]);
             } else {
@@ -287,11 +287,9 @@ function getFrustumCorners(viewProjectionMatrix: mat4) {
 
 function writeFloatArray(dataView: DataView, byteOffset: number, array: number[] | Float32Array<any>): number {
     for (let i = 0; i < array.length; i++) {
-        // Little-endian
         dataView.setFloat32(byteOffset, array[i], true);
-        // Each float is 4 bytes
-        byteOffset += 4;
+        byteOffset += Float32Array.BYTES_PER_ELEMENT;
     }
-    // Return the next available byte offset
+
     return byteOffset;
 }

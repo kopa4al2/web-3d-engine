@@ -102,10 +102,9 @@ void main() {
 
     // Fresnel Reflectance at Normal Incidence
     vec3 F0 = mix(vec3(0.04), baseColor.rgb, metallic);
-    // Avoid zero roughness
     float roughnessSquared = roughness * roughness;
-    float envNdotL = max(dot(normalWorld, reflectedDir), 0.1);
-    float envNdotV = max(dot(normalWorld, viewDir), 0.1);
+    float envNdotL = max(dot(normalWorld, reflectedDir), 0.001);
+    float envNdotV = max(dot(normalWorld, viewDir), 0.001);
     vec3 fresnelEnv = F0 + (1.0 - F0) * pow(1.0 - envNdotV, 5.0);
 
     vec3 finalColor = vec3(0.0);
@@ -132,8 +131,8 @@ void main() {
         float D = alpha2 / (PI * pow(NdotH2 * (alpha2 - 1.0) + 1.0, 2.0));
 
         // Geometry Function (Schlick-GGX)
-        float NdotV = max(dot(normalWorld, viewDir), 0.1);
-        float NdotL = max(dot(normalWorld, lightDir), 0.1);
+        float NdotV = max(dot(normalWorld, viewDir), 0.001);
+        float NdotL = max(dot(normalWorld, lightDir), 0.001);
         float k = roughnessSquared / 2.0;
         float Gv = NdotV / (NdotV * (1.0 - k) + k);
         float Gl = NdotL / (NdotL * (1.0 - k) + k);
@@ -167,8 +166,8 @@ void main() {
         float D = alpha2 / (PI * pow(NdotH2 * (alpha2 - 1.0) + 1.0, 2.0));
 
         // Geometry Function (Schlick-GGX)
-        float NdotV = max(dot(normalWorld, viewDir), 0.1);
-        float NdotL = max(dot(normalWorld, lightDir), 0.1);
+        float NdotV = max(dot(normalWorld, viewDir), 0.001);
+        float NdotL = max(dot(normalWorld, lightDir), 0.001);
         float k = roughnessSquared / 2.0;
         float Gv = NdotV / (NdotV * (1.0 - k) + k);
         float Gl = NdotL / (NdotL * (1.0 - k) + k);
@@ -184,13 +183,12 @@ void main() {
         finalColor += radiance * (diffuse + specular) * NdotL;
     }
 
-    vec3 envSpecular = fresnelEnv /** envNdotL*/ * envColor;
-    vec3 envDiffuse = fresnelEnv /** envNdotL*/  * (1.0 - metallic) * (1.0 - fresnelEnv);
+    vec3 envSpecular = fresnelEnv * envNdotL * envColor;
+    vec3 envDiffuse = fresnelEnv * envNdotL  * (1.0 - metallic) * (1.0 - fresnelEnv);
     finalColor += envDiffuse + envSpecular;
 
     // Ambient Light
-    vec3 ambient = vec3(0.1);// Fixed ambient term
-//    finalColor += ambient;
+    vec3 ambient = vec3(0.1);
     finalColor += ambient * (1.0 - metallic);
 
     fragColor = vec4(finalColor, base_color.a);
@@ -201,130 +199,61 @@ void main() {
 
 
 /*
-#version 300 es
-precision highp int;
-precision highp float;
-precision highp sampler2DArray;
-
-const int MAX_DIRECTIONAL_LIGHTS = 2;
-const int MAX_POINT_LIGHTS = 4;
-const float PI = radians(180.0);
-const float TAU = radians(360.0);
-
-struct PointLight {
-    vec4 position;
-    vec4 color;
-    float intensity;
-    float constantAtt;// Constant attenuation
-    float linearAtt;// Linear attenuation
-    float quadraticAtt;// Quadratic attenuation
-};
-
-struct DirectionalLight {
-    vec4 direction;
-    vec4 color;
-    float intensity;
-};
+float DistributionGGX(vec3 N, vec3 H, float roughness);
+vec3 FresnelSchlick(float cosTheta, vec3 F0);
+float GeometrySchlickGGX(float NdotV, float roughness);
+float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness);
+vec3 BRDF(vec3 N, vec3 V, vec3 L, vec3 albedo, float roughness, float metalness);
 
 
-layout(std140) uniform Camera {
-    mat4 projectionViewMatrix;
-    vec4 cameraPosition;// The eye of the camera
-};
-
-layout(std140) uniform Light {
-    DirectionalLight directionalLights[MAX_DIRECTIONAL_LIGHTS];
-    PointLight pointLights[MAX_POINT_LIGHTS];
-    uint numDirectionalLights;
-    uint numPointLights;
-// vec2 padding
-};
-
-layout(std140) uniform Time {
-    float deltaTime;
-    float timePassed;
-// vec2 _padding;
-};
-
-layout(std140) uniform PBRMaterial {
-    uint albedo_map;// Index for albedo texture in the texture array
-    uint normal_map;// Index for normal map in the texture array
-    uint metallic_map;// Index for metallic texture in the texture array
-    uint roughness_map;// Index for roughness texture in the texture array
-    vec2 uv_offset;// UV offset for texture mapping
-    vec2 uv_scale;// UV scale for texture mapping
-};
-
-
-uniform sampler2DArray TexturesArray;
-
-in vec3 vFragPosition;
-in vec3 vNormal;
-in vec2 vTextureCoord;
-in vec3 vTangent;
-in vec3 vBitangent;
-out vec4 fragColor;
-
-void main() {
-    vec3 albedo = texture(TexturesArray, vec3(vTextureCoord, albedo_map)).rgb;
-    mat3 TBN = mat3(vTangent, vBitangent, vNormal);
-    vec3 normalTangent = texture(TexturesArray, vec3(vTextureCoord, normal_map)).rgb;
-    normalTangent = normalize(normalTangent * 2.0 - 1.0);
-    vec3 normalWorld = normalize(TBN * normalTangent);
-    vec3 viewDir = normalize(cameraPosition.xyz - vFragPosition);
-
-    vec3 finalColor = vec3(0.0);
-    vec3 testColor = vec3(0.0);
-
-    // --- Point Lights ---
-    for (uint i = 0u; i < numPointLights; i++) {
-        PointLight light = pointLights[i];
-
-        // Light direction and distance
-        vec3 lightDir = normalize(light.position.xyz - vFragPosition);
-        float distance = length(light.position.xyz - vFragPosition);
-
-        // Attenuation
-        float attenuation = 1.0 / (light.constantAtt + light.linearAtt * distance + light.quadraticAtt * distance * distance);
-
-        // Diffuse
-        float diff = max(dot(normalWorld, lightDir), 0.0);
-        vec3 diffuse = diff * light.color.rgb * albedo * light.intensity;
-
-        // Specular shading (Blinn-Phong)
-        vec3 halfwayDir = normalize(lightDir + viewDir);
-        float spec = pow(max(dot(normalWorld, halfwayDir), 0.0), 32.0);// Shininess factor
-        vec3 specular = spec * light.color.rgb;
-
-        // Combine and add to final color
-        finalColor += attenuation * (diffuse + specular);
-    }
-    // --- Directional Lights ---
-    for (uint i = 0u; i < numDirectionalLights; i++) {
-        DirectionalLight dirLight = directionalLights[i];
-
-        // Light direction
-        vec3 lightDir = normalize(-dirLight.direction.xyz);
-
-        // Diffuse
-        float diff = max(dot(normalWorld, lightDir), 0.0);
-        vec3 diffuse = diff * dirLight.color.rgb * albedo * dirLight.intensity;
-
-        // Specular
-        vec3 reflectDir = reflect(-lightDir, normalWorld);
-        float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
-        vec3 specular = spec * dirLight.color.rgb * dirLight.intensity * 5.0;
-
-        // Combine and add to final color
-        finalColor += diffuse + specular;
-        testColor += specular;
-    }
-
-    // Ambient Light
-    vec3 ambient = vec3(0.1);// Fixed ambient term
-    finalColor += ambient;
-
-    fragColor = vec4(finalColor, 1.0);
+vec3 FresnelSchlick(float cosTheta, vec3 F0) {
+    // Fresnel-Schlick approximation
+    return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
+float GeometrySchlickGGX(float NdotV, float roughness) {
+    float k = (roughness * roughness) / 2.0;
+    return NdotV / (NdotV * (1.0 - k) + k);
+}
+
+float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
+    float ggxV = GeometrySchlickGGX(NdotV, roughness);
+    float ggxL = GeometrySchlickGGX(NdotL, roughness);
+    return ggxV * ggxL;
+}
+
+vec3 BRDF(vec3 N, vec3 V, vec3 L, vec3 albedo, float roughness, float metalness) {
+    vec3 H = normalize(V + L);
+    float NdotL = max(dot(N, L), 0.0);
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotH = max(dot(N, H), 0.0);
+    float HdotV = max(dot(H, V), 0.0);
+
+    // Fresnel term
+    vec3 F0 = mix(vec3(0.04), albedo, metalness); // Dielectric or metallic base reflectance
+    vec3 F = FresnelSchlick(HdotV, F0);
+
+    // Geometry term
+    float G = GeometrySmith(N, V, L, roughness);
+
+    // Distribution term
+    float D = DistributionGGX(N, H, roughness);
+
+    // Specular reflection
+    vec3 numerator = D * G * F;
+    float denominator = 4.0 * NdotV * NdotL + 0.001; // Avoid division by zero
+    vec3 specular = numerator / denominator;
+
+    // Diffuse reflection (Lambertian)
+    vec3 kS = F; // Specular reflectance
+    vec3 kD = vec3(1.0) - kS; // Diffuse reflectance
+    kD *= 1.0 - metalness; // No diffuse for metals
+
+    vec3 diffuse = kD * albedo / PI;
+
+    // Combine contributions
+    return (diffuse + specular) * NdotL;
+}
 */

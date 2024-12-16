@@ -1,9 +1,11 @@
 import Component, { ComponentId } from 'core/components/Component';
 import { DefaultCacheable } from 'core/components/Cacheable';
+import { SdiColor } from "../../types/engine-types/EngineTypes";
 
 export interface PointLightProps {
     position: [number, number, number, number];
-    color: [number, number, number, number];
+    color: SdiColor;
+    // color: [number, number, number, number];
     intensity: number;
     constantAttenuation: number;
     linearAttenuation: number;
@@ -27,6 +29,10 @@ class PointLight extends DefaultCacheable<PointLightProps> implements Component 
     constructor(props: PointLightProps) {
         super(props);
         this.hasChanged = true;
+    }
+
+    get data() {
+        return this._data;
     }
 
     get position() {

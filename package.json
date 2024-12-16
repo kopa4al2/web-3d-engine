@@ -13,15 +13,20 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@0b5vr/tweakpane-plugin-rotation": "^0.2.0",
+    "@tweakpane/plugin-camerakit": "^0.3.0",
+    "@tweakpane/plugin-essentials": "^0.2.1",
     "gl-matrix": "^3.4.3",
     "lit-element": "^4.0.2",
-    "parse-hdr": "^1.0.0"
+    "parse-hdr": "^1.0.0",
+    "tweakpane": "^4.0.5"
   },
   "devDependencies": {
+    "@tweakpane/core": "^2.0.5",
     "@types/gl-matrix": "^3.2.0",
     "@webgpu/types": "^0.1.48",
     "copy-webpack-plugin": "^11.0.0",
-    "lit-analyzer": "^1.1.10",
+    "lit-analyzer": "^2.0.3",
     "raw-loader": "^4.0.2",
     "ts-loader": "^9.5.1",
     "typescript": "^5.7.2",

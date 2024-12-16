@@ -90,10 +90,10 @@ fn main(input: FragmentInput) -> @location(0) vec4<f32> {
     // --- Metallic and Roughness ---
     let metallicRoughtnessUv = material.metallic_map.uv_scale * input.textureCoord + material.metallic_map.uv_offset;
     let metallicRoughness = textureSample(globalTextures, globalSampler, metallicRoughtnessUv, material.metallic_map.texture_layer).rgb;
-//    let metallic = 1.0;
-//    let roughness = 0.3;
-    let metallic = min(0.4, metallicRoughness.b);
-    let roughness = max(0.2, metallicRoughness.g);
+    let metallic = metallicRoughness.b;
+    let roughness = metallicRoughness.g;
+//    let metallic = min(0.4, metallicRoughness.b);
+//    let roughness = max(0.2, metallicRoughness.g);
 
     // --- Normal Mapping ---
     let TBN: mat3x3<f32> = mat3x3<f32>(input.tangent, input.bitangent, input.normal);
@@ -110,9 +110,9 @@ fn main(input: FragmentInput) -> @location(0) vec4<f32> {
 
     // Fresnel Reflectance at Normal Incidence
     let F0 = mix(vec3<f32>(0.04), baseColor.rgb, metallic);
-    let roughnessSquared = roughness * roughness;
-    let envNdotL = max(dot(normalWorld, reflectedDir), 0.1);
-    let envNdotV = max(dot(normalWorld, viewDir), 0.1);
+    let roughnessSquared = max(roughness * roughness, 0.01);
+    let envNdotL = max(dot(normalWorld, reflectedDir), 0.0);
+    let envNdotV = max(dot(normalWorld, viewDir), 0.0);
     let fresnelEnv = F0 + (1.0 - F0) * pow(1.0 - envNdotV, 5.0);
 
     var finalColor: vec3<f32> = vec3<f32>(0.0);

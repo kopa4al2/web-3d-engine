@@ -115,7 +115,7 @@ export default class GLTFParser {
 
         const normal = (normalTexture && normalTexture.uri)
             ? await textureManager.addToGlobalTexture(this.rootDir + normalTexture.uri)
-            : await textureManager.create1x1Texture(Texture.DEFAULT_NORMAL_MAP, new Uint8ClampedArray([255, 255, 255, 255]));
+            : await textureManager.create1x1Texture(Texture.DEFAULT_NORMAL_MAP, new Uint8ClampedArray([0, 255, 0, 255]));
         const albedo = (baseColorTexture && baseColorTexture.uri)
             ? await textureManager.addToGlobalTexture(this.rootDir + baseColorTexture.uri)
             : await textureManager.create1x1Texture(Texture.DEFAULT_ALBEDO_MAP, new Uint8ClampedArray([255, 255, 255, 255]));
@@ -124,7 +124,7 @@ export default class GLTFParser {
             : await textureManager.create1x1Texture(Texture.DEFAULT_METALLIC_ROUGHNESS_MAP, new Uint8ClampedArray([255, metallicFactor * 255, roughnessFactor * 255, 255]));
 
         if (material.pbrMetallicRoughness.metallicFactor || material.pbrMetallicRoughness.roughnessFactor) {
-            console.log('Material: ', material)
+            console.log('Material has metallic or roughness factor: ', material, ' texture; ', metallicRoughnessTexture)
         }
 
         const blendMode = material.alphaMode === 'BLEND' ? BlendPresets.TRANSPARENT : undefined;
@@ -155,7 +155,7 @@ export default class GLTFParser {
             : null;
 
         if (pbr.baseColorTexture?.texCoord || material.normalTexture?.texCoord || pbr.metallicRoughnessTexture?.texCoord) {
-            console.log(material)
+            console.log('Material has overridden texCoord ', material)
         }
 
         return {

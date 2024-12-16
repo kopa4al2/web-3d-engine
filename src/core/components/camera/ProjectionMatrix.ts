@@ -13,14 +13,9 @@ export default class ProjectionMatrix {
     constructor(private properties: PropertiesManager) {
         DebugUtil.addToWindowObject('projectionMatrix', this);
         this.projectionMatrix = this.setProjectionMatrix(this.properties);
-        // this.zFar = properties.get('zFar');
-        // this.zNear = properties.get('zNear');
-        // this.fov = properties.get('fieldOfView');
-        // this.aspectRatio = properties.get<number>('window.width') / properties.get<number>('window.height');
         properties.subscribeToAnyPropertyChange(
             ['gpuApi', 'fieldOfView', 'zNear', 'zFar', 'window.width', 'window.height'],
             props => this.projectionMatrix = this.setProjectionMatrix(props));
-        console.log(this.projectionMatrix);
     }
 
     public get() {

@@ -1,9 +1,12 @@
 import Component, { ComponentId } from 'core/components/Component';
 import { DefaultCacheable } from 'core/components/Cacheable';
+import { SdiColor, SdiDirection } from "../../types/engine-types/EngineTypes";
 
 export interface DirectionalLightProps {
-    direction: [number, number, number, number],
-    color: [number, number, number, number],
+    direction: SdiDirection,
+    // direction: [number, number, number, number],
+    color: SdiColor,
+    // color: [number, number, number, number],
     intensity: number,
 }
 
@@ -21,7 +24,7 @@ class DirectionalLight extends DefaultCacheable<DirectionalLightProps> implement
 
     public hasChanged: boolean = false;
 
-    constructor(props: DirectionalLightProps) {
+    constructor(public props: DirectionalLightProps) {
         super(props);
         this.hasChanged = true;
     }

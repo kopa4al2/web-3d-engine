@@ -1,21 +1,18 @@
 import Canvas from "Canvas";
-import LightSource from "core/components/camera/LightSource";
 import ProjectionMatrix from "core/components/camera/ProjectionMatrix";
 import EntityManager from "core/EntityManager";
 import Graphics from "core/Graphics";
-import TextureLoader from "core/loader/TextureLoader";
-import GLTFParserOld from 'core/parser/GLTFParserOld';
-import GLTFParser from "core/parser/GLTFParser";
 import PropertiesManager, { PartialProperties, Property, PropertyValue } from "core/PropertiesManager";
 import EntityComponentSystem from "core/systems/EntityComponentSystem";
 import Engine, { OnRenderPlugin } from "Engine";
 import { glMatrix, mat4, vec2, vec3 } from "gl-matrix";
 import { enableGpuGraphicsApiSwitch, enableSplitScreenSwitch, enableWireframeSwitch } from "html/Controls";
 import { enableWebComponentEntitySelect } from 'html/entity-select/EntitySelect';
-import { fpsCounter } from "html/Views";
 import DebugUtil from 'util/DebugUtil';
 import WebGLGraphics from "webgl/WebGLGraphics";
 import WebGPUGraphics from "webgpu/graphics/WebGPUGraphics";
+import UILayout from "./engine/ui/UILayout";
+import FpsCounter from "./engine/ui/views/FpsCounter";
 
 // OVERRIDE SYMBOL TO STRING FOR DEBUGGING
 Symbol.prototype.toString = function () {
@@ -32,9 +29,22 @@ const onRender: OnRenderPlugin = () => {
     screenProps.flushBuffer()
 };
 
+
 document.body.onload = async () => {
     console.timeLog(loadTimer, 'DOM loaded');
 
+    // const globalUI = new UILayout('GLOBAL', document.getElementById('global-controls')!);
+    // const graphicsApiBlade = globalUI.pane.addBlade({
+    //     view: 'list',
+    //     label: 'Graphics API',
+    //     options: [
+    //         {text: 'WebGL2', value: 'webgl2'},
+    //         {text: 'WebGPU', value: 'webgpu'},
+    //         {text: 'Split screen', value: 'split-screen'},
+    //     ],
+    //     value: 'webgl2',
+    // });
+    // // graphicsApiBlade.on()
     enableSplitScreenSwitch(screenProps, document.getElementById('global-controls')!);
     enableGpuGraphicsApiSwitch(screenProps, document.getElementById('global-controls')!);
     console.timeLog(loadTimer, 'HTML Controls enabled');
@@ -220,8 +230,10 @@ async function initWebGlEngine(properties: PartialProperties) {
         webGl2Props,
         'webgl2');
     canvas.addToDOM();
+    const layout = new UILayout('webgl2', canvas.parent);
+
     const graphics = new WebGLGraphics(canvas, webGl2Props);
-    const webGlEngine = await createEngine('WebGl', webGl2Props, canvas, graphics, [onRender]);
+    const webGlEngine = await createEngine('WebGl', webGl2Props, canvas, graphics, layout);
     return { webGl2Props, webGlEngine };
 }
 
@@ -260,8 +272,10 @@ async function initWebGpu(properties: PartialProperties) {
         'webgpu');
     canvas.addToDOM();
 
+    const layout = new UILayout('webgpu', canvas.parent);
+
     const graphics = await WebGPUGraphics.initWebGPU(canvas, webGpuProps);
-    const webgpuEngine = await createEngine('WebGPU', webGpuProps, canvas, graphics, [onRender]);
+    const webgpuEngine = await createEngine('WebGPU', webGpuProps, canvas, graphics, layout);
     return { webGpuProps, webgpuEngine };
 }
 
@@ -274,9 +288,12 @@ async function createEngine(
     properties: PropertiesManager,
     canvas: Canvas,
     graphics: Graphics,
-    onRender: OnRenderPlugin[]): Promise<Engine> {
-    const projectionMatrix = new ProjectionMatrix(properties);
+    uiLayout: UILayout): Promise<Engine> {
 
+    const fpsCounterV2 = new FpsCounter(uiLayout);
+
+
+    const projectionMatrix = new ProjectionMatrix(properties);
     const engine = new Engine(
         label,
         graphics,
@@ -285,12 +302,12 @@ async function createEngine(
         new EntityManager(),
         new EntityComponentSystem(),
         projectionMatrix,
-        [fpsCounter(properties, canvas.parent), ...onRender],
+        uiLayout,
+        [onRender, fpsCounterV2.tick.bind(fpsCounterV2)],
     );
-    enableWireframeSwitch(properties, canvas.parent);
+    // enableWireframeSwitch(properties, canvas.parent);
 
     engine.initializeScene();
-    // engine.start();
 
     return engine;
 }

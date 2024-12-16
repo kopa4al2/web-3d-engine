@@ -5,6 +5,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WebGlRenderEngine</title>
     <style>
+        :root {
+            --tp-base-background-color: hsla(230, 5%, 90%, 1.00);
+            --tp-base-shadow-color: hsla(0, 0%, 0%, 0.10);
+            --tp-button-background-color: hsla(230, 7%, 75%, 1.00);
+            --tp-button-background-color-active: hsla(230, 7%, 60%, 1.00);
+            --tp-button-background-color-focus: hsla(230, 7%, 65%, 1.00);
+            --tp-button-background-color-hover: hsla(230, 7%, 70%, 1.00);
+            --tp-button-foreground-color: hsla(230, 10%, 30%, 1.00);
+            --tp-container-background-color: hsla(230, 15%, 30%, 0.20);
+            --tp-container-background-color-active: hsla(230, 15%, 30%, 0.32);
+            --tp-container-background-color-focus: hsla(230, 15%, 30%, 0.28);
+            --tp-container-background-color-hover: hsla(230, 15%, 30%, 0.24);
+            --tp-container-foreground-color: hsla(230, 10%, 30%, 1.00);
+            --tp-groove-foreground-color: hsla(230, 15%, 30%, 0.10);
+            --tp-input-background-color: hsla(230, 15%, 30%, 0.10);
+            --tp-input-background-color-active: hsla(230, 15%, 30%, 0.22);
+            --tp-input-background-color-focus: hsla(230, 15%, 30%, 0.18);
+            --tp-input-background-color-hover: hsla(230, 15%, 30%, 0.14);
+            --tp-input-foreground-color: hsla(230, 10%, 30%, 1.00);
+            --tp-label-foreground-color: hsla(230, 10%, 30%, 0.70);
+            --tp-monitor-background-color: hsla(230, 15%, 30%, 0.10);
+            --tp-monitor-foreground-color: hsla(230, 10%, 30%, 0.50);
+            /*--tp-blade-horizontal-padding: 12px;*/
+            --tp-blade-value-width: 220px;
+            --font-size: 20px;
+            --tp-font-size: 24px;
+            /*font-size: 20px;*/
+        }
+
         html, body {
             margin: 0 !important;
             padding: 0;
@@ -33,6 +62,54 @@
             z-index: 1;
             background: #00ff0055;
         }
+
+        .menu {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            /*left: 50%;*/
+            z-index: 999;
+            /*font-size: 2em;*/
+        }
+
+        .tp-rotv {
+            /*font-size: 1.1rem!important;*/
+            /*--bs-bg: var(--tp-base-background-color, hsl(230, 7%, 17%));*/
+            /*--bs-br: var(--tp-base-border-radius, 6px);*/
+            /*--bs-ff: var(--tp-base-font-family, Roboto Mono, Source Code Pro, Menlo, Courier, monospace);*/
+            /*--bs-sh: var(--tp-base-shadow-color, rgba(0, 0, 0, 0.2));*/
+            /*--bld-br: var(--tp-blade-border-radius, 2px);*/
+            /*--bld-hp: var(--tp-blade-horizontal-padding, 4px);*/
+            /*--bld-vw: var(--tp-blade-value-width, 360px);*/
+            /*--btn-bg: var(--tp-button-background-color, hsl(230, 7%, 70%));*/
+            /*--btn-bg-a: var(--tp-button-background-color-active, #d6d7db);*/
+            /*--btn-bg-f: var(--tp-button-background-color-focus, #c8cad0);*/
+            /*--btn-bg-h: var(--tp-button-background-color-hover, #bbbcc4);*/
+            /*--btn-fg: var(--tp-button-foreground-color, hsl(230, 7%, 17%));*/
+            /*--cnt-bg: var(--tp-container-background-color, rgba(187, 188, 196, 0.1));*/
+            /*--cnt-bg-a: var(--tp-container-background-color-active, rgba(187, 188, 196, 0.25));*/
+            /*--cnt-bg-f: var(--tp-container-background-color-focus, rgba(187, 188, 196, 0.2));*/
+            /*--cnt-bg-h: var(--tp-container-background-color-hover, rgba(187, 188, 196, 0.15));*/
+            /*--cnt-fg: var(--tp-container-foreground-color, hsl(230, 7%, 75%));*/
+            /*--cnt-hp: var(--tp-container-horizontal-padding, 4px);*/
+            /*--cnt-vp: var(--tp-container-vertical-padding, 4px);*/
+            /*--cnt-usp: var(--tp-container-unit-spacing, 4px);*/
+            /*--cnt-usz: var(--tp-container-unit-size, 20px);*/
+            /*--in-bg: var(--tp-input-background-color, rgba(187, 188, 196, 0.1));*/
+            /*--in-bg-a: var(--tp-input-background-color-active, rgba(187, 188, 196, 0.25));*/
+            /*--in-bg-f: var(--tp-input-background-color-focus, rgba(187, 188, 196, 0.2));*/
+            /*--in-bg-h: var(--tp-input-background-color-hover, rgba(187, 188, 196, 0.15));*/
+            /*--in-fg: var(--tp-input-foreground-color, hsl(230, 7%, 75%));*/
+            /*--lbl-fg: var(--tp-label-foreground-color, rgba(187, 188, 196, 0.7));*/
+            /*--mo-bg: var(--tp-monitor-background-color, rgba(0, 0, 0, 0.2));*/
+            /*--mo-fg: var(--tp-monitor-foreground-color, rgba(187, 188, 196, 0.7));*/
+            /*--grv-fg: var(--tp-groove-foreground-color, rgba(187, 188, 196, 0.1));*/
+        }
+
+        /*.menu [class^='tp-'] {*/
+        /*    font-size: 1.2rem;*/
+        /*}*/
+
 
         .meta {
             position: absolute;
@@ -71,17 +148,20 @@
 
 </div>
 <div class="canvas-wrapper" id="webgl2-canvas">
+    <div class="menu"></div>
     <div class="meta">
         <div class="views"></div>
         <div class="controls"></div>
     </div>
 </div>
 <div class="canvas-wrapper" id="webgpu-canvas">
-    <div class="meta">
-        <div class="views"></div>
-        <div class="controls"></div>
-    </div>
+    <div class="menu"></div>
+<!--    <div class="meta">-->
+<!--        <div class="views"></div>-->
+<!--        <div class="controls"></div>-->
+<!--    </div>-->
 </div>
 </body>
 <script src="./bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tweakpane-css"></script>
 </html>
