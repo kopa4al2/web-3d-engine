@@ -4,6 +4,10 @@ import { vec3, vec4 } from "gl-matrix";
 import DebugUtil from 'util/DebugUtil';
 import MathUtil from "util/MathUtil";
 
+/**
+ * TODO: think if a common parent class for all lights will be useful
+ * @deprecated use PointLight and DirectionalLight instead.
+ */
 export default class LightSource implements Component {
     static readonly ID: symbol = Symbol('LightSource');
     readonly id = LightSource.ID;

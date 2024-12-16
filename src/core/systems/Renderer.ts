@@ -92,9 +92,10 @@ export default class Renderer implements System {
         for (let i = 0; i < PointLight.MAX_POINT_LIGHTS; i++) {
             const pointLight = pointLights[i];
             if (pointLight) {
-            // if (i < pointLights.length) {
+                // if (i < pointLights.length) {
                 const [pointLight, transform] = pointLights[i];
-                const position = vec4.transformMat4(vec4.create(), vec4.fromValues(...pointLight.position), transform.createModelMatrix());
+                const { x, y, z } = pointLight.position.xyz;
+                const position = vec4.transformMat4(vec4.create(), vec4.fromValues(x, y, z, 1.0), transform.createModelMatrix());
 
                 byteOffset = writeFloatArray(dataView, byteOffset, position);
                 byteOffset = writeFloatArray(dataView, byteOffset, pointLight.color.toArray());

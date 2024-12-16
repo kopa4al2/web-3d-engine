@@ -12,6 +12,11 @@ import DebugUtil from 'util/DebugUtil';
 // }
 
 class MathUtil {
+    
+    normalize(value: number, min: number, max: number) {
+        return Math.max(Math.min(value, min), Math.min(value, max));
+    }
+    
     float32ToFloat16(source: Float32Array) {
         const float32Array = new Float32Array(1);
         const uint32Array = new Uint32Array(float32Array.buffer);

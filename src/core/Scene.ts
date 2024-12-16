@@ -61,9 +61,9 @@ export default class Scene {
     }
 
     public update() {
-        if (!this.hasChanged()) {
-            return;
-        }
+        // if (!this.hasChanged()) {
+        //     return;
+        // }
         // TODO: Do not clear every time
         // TODO: Handle spatial
         // TODO: Handle bounding box

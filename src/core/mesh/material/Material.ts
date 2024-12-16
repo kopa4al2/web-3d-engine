@@ -18,13 +18,6 @@ export interface MaterialDescriptor {
     createBindGroups?: (graphics: Graphics) => BindGroup[]
 }
 
-interface GpuBufferData {
-    bindGroupIndex: number,
-    bindGroupId: BindGroupId,
-    bufferId: BufferId,
-    dynamicOffset?: number,
-}
-
 export default class Material {
     private hasChanged: boolean;
 

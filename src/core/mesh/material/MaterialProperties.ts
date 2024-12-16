@@ -43,21 +43,10 @@ export class PBRMaterialProperties implements MaterialProperties {
     constructor(public albedo: TextureArrayIndex,
                 public normalMap: TextureArrayIndex,
                 public metallicRoughnessMap: TextureArrayIndex,
-                public baseColorFactor: vec4,
-                public roughnessMap?: TextureArrayIndex,
-                public uvOffset: vec2 = vec2.fromValues(0, 0),
-                public uvScale: vec2 = vec2.fromValues(1, 1)) {
+                public baseColorFactor: vec4) {
     }
 
     createBufferV2() {
-        // TODO: DO it like this
-        // TextureMapViews.uv_offset[0] = 1.0;
-        // TextureMapViews.uv_offset[1] = 2.0;
-        // TextureMapViews.uv_scale[0] = 0.5;
-        // TextureMapViews.uv_scale[1] = 0.5;
-        // TextureMapViews.texture_layer[0] = 3;
-        //
-        // console.log(new Uint8Array(TextureMapValues)); // Inspect raw buffer contents
         const TextureMapValues = new ArrayBuffer(24);
         const TextureMapViews = {
             uv_offset: new Float32Array(TextureMapValues, 0, 2),
@@ -71,11 +60,7 @@ export class PBRMaterialProperties implements MaterialProperties {
         const dataView = new DataView(bufferData);
 
 
-        // const albedoMap = {
-        //     uv_offset: new Float32Array(bufferData, 0, 2),
-        //     uv_scale: new Float32Array(bufferData, 8, 2),
-        //     texture_layer: new Uint32Array(bufferData, 16, 1),
-        // }
+      
         let byteOffset = this.setTextureData(dataView, 0, this.albedo);
         // console.log(`Albedo byte offset. Expected: ${32}, Actual: ${byteOffset}`)
         byteOffset = this.setTextureData(dataView, byteOffset, this.normalMap);

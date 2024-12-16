@@ -103,7 +103,6 @@ export default class InputSystem implements UpdateSystem {
     }
 
     private onWheel(deltaX: number, deltaY: number, deltaZ: number) {
-        console.log(`DeltaX: ${deltaX / 100} DeltaY: ${deltaY / 100} DeltaZ: ${deltaZ / 100}`);
         vec3.copy(this.inputBuffer.wheel as vec3, [deltaX / 100, deltaY / 100, deltaZ / 100]);
         // @ts-ignore
         // this.properties.updateNestedProperty(`input.mouseDelta`, this.inputBuffer.deltaWheel)

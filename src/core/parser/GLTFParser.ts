@@ -113,6 +113,9 @@ export default class GLTFParser {
             baseColorTexture, normalTexture, metallicRoughnessTexture,
         } = this.parseMaterial(material);
 
+        if (( !( normalTexture && normalTexture.uri ) )) {
+            console.log('Material without normal: ', material)
+        }
         const normal = (normalTexture && normalTexture.uri)
             ? await textureManager.addToGlobalTexture(this.rootDir + normalTexture.uri)
             : await textureManager.create1x1Texture(Texture.DEFAULT_NORMAL_MAP, new Uint8ClampedArray([0, 255, 0, 255]));

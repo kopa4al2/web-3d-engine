@@ -4,18 +4,20 @@ type rgba = { r: number, g: number, b: number, a: number };
 type xyz = { x: number, y: number, z: number };
 type xyzw = { x: number, y: number, z: number, w: number };
 
+export type ColorLike = num3 | num4;
+
 class SdiColor {
     public rgba: rgba;
 
     constructor(r: number, g: number, b: number, a: number)
-    constructor(color: num4)
+    constructor(color: ColorLike)
     constructor(...args: any[]) {
         const data = Array.isArray(args[0]) ? args[0] : args;
         this.rgba = {
             r: data[0],
             g: data[1],
             b: data[2],
-            a: data[3],
+            a: data[3] || 0.0,
         };
     }
 

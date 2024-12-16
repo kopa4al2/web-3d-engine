@@ -12,9 +12,9 @@ struct PointLight {
     vec4 position;
     vec4 color;
     float intensity;
-    float constantAtt;// Constant attenuation
-    float linearAtt;// Linear attenuation
-    float quadraticAtt;// Quadratic attenuation
+    float constantAtt;
+    float linearAtt;
+    float quadraticAtt;
 };
 
 struct DirectionalLight {
@@ -90,14 +90,14 @@ void main() {
 
     // --- Normal Mapping ---
     mat3 TBN = mat3(vTangent, vBitangent, vNormal);
-    vec2 normalUv = normal_map.uv_scale * vTextureCoord + normal_map.uv_offset ;
+    vec2 normalUv = normal_map.uv_scale * vTextureCoord + normal_map.uv_offset;
     vec3 normalTangent = texture(TexturesArray, vec3(normalUv, normal_map.texture_layer)).rgb;
     normalTangent = normalize(normalTangent * 2.0 - 1.0);
     vec3 normalWorld = normalize(TBN * normalTangent);
 
     // --- View Direction ---
     vec3 viewDir = normalize(cameraPosition.xyz - vFragPosition);
-    vec3 reflectedDir = reflect(-viewDir, normalize(vNormal));
+    vec3 reflectedDir = reflect(-viewDir, normalWorld);
     vec3 envColor = texture(EnvCubeMap, reflectedDir).rgb;
 
     // Fresnel Reflectance at Normal Incidence
@@ -143,7 +143,7 @@ void main() {
 
         // Diffuse term (Lambertian)
         vec3 diffuse = (1.0 - fresnel) * (1.0 - metallic) * baseColor.rgb;
-        
+
         vec3 radiance = light.color.rgb * light.intensity;
         finalColor += attenuation * radiance * (diffuse + specular) * NdotL;
     }
@@ -178,7 +178,7 @@ void main() {
 
         // Diffuse term (Lambertian)
         vec3 diffuse = (1.0 - fresnel) * (1.0 - metallic) * baseColor.rgb;
-        
+
         vec3 radiance = dirLight.color.rgb * dirLight.intensity;
         finalColor += radiance * (diffuse + specular) * NdotL;
     }
@@ -192,9 +192,9 @@ void main() {
     finalColor += ambient * (1.0 - metallic);
 
     fragColor = vec4(finalColor, base_color.a);
-//    fragColor = vec4(normalWorld, base_color.a);
-//    fragColor = vec4(float(numDirectionalLights) / float(MAX_DIRECTIONAL_LIGHTS) , float(numPointLights) / float(MAX_POINT_LIGHTS), 0.0, 1.0);
-//    fragColor = texture(TexturesArray, vec3(vTextureCoord, normal_map.texture_layer));
+    //    fragColor = vec4(normalWorld, base_color.a);
+    //    fragColor = vec4(float(numDirectionalLights) / float(MAX_DIRECTIONAL_LIGHTS) , float(numPointLights) / float(MAX_POINT_LIGHTS), 0.0, 1.0);
+    //    fragColor = texture(TexturesArray, vec3(vTextureCoord, normal_map.texture_layer));
 }
 
 

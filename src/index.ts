@@ -13,6 +13,7 @@ import WebGLGraphics from "webgl/WebGLGraphics";
 import WebGPUGraphics from "webgpu/graphics/WebGPUGraphics";
 import UILayout from "./engine/ui/UILayout";
 import FpsCounter from "./engine/ui/views/FpsCounter";
+import EntityControl from './engine/ui/controls/EntityControl';
 
 // OVERRIDE SYMBOL TO STRING FOR DEBUGGING
 Symbol.prototype.toString = function () {
@@ -230,7 +231,7 @@ async function initWebGlEngine(properties: PartialProperties) {
         webGl2Props,
         'webgl2');
     canvas.addToDOM();
-    const layout = new UILayout('webgl2', canvas.parent);
+    const layout = new UILayout(canvas.parent, 'WebGL');
 
     const graphics = new WebGLGraphics(canvas, webGl2Props);
     const webGlEngine = await createEngine('WebGl', webGl2Props, canvas, graphics, layout);
@@ -272,7 +273,7 @@ async function initWebGpu(properties: PartialProperties) {
         'webgpu');
     canvas.addToDOM();
 
-    const layout = new UILayout('webgpu', canvas.parent);
+    const layout = new UILayout(canvas.parent, 'WebGPU');
 
     const graphics = await WebGPUGraphics.initWebGPU(canvas, webGpuProps);
     const webgpuEngine = await createEngine('WebGPU', webGpuProps, canvas, graphics, layout);
@@ -290,20 +291,22 @@ async function createEngine(
     graphics: Graphics,
     uiLayout: UILayout): Promise<Engine> {
 
-    const fpsCounterV2 = new FpsCounter(uiLayout);
-
-
+    const entityManager = new EntityManager();
     const projectionMatrix = new ProjectionMatrix(properties);
+
+    const fpsCounter = new FpsCounter(uiLayout);
+    const entityControl = new EntityControl(entityManager, uiLayout);
+
     const engine = new Engine(
         label,
         graphics,
         canvas,
         properties,
-        new EntityManager(),
+        entityControl,
         new EntityComponentSystem(),
         projectionMatrix,
         uiLayout,
-        [onRender, fpsCounterV2.tick.bind(fpsCounterV2)],
+        [onRender, fpsCounter.tick.bind(fpsCounter)],
     );
     // enableWireframeSwitch(properties, canvas.parent);
 

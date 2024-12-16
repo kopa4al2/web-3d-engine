@@ -13,7 +13,7 @@ import GeometryFactory from 'core/factories/GeometryFactory';
 import MaterialFactory from 'core/factories/MaterialFactory';
 import Graphics from 'core/Graphics';
 import DirectionalLight from 'core/light/DirectionalLight';
-import PointLight from 'core/light/PointLight';
+import PointLight, { PointLightProps } from 'core/light/PointLight';
 import { GeometryData } from 'core/mesh/Geometry';
 import Material from 'core/mesh/material/Material';
 import { TerrainMaterialProperties } from 'core/mesh/material/MaterialProperties';
@@ -37,8 +37,10 @@ import { vec2, vec3, vec4 } from 'gl-matrix';
 // import { worldCoordinates } from 'html/Views';
 import { LightControl } from "./engine/ui/controls/LightControl";
 import UILayout from "./engine/ui/UILayout";
-import { SdiColor, SdiDirection } from './types/engine-types/EngineTypes';
+import { SdiColor, SdiDirection, SdiPoint3D } from './types/engine-types/EngineTypes';
 import DebugUtil from './util/DebugUtil';
+import ObjectUtils from './util/ObjectUtils';
+import MeshControl from './engine/ui/controls/MeshControl';
 
 export default class Engine {
 
@@ -56,7 +58,8 @@ export default class Engine {
     private readonly input: Input = this.createInput();
     private readonly freeCameraComponent: CameraComponent = this.createFreeCamera();
 
-    private readonly lightControls: LightControl;
+    // private readonly lightControls: LightControl;
+    // private readonly meshControls: MeshControl;
 
     constructor(
         private label: string,
@@ -66,10 +69,11 @@ export default class Engine {
         public entityManager: EntityManager,
         public ecs: EntityComponentSystem,
         public projectionMatrix: ProjectionMatrix,
-        private uiLayout: UILayout,
+        uiLayout: UILayout,
         public onRenderPlugins: OnRenderPlugin[]) {
 
-        this.lightControls = new LightControl(uiLayout);
+        // this.lightControls = new LightControl(uiLayout);
+        // this.meshControls = new MeshControl(uiLayout);
 
         this.resourceManager = new ResourceManager(graphicsApi);
         this.entityFactory = new EntityFactory(this.entityManager);
@@ -97,48 +101,22 @@ export default class Engine {
     }
 
     loop(now: number) {
-        try {
-            this.onRenderPlugins.forEach(plugin => plugin());
-            this.properties.flushBuffer();
-            if (this.isRunning) {
-                const deltaTime = (now - this.lastFrame) / 1000;  // Convert deltaTime to seconds
-                this.ecs.update(deltaTime);
-                this.ecs.render();
+        this.onRenderPlugins.forEach(plugin => plugin());
+        this.properties.flushBuffer();
+        if (this.isRunning) {
+            const deltaTime = ( now - this.lastFrame ) / 1000;
+            this.ecs.update(deltaTime);
+            this.ecs.render();
 
-                this.lastFrame = now;
-                this.frameRequest = requestAnimationFrame(this.loop.bind(this));
-            }
-        } catch (error) {
-            console.error(`Error occurred in engine: ${ this.label } isRunning: ${ this.isRunning }`, error);
+            this.lastFrame = now;
+            this.frameRequest = requestAnimationFrame(this.loop.bind(this));
         }
     }
 
     initializeScene(): void {
 
         // this.initializeTerrain();
-
-
-        // const renderCube = (transform: vec3) => this.createEntityWithBoundingSphere('CubeLit',
-        //     VertexShaderName.LIT_GEOMETRY, CubeGeometry.GEOMETRY_DESCRIPTOR,
-        //     litElectricMaterial, defaultTransform().scaleBy(2).translate(transform));
-        //
-        //
-        // const renderSphere = (transform: vec3) => this.createEntityWithBoundingSphere('Sphere1',
-        //     VertexShaderName.LIT_GEOMETRY,
-        //     new SphereGeometry().geometryData,
-        //     litMagenta,
-        //     defaultTransform().translate(transform).scaleBy(2));
-        //
-        // const renderDragon = (coordinates: vec3) => ModelRepository.wavefrontFiles.dragon().then(obj => {
-        //     obj.meshes.forEach(geometry => {
-        //         this.createEntityWithBoundingSphere('DRAGON', VertexShaderName.LIT_GEOMETRY,
-        //             geometry, litElectricMaterial, defaultTransform().translate(coordinates));
-        //
-        //         // this.createEntityWithBoundingSphere('TEXTURED', VertexShaderName.LIT_GEOMETRY,
-        //         //     geometry, litMagenta, defaultTransform().translate([-10, -10, 0]).translate(coordinates));
-        //     });
-        // })
-
+        
 
         const renderLightBulb = (transform: vec3) => this.modelRepository.lightBulb()
             .then(mesh => {
@@ -169,27 +147,12 @@ export default class Engine {
             color: new SdiColor(1.0, 1.0, 1.0, 1.0),
             intensity: 1.0
         });
-        const dirLight2 = new DirectionalLight({
-            direction: new SdiDirection(0.0, 0.5, 0.0, 1.0),
-            color: new SdiColor(1.0, 1.0, 1.0, 1.0),
-            intensity: 1.0
-        });
-        this.lightControls.addDirLight('Sun light', sunLight);
-        this.lightControls.addDirLight('Custom light', dirLight2);
+        // this.lightControls.addDirLight('Sun light', sunLight);
         const sunLightEntity = this.entityFactory.createEntity('Sun', sunLight);
-        const eDirLight2 = this.entityFactory.createEntity('DirLight2', dirLight2);
-        this.scene.addEntities(sunLightEntity, eDirLight2);
+        this.scene.addEntities(sunLightEntity);
 
-        const redLight = new PointLight({
-            position: [0, 0, 0, 0],
-            color: new SdiColor([1.0, 0.0, 1.0, 1.0]),
-            intensity: 2.5,
-            constantAttenuation: 1.0,
-            linearAttenuation: 0.1,
-            quadraticAttenuation: 0.02
-        });
-        this.lightControls.addPointLight('Red light', redLight);
-        this.scene.addEntities(this.entityFactory.createEntity('RedPointLight', redLight, defaultTransform()));
+        this.createPointLight('Magenta', { color: PointLight.COOL_LIGHT }, defaultTransform().translate([-10, 0, 0]));
+        this.createPointLight('Red', { color: PointLight.WARM_LIGHT }, defaultTransform().translate([10, 10, 0]));
 
         this.loadAndAddMesh(() => this.modelRepository.createCrate(), [-5, 10, 10])
 
@@ -206,13 +169,16 @@ export default class Engine {
             }
         }
 
-        this.modelRepository.drawScene()
-            .then(meshes => {
-                traverse(meshes, mesh => {
-                    const entityId = this.entityFactory.createEntityInstance(mesh.geometry.vertexBuffer.toString(), mesh, mesh.transform.scaleBy(15));
-                    this.scene.addEntities(entityId);
-                });
-            });
+        // this.modelRepository.drawScene()
+        //     .then(meshes => {
+        //         traverse(meshes, mesh => {
+        //             this.meshControls.registerMesh(mesh.material.label, mesh);
+        //             const entityId = this.entityFactory.createEntityInstance(
+        //                 mesh.geometry.vertexBuffer.toString(),
+        //                 mesh, mesh.transform.scaleBy(15).rotate(vec3.fromValues(0, 0, 0)));
+        //             this.scene.addEntities(entityId);
+        //         });
+        //     });
 
         // this.modelRepository.lightBulb().then(mesh => {
         //     this.scene.addEntities(
@@ -270,6 +236,20 @@ export default class Engine {
             new ViewFrustumSystem(this.entityManager, this.graphicsApi, this.properties),
             new TerrainSystem(this.graphicsApi));
         // worldCoordinates(this.properties, this.freeCameraComponent, this.projectionMatrix, this.input, this.canvas.parent);
+    }
+
+    private createPointLight(label: string, props: Partial<PointLightProps>, transform?: Transform) {
+        const defaultProps = {
+            position: new SdiPoint3D(0, 0, 0),
+            color: new SdiColor([1.0, 0.0, 1.0, 1.0]),
+            intensity: 2.5,
+            constantAttenuation: 1.0,
+            linearAttenuation: 0.1,
+            quadraticAttenuation: 0.02
+        };
+        const light = new PointLight(ObjectUtils.mergePartial(props, defaultProps));
+        // this.lightControls.addPointLight(label, light);
+        this.scene.addEntities(this.entityFactory.createEntity('RedPointLight', light, transform || defaultTransform()));
     }
 
     private initializeTerrain() {
@@ -341,7 +321,7 @@ export default class Engine {
                                            geometryData: GeometryData,
                                            material: Material,
                                            transformation: Transform) {
-        const geometry = this.geometryFactory.createGeometry(`${ label }-geometry`, vertexShader, geometryData);
+        const geometry = this.geometryFactory.createGeometry(`${label}-geometry`, vertexShader, geometryData);
         const boundingSphere = new BoundingSphere(geometryData.vertices, geometryData.indices);
         geometry.addBoundingVolume(BoundingSphere, boundingSphere);
 
@@ -450,8 +430,8 @@ export default class Engine {
         meshCreator()
             .then(mesh => {
                 this.scene.addEntities(
-                    this.entityFactory.createEntityInstance(`${ mesh.material.label }`, mesh, mesh.transform.translate(translate)),
-                    this.entityFactory.createEntityInstance(`${ mesh.material.label }`, mesh, mesh.transform.translate([3, 40, 5])),
+                    this.entityFactory.createEntityInstance(`${mesh.material.label}`, mesh, mesh.transform.translate(translate)),
+                    this.entityFactory.createEntityInstance(`${mesh.material.label}`, mesh, mesh.transform.translate([3, 40, 5])),
                     // this.entityFactory.createEntityInstance('crate', mesh, mesh.transform.scaleBy(0.05).translate([0, 0, 0])),
                     // this.entityFactory.createEntityInstance('crate', mesh, mesh.transform.scaleBy(0.1).translate([8, -41, -67])),
                     // this.entityFactory.createEntityInstance('crate', mesh, mesh.transform.scaleBy([0.16, 0.08, 0.08]).translate([15, 25, -2])),

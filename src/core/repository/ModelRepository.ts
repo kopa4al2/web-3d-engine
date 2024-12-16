@@ -37,7 +37,7 @@ class ModelRepository {
         // this.resourceManager.textureManager.loadCubeMap('assets/environment-map/snow-4k-hdr/', ['px.hdr', 'nx.hdr', 'py.hdr', 'ny.hdr', 'pz.hdr', 'nz.hdr'], true);
         // this.resourceManager.textureManager.loadCubeMap('assets/environment-map/PureSkyCubemap/', ['px.hdr', 'nx.hdr', 'py.hdr', 'ny.hdr', 'pz.hdr', 'nz.hdr'], true);
         // this.resourceManager.textureManager.loadCubeMap('assets/environment-map/Forest1024hdr/', ['px.hdr', 'nx.hdr', 'py.hdr', 'ny.hdr', 'pz.hdr', 'nz.hdr'], true);
-        this.resourceManager.textureManager.loadCubeMap('assets/environment-map/forest-4k-png/', ['px.png', 'nx.png', 'py.png', 'ny.png', 'pz.png', 'nz.png']);
+        // this.resourceManager.textureManager.loadCubeMap('assets/environment-map/forest-4k-png/', ['px.png', 'nx.png', 'py.png', 'ny.png', 'pz.png', 'nz.png']);
         // this.resourceManager.textureManager.loadCubeMap('assets/environment-map/snow-4k-png/', ['px.png', 'nx.png', 'py.png', 'ny.png', 'pz.png', 'nz.png']);
 
     }
