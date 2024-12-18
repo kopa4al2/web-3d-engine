@@ -7,8 +7,9 @@ export default class Transform implements Component {
 
     readonly id = Transform.ID;
 
-    public targetTransform?:Transform;
-    private localTransform: Transform;
+    public targetTransform?: Transform;
+    private localTransform?: mat4;
+
     constructor(public position: vec3,
                 // private eulerRotation: vec3,
                 public rotation: quat,
@@ -17,7 +18,9 @@ export default class Transform implements Component {
                 public parent?: Transform | null,
                 public needsCalculate?: boolean) {
         this.needsCalculate = true;
-        this.localTransform = Transform.copyOf(this);
+        if (this.parent) {
+            this.localTransform = this.createModelMatrix();
+        }
     }
 
     public static copyOf(other: Transform) {
@@ -61,36 +64,13 @@ export default class Transform implements Component {
 
         return new Transform(position, rotation, scale);
     }
+
     public static fromMat4(mat: mat4): Transform {
-
-        // const position = vec3.fromValues(mat[12], mat[13], mat[14]);
         const position = mat4.getTranslation(vec3.create(), mat);
-        // Extract scale
         const scale = mat4.getScaling(vec3.create(), mat);
-        // const scale = vec3.fromValues(
-        //     Math.hypot(mat[0], mat[1], mat[2]),  // Length of the first column
-        //     Math.hypot(mat[4], mat[5], mat[6]),  // Length of the second column
-        //     Math.hypot(mat[8], mat[9], mat[10])  // Length of the third column
-        // )
-
-        // Remove scale from the rotation matrix
-        // const rotationMatrix = [
-        //     mat[0] / scale[0], mat[1] / scale[0], mat[2] / scale[0],
-        //     mat[4] / scale[1], mat[5] / scale[1], mat[6] / scale[1],
-        //     mat[8] / scale[2], mat[9] / scale[2], mat[10] / scale[2]
-        // ];
-        //
-        // // Convert rotation matrix to Euler angles
-        // const rotation = matrixToEuler(rotationMatrix);
         const rotation = mat4.getRotation(quat.create(), mat);
-        return new Transform(position, rotation, scale);
-    }
 
-    public static withPositionV(position: vec3): Transform {
-        return new Transform(
-            position,
-            quat.create(),
-            vec3.fromValues(1, 1, 1));
+        return new Transform(position, rotation, scale);
     }
 
     public static scale(scaleFactor: number): Transform {
@@ -105,6 +85,21 @@ export default class Transform implements Component {
         return mat4.fromRotationTranslationScale(modelMatrix, this.rotation, this.position, this.scale);
         // this.transformMatrix(modelMatrix);
         // return modelMatrix;
+    }
+
+    restoreInitialTransform() {
+        if (!this.parent) {
+            console.error(this);
+            throw new Error('Restore initial was called on a transform without parent!');
+        }
+        if (!this.localTransform) {
+            console.warn('No local transform. Will not restore initial transform');
+            this.localTransform = this.createModelMatrix();
+            return;
+        }
+        mat4.getTranslation(this.position, this.localTransform);
+        mat4.getScaling(this.scale, this.localTransform);
+        mat4.getRotation(this.rotation, this.localTransform);
     }
 
     transformBy(other: Transform) {
@@ -129,23 +124,23 @@ export default class Transform implements Component {
         vec3.copy(this.scale, combinedScale);
     }
 
-    transformByOld(other: Transform) {
-        const combinedPosition = vec3.create();
-        vec3.transformQuat(combinedPosition, this.position, other.rotation); // Apply parent rotation
-        vec3.multiply(combinedPosition, combinedPosition, other.scale);           // Apply parent scale
-        vec3.add(combinedPosition, combinedPosition, other.position);             // Add parent position
-
-        const combinedRotation = quat.create();
-        quat.multiply(combinedRotation, other.rotation, this.rotation);
-
-        const combinedScale = vec3.create();
-        vec3.multiply(combinedScale, other.scale, this.scale);
-
-        this.position = combinedPosition;
-        this.rotation = combinedRotation;
-        this.scale = combinedScale;
-
-    }
+    // transformByOld(other: Transform) {
+    //     const combinedPosition = vec3.create();
+    //     vec3.transformQuat(combinedPosition, this.position, other.rotation); // Apply parent rotation
+    //     vec3.multiply(combinedPosition, combinedPosition, other.scale);           // Apply parent scale
+    //     vec3.add(combinedPosition, combinedPosition, other.position);             // Add parent position
+    //
+    //     const combinedRotation = quat.create();
+    //     quat.multiply(combinedRotation, other.rotation, this.rotation);
+    //
+    //     const combinedScale = vec3.create();
+    //     vec3.multiply(combinedScale, other.scale, this.scale);
+    //
+    //     this.position = combinedPosition;
+    //     this.rotation = combinedRotation;
+    //     this.scale = combinedScale;
+    //
+    // }
 
     // transformMatrix(modelMatrix: mat4) {
     //     const { position, eulerRotation, scale } = this;

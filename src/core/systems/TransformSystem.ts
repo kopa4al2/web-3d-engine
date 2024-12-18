@@ -12,24 +12,20 @@ export default class TransformSystem implements UpdateSystem {
     constructor(private entityManager: EntityManager) {
     }
 
-    hasChanged = false;
     update(deltaTime: number): void {
-        if (this.hasChanged) {
-            return;
-        }
         const allTransforms = this.entityManager.getComponentsWithId<Transform>(Transform.ID);
 
         for (const transform of allTransforms) {
+            if (transform.needsCalculate) {
+                
+            }
             if (transform.needsCalculate
                 && !transform.parent
                 && transform.children && transform.children.length > 0) {
-
-
-                this.hasChanged = true;
-                setInterval(() => {
-                    console.log('INTERVAL', transform)
-                    this.updateRecursive(transform);
-                }, 10_000);
+                // setInterval(() => {
+                //     console.log('INTERVAL', transform)
+                this.updateRecursive(transform);
+                // }, 3_000);
             }
         }
 
@@ -52,17 +48,18 @@ export default class TransformSystem implements UpdateSystem {
     }
 
     counter = 0;
+
     private updateRecursive(transform: Transform) {
-        transform.needsCalculate = false;
+        // transform.needsCalculate = false;
 
         if (transform.parent) {
+            transform.restoreInitialTransform();
             transform.transformBy(transform.parent);
         }
 
         if (transform.children) {
             for (const child of transform.children) {
                 this.updateRecursive(child);
-                // child.children?.forEach(this.updateRecursive.bind(this));
             }
         }
     }

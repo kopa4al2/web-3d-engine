@@ -59,7 +59,8 @@ export default class GLTFParser {
         // const buildNode = async (node: GLTFNode, transform?: mat4): Promise<Mesh> => {
             let newTransform: Transform;
             if (node.matrix) {
-                newTransform = Transform.fromMat4Old(node.matrix);
+                newTransform = Transform.fromMat4(node.matrix);
+                // newTransform = Transform.fromMat4Old(node.matrix);
                  // mat4.multiply(transform, transform, node.matrix);
              } else {
                 newTransform = defaultTransform();
