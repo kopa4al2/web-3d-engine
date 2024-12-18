@@ -75,10 +75,9 @@ export default class UILayout {
 
         
         const pane = new Pane({ container, title });
-        pane.registerPlugin(SdiPluginBundle);
+        // pane.registerPlugin(SdiPluginBundle);
         pane.registerPlugin(TweakpaneRotationInputPlugin);
         pane.registerPlugin(EssentialsPlugin);
-        // pane.registerPlugin(CamerakitPlugin);
 
         return pane;
     }

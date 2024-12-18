@@ -6,14 +6,14 @@ import PropertiesManager, { PartialProperties, Property, PropertyValue } from "c
 import EntityComponentSystem from "core/systems/EntityComponentSystem";
 import Engine, { OnRenderPlugin } from "Engine";
 import { glMatrix, mat4, vec2, vec3 } from "gl-matrix";
-import { enableGpuGraphicsApiSwitch, enableSplitScreenSwitch, enableWireframeSwitch } from "html/Controls";
+import { enableGpuGraphicsApiSwitch, enableSplitScreenSwitch } from "html/Controls";
 import { enableWebComponentEntitySelect } from 'html/entity-select/EntitySelect';
 import DebugUtil from 'util/DebugUtil';
 import WebGLGraphics from "webgl/WebGLGraphics";
 import WebGPUGraphics from "webgpu/graphics/WebGPUGraphics";
+import EntityControl from './engine/ui/controls/EntityControl';
 import UILayout from "./engine/ui/UILayout";
 import FpsCounter from "./engine/ui/views/FpsCounter";
-import EntityControl from './engine/ui/controls/EntityControl';
 
 // OVERRIDE SYMBOL TO STRING FOR DEBUGGING
 Symbol.prototype.toString = function () {

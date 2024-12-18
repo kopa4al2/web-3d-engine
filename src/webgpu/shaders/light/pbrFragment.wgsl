@@ -205,6 +205,7 @@ fn main(input: FragmentInput) -> @location(0) vec4<f32> {
 //    return vec4<f32>(textureSample(globalTextures, globalSampler, vec2(0.0, 0.0), 0).rgb, 1.0);
 //    return vec4<f32>(textureSample(globalTextures, globalSampler, input.textureCoord, 10).rgb, 1.0);
 
-      return vec4<f32>(finalColor, baseColor.a);
+      return baseColor;
+//      return vec4<f32>(finalColor, baseColor.a);
 //      return vec4<f32>(normalWorld, baseColor.a);
 }

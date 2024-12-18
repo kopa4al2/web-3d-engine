@@ -5,7 +5,7 @@ export default class FpsCounter {
     private counter;
 
     constructor(private layout: UILayout) {
-        const folder = layout.addFolder('FPS');
+        const folder = layout.newPane('FPS');
         this.counter = folder.addBlade( { view: 'fpsgraph', label: 'fps graph', rows: 2, expanded: false })
     }
 

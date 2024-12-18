@@ -1,5 +1,5 @@
 import Mesh from "core/components/Mesh";
-import Transform from "core/components/Transform";
+import Transform, { defaultTransform } from "core/components/Transform";
 import GeometryFactory from "core/factories/GeometryFactory";
 import MaterialFactory from "core/factories/MaterialFactory";
 import Geometry from "core/mesh/Geometry";
@@ -14,59 +14,67 @@ import TextureManager from "core/resources/TextureManager";
 import Texture from "core/texture/Texture";
 import { mat4, vec4 } from 'gl-matrix';
 
+export interface GLTFModel {
+    label?: string,
+    transform?: mat4,
+    mesh?: Mesh,
+}
+
+export interface GLTFSceneGraph {
+    name?: string,
+    matrix?: mat4,
+    mesh?: Mesh,
+    children: GLTFSceneGraph[]
+}
+
 export default class GLTFParser {
 
     constructor(public rootDir: string, public json: GLTFJson, public buffers: Map<number, ArrayBuffer>) {
         console.log('GLTF JSON: ', json);
     }
 
-    private buildSceneGraph(rootNodeIndex: number): GLTFSceneGraph {
-        const buildNode = (nodeIndex: number): GLTFSceneGraph => {
-            const node = this.json.nodes[nodeIndex];
-            if (!node) return { children: [] };
-
-
-            const children = (node.children || []).map((childIndex: number) => buildNode(childIndex));
-
-            return {
-                children,
-                mesh: node.mesh,
-                matrix: node.matrix,
-            };
-        };
-
-        return buildNode(rootNodeIndex);
-    }
+    // private async buildSceneGraph(rootNodeIndex: number): GLTFSceneGraph {
+    //     const buildNode = (nodeIndex: number): GLTFSceneGraph => {
+    //         const node = this.json.nodes[nodeIndex];
+    //         if (!node) return { children: [] };
+    //
+    //
+    //         const children = (node.children || []).map((childIndex: number) => buildNode(childIndex));
+    //
+    //         return {
+    //             children,
+    //             mesh: node.mesh,
+    //             matrix: node.matrix,
+    //         };
+    //     };
+    //
+    //     return buildNode(rootNodeIndex);
+    // }
 
 
     public async createMeshes(shaderManager: ShaderManager, geometryFactory: GeometryFactory, materialFactory: MaterialFactory, resourceManager: ResourceManager): Promise<Mesh> {
         const textureManager: TextureManager = resourceManager.textureManager;
-        const vertexInstancedBuffer = resourceManager.createBufferV2({
-            label: `sponza-atrium-vertex-instance`,
-            byteLength: 4096,
-            usage: BufferUsage.STORAGE | BufferUsage.COPY_DST
-        });
 
-        const vertexInstancedLayout = resourceManager.getOrCreateLayout(ShaderManager.INSTANCE_BUFFER_GROUP);
-        const vertexBindGroup = resourceManager.createBindGroup(vertexInstancedLayout, {
-            label: 'sponza-atrium-instance',
-            entries: [{
-                binding: 0,
-                bufferId: vertexInstancedBuffer,
-                name: 'InstanceData',
-                type: 'storage'
-            }]
-        })
-        const buildNode = async (node: GLTFNode, transform: mat4): Promise<Mesh> => {
-           if (node.matrix) {
-                mat4.multiply(transform, transform, node.matrix);
+        const buildNode = async (node: GLTFNode, parentTransform?: Transform): Promise<Mesh> => {
+        // const buildNode = async (node: GLTFNode, transform?: mat4): Promise<Mesh> => {
+            let newTransform: Transform;
+            if (node.matrix) {
+                newTransform = Transform.fromMat4Old(node.matrix);
+                 // mat4.multiply(transform, transform, node.matrix);
+             } else {
+                newTransform = defaultTransform();
             }
+            newTransform.children = [];
 
+            if (parentTransform) {
+                newTransform.parent = parentTransform;
+                parentTransform.children?.push(newTransform);
+            }
 
             const currentModel: Partial<Mesh> = {
                 id: Mesh.ID,
                 subMesh: [],
-                transform: Transform.fromMat4(transform),
+                modelMatrix: newTransform,
                 setBindGroup: Mesh.prototype.setBindGroup,
             };
 
@@ -76,6 +84,22 @@ export default class GLTFParser {
                     console.warn('MORE than one PRIMITIVES', mesh)
                 }
                 for (const primitive of mesh.primitives) {
+                    const vertexInstancedBuffer = resourceManager.createBufferV2({
+                        label: `sponza-atrium-vertex-instance`,
+                        byteLength: 4096,
+                        usage: BufferUsage.STORAGE | BufferUsage.COPY_DST
+                    });
+
+                    const vertexInstancedLayout = resourceManager.getOrCreateLayout(ShaderManager.INSTANCE_BUFFER_GROUP);
+                    const vertexBindGroup = resourceManager.createBindGroup(vertexInstancedLayout, {
+                        label: 'sponza-atrium-instance',
+                        entries: [{
+                            binding: 0,
+                            bufferId: vertexInstancedBuffer,
+                            name: 'InstanceData',
+                            type: 'storage'
+                        }]
+                    })
                     const gltfMaterial = this.json.materials[primitive.material];
                     const material = await this.createMaterial(gltfMaterial, materialFactory, textureManager);
                     const geometry = this.createGeometry(mesh.name, primitive, geometryFactory);
@@ -94,7 +118,7 @@ export default class GLTFParser {
 
             if (node.children) {
                 for (const childIndex of node.children) {
-                    const childModel = await buildNode(this.json.nodes[childIndex], transform);
+                    const childModel = await buildNode(this.json.nodes[childIndex], newTransform);
                     currentModel.subMesh!.push(childModel);
                 }
             }
@@ -103,7 +127,8 @@ export default class GLTFParser {
             return currentModel as Mesh;
         };
 
-        return buildNode(this.json.nodes[0], mat4.create());
+        return buildNode(this.json.nodes[0]);
+        // return buildNode(this.json.nodes[0], mat4.create());
     }
 
     public async createMaterial(material: GLTFMaterial, materialFactory: MaterialFactory, textureManager: TextureManager): Promise<Material> {
@@ -113,7 +138,7 @@ export default class GLTFParser {
             baseColorTexture, normalTexture, metallicRoughnessTexture,
         } = this.parseMaterial(material);
 
-        if (( !( normalTexture && normalTexture.uri ) )) {
+        if ((!(normalTexture && normalTexture.uri))) {
             console.log('Material without normal: ', material)
         }
         const normal = (normalTexture && normalTexture.uri)
@@ -127,7 +152,7 @@ export default class GLTFParser {
             : await textureManager.create1x1Texture(Texture.DEFAULT_METALLIC_ROUGHNESS_MAP, new Uint8ClampedArray([255, metallicFactor * 255, roughnessFactor * 255, 255]));
 
         if (material.pbrMetallicRoughness.metallicFactor || material.pbrMetallicRoughness.roughnessFactor) {
-            console.log('Material has metallic or roughness factor: ', material, ' texture; ', metallicRoughnessTexture)
+            // console.log('Material has metallic or roughness factor: ', material, ' texture; ', metallicRoughnessTexture)
         }
 
         const blendMode = material.alphaMode === 'BLEND' ? BlendPresets.TRANSPARENT : undefined;
@@ -158,7 +183,7 @@ export default class GLTFParser {
             : null;
 
         if (pbr.baseColorTexture?.texCoord || material.normalTexture?.texCoord || pbr.metallicRoughnessTexture?.texCoord) {
-            console.log('Material has overridden texCoord ', material)
+            // console.log('Material has overridden texCoord ', material)
         }
 
         return {
@@ -207,7 +232,7 @@ export default class GLTFParser {
             ? this.parseAccessor(primitive.attributes.TEXCOORD_2)
             : this.parseAccessor(primitive.attributes.TEXCOORD_0);
         if (primitive.attributes.TANGENT === undefined) {
-            console.log('WHAAAAT', primitive, name)
+            // console.log('missing tangents', primitive, name)
         }
         const tangents = this.parseOrDefault(primitive.attributes.TANGENT, vec4.fromValues(0, 0, 0, 0) as Float32Array);
 
@@ -487,13 +512,6 @@ export interface GLTFMeshPrimitive {
 
 export interface GLTFScene {
     nodes: number[];
-}
-
-export interface GLTFSceneGraph {
-    name?: string,
-    matrix?: mat4,
-    mesh?: number,
-    children: GLTFSceneGraph[]
 }
 
 export interface GLTFNode {

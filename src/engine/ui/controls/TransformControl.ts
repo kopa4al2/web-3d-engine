@@ -1,35 +1,44 @@
 import { ContainerApi } from '@tweakpane/core';
 import Transform from 'core/components/Transform';
 import { vec3 } from 'gl-matrix';
+import { wrapArrayAsXYZW } from "../utils";
 
 export default class TransformControl {
 
 
     public static create(parent: ContainerApi, transform: Transform) {
-        const folder = parent.addFolder({ title: 'transformation', expanded: false });
+        const transformFolder = parent.addFolder({ title: 'transformation', expanded: true });
+        const translationFolder = transformFolder.addFolder({ title: 'translation', expanded: true });
 
-        folder.addBlade({ view: 'separator' });
-        folder.addBlade({
-            // disabled: true,
+        setInterval(() => transformFolder.refresh(), 1000);
+        translationFolder.addBlade({ view: 'separator' });
+        translationFolder.addBlade({
+            disabled: true,
             readonly: true,
             view: 'text',
-            // label: '',
             value: 'Translation',
             parse: (t: any) => null
         });
 
-        // folder.addBlade({
-        //     // disabled: true,
-        //     readonly: true,
-        //     view: 'sdi-label',
-        //     // label: '',
-        //     value: 'Translation',
-        //     parse: (t: any) => null
-        // });
+        translationFolder.addBinding(transform.position, 0, { min: -100, max: 100, step: 0.1, label: 'X' });
+        translationFolder.addBinding(transform.position, 1, { min: -100, max: 100, step: 0.1, label: 'Y' });
+        translationFolder.addBinding(transform.position, 2, { min: -100, max: 100, step: 0.1, label: 'Z' });
 
-        folder.addBinding(transform.position, 0, { min: -100, max: 100, step: 0.1, label: 'X' });
-        folder.addBinding(transform.position, 1, { min: -100, max: 100, step: 0.1, label: 'Y' });
-        folder.addBinding(transform.position, 2, { min: -100, max: 100, step: 0.1, label: 'Z' });
+        const rotationFolder = transformFolder.addFolder({ title: 'rotation', expanded: true });
+
+        rotationFolder.addBinding(wrapArrayAsXYZW(transform.rotation), 'xyzw', {
+            view: 'rotation',
+            picker: 'inline',
+            label: 'rotation',
+        })
+
+        const scaleFolder = transformFolder.addFolder({ title: 'scale', expanded: true });
+
+        scaleFolder.addBinding(wrapArrayAsXYZW(transform.scale), 'xyzw', {
+            // view: 'rotation',
+            picker: 'inline',
+            label: 'scale',
+        })
         // this.bindVec3('rotation', folder, transform.rotation);
         // this.bindVec3('scale', folder, transform.scale);
         // folder.addBinding(transform, 'position', {

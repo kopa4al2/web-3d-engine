@@ -35,24 +35,23 @@ export default class ProjectionMatrix {
         this.fov = fov;
         this.aspectRatio = aspectRatio;
 
-        const projectionMatrix = mat4.create();
         if (!isWebGl) {
-            mat4.perspectiveZO(projectionMatrix,
-                fov,
-                aspectRatio,
-                near,
-                far);
+            // mat4.perspectiveZO(projectionMatrix,
+            //     fov,
+            //     aspectRatio,
+            //     near,
+            //     far);
 
-            return perspectiveZ0(mat4.create(), fov, aspectRatio, near, far);
+            return mat4.perspectiveZO(mat4.create(), fov, aspectRatio, near, far);
+            // return perspectiveZ0(mat4.create(), fov, aspectRatio, near, far);
         }
 
-        mat4.perspectiveNO(projectionMatrix,
+        return mat4.perspectiveNO(mat4.create(),
             fov,
             aspectRatio,
             near,
             far);
-
-        return perspective(mat4.create(), fov, aspectRatio, near, far);
+        // return perspective(mat4.create(), fov, aspectRatio, near, far);
     }
 }
 

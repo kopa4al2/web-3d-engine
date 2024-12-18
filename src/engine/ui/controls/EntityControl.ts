@@ -4,6 +4,7 @@ import Component, { ComponentId } from 'core/components/Component';
 import { ContainerApi } from '@tweakpane/core';
 import Transform from 'core/components/Transform';
 import Mesh from 'core/components/Mesh';
+import { wrapArrayAsColor } from "../utils";
 import TransformControl from './TransformControl';
 import DebugUtil from '../../../util/DebugUtil';
 import { PBRMaterialProperties } from 'core/mesh/material/MaterialProperties';
@@ -110,11 +111,19 @@ export default class EntityControl extends EntityManager {
             console.warn(`Material: ${mesh.material.label} will be skipped`, mesh.material);
             return;
         }
-        const folder = pane.addFolder({ title: 'Mesh' });
-        console.log(mesh.material)
+        const folder = pane.addFolder({ title: 'Mesh', expanded: false });
         const pbrMat = mesh.material.properties as PBRMaterialProperties;
         const color = { r: pbrMat.baseColorFactor[0], g: pbrMat.baseColorFactor[1], b: pbrMat.baseColorFactor[2], a: pbrMat.baseColorFactor[3] };
-        folder.addBinding({ color }, 'color', { label: 'color', color: { type: 'float' }, picker: 'inline' });
+        folder.addBinding({ color }, 'color', { label: 'baseColor', color: { type: 'float' }, picker: 'inline' })
+        // folder.addBinding(wrapArrayAsColor(pbrMat.baseColorFactor), 'color', { label: 'baseColor', color: { type: 'float' }, picker: 'inline' })
+            .on('change', (e) => {
+                mesh.material.update<PBRMaterialProperties>(props => {
+                    props.baseColorFactor[0] = e.value.r;
+                    props.baseColorFactor[1] = e.value.g;
+                    props.baseColorFactor[2] = e.value.b;
+                    props.baseColorFactor[3] = e.value.a;
+                })
+            });
     }
 
     private _addTransformControl(pane: ContainerApi, transform: Transform) {

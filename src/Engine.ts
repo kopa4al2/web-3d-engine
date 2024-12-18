@@ -58,9 +58,6 @@ export default class Engine {
     private readonly input: Input = this.createInput();
     private readonly freeCameraComponent: CameraComponent = this.createFreeCamera();
 
-    // private readonly lightControls: LightControl;
-    // private readonly meshControls: MeshControl;
-
     constructor(
         private label: string,
         public graphicsApi: Graphics,
@@ -71,10 +68,6 @@ export default class Engine {
         public projectionMatrix: ProjectionMatrix,
         uiLayout: UILayout,
         public onRenderPlugins: OnRenderPlugin[]) {
-
-        // this.lightControls = new LightControl(uiLayout);
-        // this.meshControls = new MeshControl(uiLayout);
-
         this.resourceManager = new ResourceManager(graphicsApi);
         this.entityFactory = new EntityFactory(this.entityManager);
         this.materialFactory = new MaterialFactory(this.resourceManager);
@@ -139,11 +132,11 @@ export default class Engine {
 
         // renderWavefront('barrel', defaultTransform().translate([-5, 10, -5]));
 
-        this.modelRepository.createSkyBox().then(m => {
-            this.scene.addEntities(this.entityFactory.createEntity(`SKY_BOX`, m, new OrderComponent(1)));
-        });
+        // this.modelRepository.createSkyBox().then(m => {
+        //     this.scene.addEntities(this.entityFactory.createEntity(`SKY_BOX`, m, new OrderComponent(1)));
+        // });
         const sunLight = new DirectionalLight({
-            direction: new SdiDirection(-0.1, -0.5, 0.1, 1.0),
+            direction: new SdiDirection(-0.13, -0.2, -0.1, 1.0),
             color: new SdiColor(1.0, 1.0, 1.0, 1.0),
             intensity: 1.0
         });
@@ -151,8 +144,8 @@ export default class Engine {
         const sunLightEntity = this.entityFactory.createEntity('Sun', sunLight);
         this.scene.addEntities(sunLightEntity);
 
-        this.createPointLight('Magenta', { color: PointLight.COOL_LIGHT }, defaultTransform().translate([-10, 0, 0]));
-        this.createPointLight('Red', { color: PointLight.WARM_LIGHT }, defaultTransform().translate([10, 10, 0]));
+        this.createPointLight('COOL_LIGHT', { color: PointLight.COOL_LIGHT }, defaultTransform().translate([-10, 0, 0]));
+        // this.createPointLight('Red', { color: PointLight.WARM_LIGHT }, defaultTransform().translate([10, 10, 0]));
 
         this.loadAndAddMesh(() => this.modelRepository.createCrate(), [-5, 10, 10])
 
@@ -160,25 +153,35 @@ export default class Engine {
 
 
         function traverse(mesh: Mesh, onRender: (m: Mesh) => void) {
-            if (mesh.pipelineId) {
+            // if (mesh.pipelineId) {
                 onRender(mesh);
-            }
+            // }
 
             for (const subMesh of mesh.subMesh) {
                 traverse(subMesh, onRender);
             }
         }
 
-        // this.modelRepository.drawScene()
-        //     .then(meshes => {
-        //         traverse(meshes, mesh => {
-        //             this.meshControls.registerMesh(mesh.material.label, mesh);
-        //             const entityId = this.entityFactory.createEntityInstance(
-        //                 mesh.geometry.vertexBuffer.toString(),
-        //                 mesh, mesh.transform.scaleBy(15).rotate(vec3.fromValues(0, 0, 0)));
-        //             this.scene.addEntities(entityId);
-        //         });
-        //     });
+        let i = 0;
+        this.modelRepository.drawScene()
+            .then(meshes => {
+                traverse(meshes, mesh => {
+                    i++;
+                    // if (i > 1) {
+                    //     return
+                    // }
+                    if (!mesh.pipelineId) {
+                        const entityId = this.entityFactory.createEntity(`no-transform-${i}`, mesh.modelMatrix);
+                        this.scene.addEntity(entityId);
+                        return;
+                    }
+
+                    const entityId = this.entityFactory.createEntityInstance(
+                        `${i}-${mesh.geometry.vertexBuffer.toString()}`,
+                        mesh, mesh.modelMatrix);
+                    this.scene.addEntities(entityId);
+                });
+            });
 
         // this.modelRepository.lightBulb().then(mesh => {
         //     this.scene.addEntities(

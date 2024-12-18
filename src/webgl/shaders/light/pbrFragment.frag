@@ -191,7 +191,8 @@ void main() {
     vec3 ambient = vec3(0.1);
     finalColor += ambient * (1.0 - metallic);
 
-    fragColor = vec4(finalColor, base_color.a);
+    fragColor = baseColor;
+//    fragColor = vec4(finalColor, base_color.a);
     //    fragColor = vec4(normalWorld, base_color.a);
     //    fragColor = vec4(float(numDirectionalLights) / float(MAX_DIRECTIONAL_LIGHTS) , float(numPointLights) / float(MAX_POINT_LIGHTS), 0.0, 1.0);
     //    fragColor = texture(TexturesArray, vec3(vTextureCoord, normal_map.texture_layer));
