@@ -57,12 +57,28 @@ class DebugCanvas {
         }
     }
 
-    public static async visualizeDepth(data: Float32Array, width: number, height: number) {
+    public static visualizeDepth(data: Float32Array, width: number, height: number) {
         const context = this.getContext();
         const imageData = context.createImageData(width, height);
+        // let minDepth = Infinity;
+        // let maxDepth = -Infinity;
+        //
+        // for (let i = 0; i < data.length; i++) {
+        //     if (data[i] < minDepth) minDepth = data[i];
+        //     if (data[i] > maxDepth) maxDepth = data[i];
+        // }
+
+        function linearizeDepth(depth: number, near: number, far: number) {
+            return (2.0 * near * far) / (far + near - depth * (far - near));
+        }
+
+        const minDepth = 0.991; // Chosen based on observed min depth
+        const maxDepth = 1.0;
         for (let i = 0; i < data.length; i++) {
             const depth = data[i];
-            const intensity = Math.floor(depth * 255); // Map depth [0, 1] to [0, 255]
+            // const normalizedDepth = linearizeDepth(depth, 0.1, 100.0);
+            const normalizedDepth = (depth - minDepth) / (maxDepth - minDepth);
+            const intensity = Math.floor(normalizedDepth * 255); // Map depth [0, 1] to [0, 255]
             const pixelIndex = i * 4;
             imageData.data[pixelIndex] = intensity; // Red
             imageData.data[pixelIndex + 1] = intensity; // Green

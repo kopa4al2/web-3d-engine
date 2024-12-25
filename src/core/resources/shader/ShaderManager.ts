@@ -52,6 +52,7 @@ import gpuPhongLightFragmentShader from 'webgpu/shaders/light/phongFragment.wgsl
 import gpuLightVertexShader from 'webgpu/shaders/light/vertexShader.wgsl';
 import gpuTerrainFragmentShader from 'webgpu/shaders/terrain/terrainFragmentShader.wgsl';
 import gpuTerrainVertexShader from 'webgpu/shaders/terrain/terrainVertexShader.wgsl';
+import Globals from '../../../engine/Globals';
 
 export enum ShaderTemplate {
     UNLIT = 'UNLIT',
@@ -117,11 +118,11 @@ export default class ShaderManager {
 
         const properties: PipelineOptions = {
             wireframe: false,
-            cullFace: 'none',
+            cullFace: 'back',
             depthAttachment: {
                 depthCompare: 'less',
                 depthWriteEnabled: true,
-                format: 'depth24plus'
+                format: Globals.SHADOW_PASS_DEPTH_FN,
             },
             colorAttachment: {
                 disabled: true,
@@ -141,8 +142,26 @@ export default class ShaderManager {
                 fragmentShaderSource,
 
                 vertexShaderSource,
-                vertexShaderLayout: this.createVertexShaderLayout([{ elementsPerVertex: 3, dataType: 'float32' }]),
-                vertexShaderStride: 12,
+                vertexShaderLayout: this.createVertexShaderLayout([
+                    {
+                        "dataType": "float32",
+                        "elementsPerVertex": 3
+                    },
+                    {
+                        "dataType": "float32",
+                        "elementsPerVertex": 2
+                    },
+                    {
+                        "dataType": "float32",
+                        "elementsPerVertex": 3
+                    },
+                    {
+                        "dataType": "float32",
+                        "elementsPerVertex": 4
+                    }
+                ]),
+                // vertexShaderLayout: this.createVertexShaderLayout([{ elementsPerVertex: 3, dataType: 'float32' }]),
+                vertexShaderStride: 48,
             } as ShaderProgramDescription);
         }
 
@@ -216,7 +235,7 @@ export default class ShaderManager {
 
     private generatePipelineHash(geometry: GeometryDescriptor,
                                  material: MaterialDescriptor) {
-        return `${ geometry.vertexShader }-${ material.fragmentShader }-${ JSON.stringify(material.textureSize) }-${ JSON.stringify(this.mergeWithDefaultOptions(material.properties)) }-${ geometry.vertexLayout.entries.map(e => e.elementsPerVertex).join('-') }`
+        return `${geometry.vertexShader}-${material.fragmentShader}-${JSON.stringify(material.textureSize)}-${JSON.stringify(this.mergeWithDefaultOptions(material.properties))}-${geometry.vertexLayout.entries.map(e => e.elementsPerVertex).join('-')}`
     }
 
 
@@ -225,7 +244,7 @@ export default class ShaderManager {
         let lastEl = 0, lastOffset = 0;
         for (let i = 0; i < layout.length; i++) {
             const { dataType, elementsPerVertex } = layout[i];
-            const format = (elementsPerVertex === 1 ? dataType : `${ dataType }x${ elementsPerVertex }`) as BufferFormat;
+            const format = (elementsPerVertex === 1 ? dataType : `${dataType}x${elementsPerVertex}`) as BufferFormat;
 
             lastOffset = lastOffset + Float32Array.BYTES_PER_ELEMENT * lastEl;
             vertexShaderLayout.push({
@@ -250,7 +269,26 @@ export default class ShaderManager {
 
     private getShadowPassShaders(): [string, string] {
         if (this.graphics instanceof WebGPUGraphics) {
+            const vertexInput = `
+                struct VertexInput {
+                    @builtin(instance_index) instanceID: u32,
+                    @location(0) position: vec3<f32>,
+                    @location(1) textureCoord: vec2<f32>,
+                    @location(2) normal: vec3<f32>,
+                    @location(3) tangent: vec4<f32>,
+                };
+            `;
+            const vertexOutput = `
+                struct VertexOutput {
+                    @builtin(position) position: vec4<f32>,
+                    @location(0) fragCoord: vec4<f32>,
+                }
+            `;
             return [`
+                    ${vertexInput}
+
+                    ${vertexOutput}
+                    
                     struct Global {
                         lightViewProjectionMatrix : mat4x4<f32>,
                     }
@@ -262,14 +300,20 @@ export default class ShaderManager {
                     @binding(1) @group(0) var<uniform> model : Model;
                     
                     @vertex
-                    fn main(@location(0) position : vec3<f32>) -> @builtin(position) vec4<f32> {
-                        return global.lightViewProjectionMatrix * model.modelMatrix * vec4<f32>(position, 1.0);
+                    fn main(input : VertexInput) -> VertexOutput {
+                        var output: VertexOutput;
+                        output.position = global.lightViewProjectionMatrix * model.modelMatrix * vec4<f32>(input.position, 1.0);
+                        output.fragCoord = vec4(input.position, 1.0); 
+                        return output;
                     }
             `,
                 `
+                    ${vertexOutput}
+
                     @fragment
-                    fn main(@builtin(position) input: vec4<f32>) -> @location(0) vec4<f32> {
-                        return input;
+                    fn main(input: VertexOutput) -> @location(0) vec4<f32> {
+                        let depth = input.position.z;
+                        return vec4<f32>(input.position.xyz, 1.0);
                     }
             `];
         }
@@ -308,7 +352,7 @@ export default class ShaderManager {
             case VertexShaderName.TERRAIN:
                 return gpuTerrainVertexShader
             default: {
-                logger.warn(`Unknown vertex shader name: ${ shaderName }. Defaulting to basic!`);
+                logger.warn(`Unknown vertex shader name: ${shaderName}. Defaulting to basic!`);
                 return gpuBasicVertex;
             }
         }
@@ -329,7 +373,7 @@ export default class ShaderManager {
             case VertexShaderName.TERRAIN:
                 return glTerrainVertexShader
             default: {
-                logger.warn(`Unknown vertex shader name: ${ shaderName }. Defaulting to basic!`);
+                logger.warn(`Unknown vertex shader name: ${shaderName}. Defaulting to basic!`);
                 return glBasicVertexShader;
             }
         }
@@ -352,7 +396,7 @@ export default class ShaderManager {
             case FragmentShaderName.TERRAIN:
                 return gpuTerrainFragmentShader;
             default: {
-                logger.warn(`Unknown fragment shader name: ${ shaderName }. Defaulting to basic!`);
+                logger.warn(`Unknown fragment shader name: ${shaderName}. Defaulting to basic!`);
                 return gpuBasicFragment;
             }
         }
@@ -374,7 +418,7 @@ export default class ShaderManager {
             case FragmentShaderName.TERRAIN:
                 return glTerrainFragmentShader;
             default: {
-                logger.warn(`Unknown fragment shader name: ${ shaderName }. Defaulting to basic!`);
+                logger.warn(`Unknown fragment shader name: ${shaderName}. Defaulting to basic!`);
                 return glBasicFragmentShader;
             }
         }
@@ -404,7 +448,7 @@ export default class ShaderManager {
             return ShaderTemplate.PBR;
         }
 
-        throw new Error(`Template could not be determined: ${ vertexShader } ${ fragmentShader }`);
+        throw new Error(`Template could not be determined: ${vertexShader} ${fragmentShader}`);
     }
 
     private getShaderNames(shaderTemplate: ShaderTemplate): [VertexShaderName, FragmentShaderName] {
@@ -418,7 +462,7 @@ export default class ShaderManager {
             case ShaderTemplate.TERRAIN:
                 return [VertexShaderName.TERRAIN, FragmentShaderName.TERRAIN]
             default:
-                throw new Error(`Unknown shader template: ${ shaderTemplate }`);
+                throw new Error(`Unknown shader template: ${shaderTemplate}`);
         }
     }
 

@@ -30,15 +30,19 @@ export default class TexturePacker {
 
     constructor(private readonly atlasWidth: number,
                 private readonly atlasHeight: number,
-                private readonly maxLayers: number) {
+                private readonly maxLayers: number,
+                private readonly allocate1x1Spaces: number = 0
+    ) {
         this.atlasWidth = atlasWidth;
         this.atlasHeight = atlasHeight;
         this.layers = [];
 
-        this.layers.push({
-            freeRegions: this.addFreeSpaceFor1x1Textures(16),
-            occupiedRegions: []
-        })
+        if (allocate1x1Spaces && allocate1x1Spaces > 0) {
+            this.layers.push({
+                freeRegions: this.addFreeSpaceFor1x1Textures(allocate1x1Spaces),
+                occupiedRegions: []
+            });
+        }
         DebugUtil.addToWindowObject('texturePacker', this);
     }
 

@@ -17,6 +17,7 @@ import { mat4 } from 'gl-matrix';
 import DebugUtil from "../../../util/DebugUtil";
 import MathUtil from "../../../util/MathUtil";
 import directionalLight from 'core/light/DirectionalLight';
+import Globals from '../../../engine/Globals';
 
 export interface GLTFModel {
     label?: string,
@@ -140,7 +141,23 @@ export default class GLTFParser {
                         resourceManager: ResourceManager): Mesh {
         const textureManager: TextureManager = resourceManager.textureManager;
 
+        const vertexInstancedBuffer = resourceManager.createBuffer({
+            label: `sponza-atrium-vertex-instance`,
+            byteLength: 4096,
+            usage: BufferUsage.STORAGE | BufferUsage.COPY_DST
+        });
 
+        const vertexInstancedLayout = resourceManager.getOrCreateLayout(ShaderManager.INSTANCE_BUFFER_GROUP);
+        const vertexBindGroup = resourceManager.createBindGroup(vertexInstancedLayout, {
+            label: 'sponza-atrium-instance',
+            entries: [{
+                binding: 0,
+                bufferId: vertexInstancedBuffer,
+                name: 'InstanceData',
+                type: 'storage'
+            }]
+        });
+        
         let counter = 1;
         const buildNode = (node: GLTFNode, parentTransform?: Transform): Mesh => {
             const newTransform = node.matrix
@@ -166,24 +183,6 @@ export default class GLTFParser {
                     console.warn('MORE than one PRIMITIVES', mesh)
                 }
                 for (const primitive of mesh.primitives) {
-                    // TODO: REUSE THE INSTANCE BUFFERS
-                    const vertexInstancedBuffer = resourceManager.createBuffer({
-                        label: `sponza-atrium-vertex-instance`,
-                        byteLength: 4096,
-                        usage: BufferUsage.STORAGE | BufferUsage.COPY_DST
-                    });
-
-                    const vertexInstancedLayout = resourceManager.getOrCreateLayout(ShaderManager.INSTANCE_BUFFER_GROUP);
-                    const vertexBindGroup = resourceManager.createBindGroup(vertexInstancedLayout, {
-                        label: 'sponza-atrium-instance',
-                        entries: [{
-                            binding: 0,
-                            bufferId: vertexInstancedBuffer,
-                            name: 'InstanceData',
-                            type: 'storage'
-                        }]
-                    });
-
                     const gltfMaterial = this.json.materials[primitive.material];
                     const pbr = gltfMaterial.pbrMetallicRoughness || {};
                     const baseColorFactor = pbr.baseColorFactor || [1.0, 1.0, 1.0, 1.0];
@@ -269,12 +268,15 @@ export default class GLTFParser {
             ? this.parseAccessor(primitive.attributes.TEXCOORD_2)
             : this.parseAccessor(primitive.attributes.TEXCOORD_0);
         
-        // texCoords.forEach((texCoord) => {
-        //     if (texCoord > 1 || texCoord < 0) {
-        //         console.log(`${name} has tex coordinate outside [-1,1]`,);
-        //     }
-        // })
-
+        if (Globals.FRACT_UV_ON_CPU) {
+            for (let i = 0; i < texCoords.length; i+=2) {
+                // texCoords[i] = Math.max(0.0, Math.min(texCoords[i], 1.0));
+                // texCoords[i + 1] = Math.max(0.0, Math.min(texCoords[i + 1], 1.0));
+                // texCoords[i] = MathUtil.fract(texCoords[i]);
+                // texCoords[i+1] = MathUtil.fract(texCoords[i+1]);
+            }
+        }
+        
         if (primitive.attributes.TANGENT === undefined) {
             console.warn(`Geometry with name: ${name} is missing tangent. Will generate TBN Matrix on the cpu`, primitive);
             return geometryFactory.createGeometry(

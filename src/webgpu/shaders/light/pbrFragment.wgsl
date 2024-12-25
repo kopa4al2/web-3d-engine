@@ -1,6 +1,7 @@
 const MAX_DIRECTIONAL_LIGHTS = 2;
 const MAX_POINT_LIGHTS = 4;
 const MAX_SPOT_LIGHTS = 4;
+const MAX_SHADOW_CASTING_LIGHTS = 2;
 
 const EPSILON = 0.001;
 
@@ -102,12 +103,14 @@ struct FragmentInput {
 fn main(input: FragmentInput) -> @location(0) vec4<f32> {
 //    let normalizedUv = input.textureCoord;
     let normalizedUv = fract(input.textureCoord);
-
+//let lightNDC = input.lightSpacePosition.xyz / input.lightSpacePosition.w;
+//     let shadowDepth = textureSampleCompare(shadowMap, shadowSampler, vec3<f32>(lightNDC.xy, f32(0.0)), lightNDC.z);
+    // Shadow factor (1 = fully lit, 0 = fully shadowed)
+//    let shadowFactor = shadowDepth;
+    
     let uv = material.albedo_map.uv_scale * normalizedUv + material.albedo_map.uv_offset;
-//    return vec4<f32>(material.albedo_map.uv_offset, 0, 1);
-//    return textureSample(globalTextures, globalSampler, uv, material.albedo_map.texture_layer);
     let baseColor = textureSample(globalTextures, globalSampler, uv, material.albedo_map.texture_layer) * material.base_color;
-//    textureSampleCompare(shadowMap, shadowSampler, shadowUV, lightSpacePosition.z);
+
     // TODO: Hard coded alpha mask, by default enabled for all
     if (baseColor.a <= 0.5) {
         discard;
@@ -239,6 +242,7 @@ fn main(input: FragmentInput) -> @location(0) vec4<f32> {
 //      return light.spotLights[0].color;
 //      return baseColor;
       return vec4<f32>(finalColor, baseColor.a);
+//      return vec4<f32>(finalColor * * shadowFactor, baseColor.a);
 //      return vec4<f32>(normalWorld, baseColor.a);
 }
 

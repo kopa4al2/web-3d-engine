@@ -487,6 +487,10 @@ class MathUtil {
 
         return { vertices, normals, texCoords, indices, tangents: [...tangents], bitangents: [...bitangents] };
     }
+
+    fract(num: number) {
+        return num - Math.floor(num);
+    }
 }
 
 DebugUtil.addToWindowObject('mathUtil', new MathUtil());

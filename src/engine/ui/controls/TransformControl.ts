@@ -7,16 +7,17 @@ import { wrapArrayAsXYZW } from "../utils";
 export default class TransformControl {
 
     public static createTranslate(parent: ContainerApi, transform: Transform) {
+        // const targetPosition = wrapArrayAsXYZW(vec3.copy(vec3.create(), transform.targetTransform.position));
+        const targetPosition = wrapArrayAsXYZW(transform.targetTransform.position);
         parent
-            .addBinding(wrapArrayAsXYZW(
-                    transform.targetTransform.position),
+            .addBinding(targetPosition,
                 'xyzw',
                 { picker: 'inline', label: 'translate', min: -1000, max: 1000, step: 3 })
             .on('change', e => {
-                if (!transform.parent) {
-                    return;
-                }
-
+                // const curr = transform.targetTransform.position;
+                // let newPosition = vec3.fromValues(e.value.x, e.value.y, e.value.z);
+                // console.log(curr, newPosition)
+                // transform.targetTransform.position = vec3.add(vec3.create(), newPosition, curr);
                 // todo: this still needs some work, and i dont know if i should invest
 
                 // const worldMovement = transform.targetTransform.position;
@@ -26,6 +27,7 @@ export default class TransformControl {
                 // vec3.add(transform.targetTransform.position, transform.targetTransform.position, localMovement);
             });
     }
+
     public static create(parent: ContainerApi, transform: Transform) {
         const transformFolder = parent.addFolder({ title: 'transformation', expanded: true });
         this.createTranslate(transformFolder.addFolder({ title: 'translation', expanded: true }), transform);

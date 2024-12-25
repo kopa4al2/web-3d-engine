@@ -1,6 +1,7 @@
 struct Camera {
     projectionViewMatrix: mat4x4<f32>,  // 64 bytes
     viewMatrix: mat4x4<f32>,            // 64 bytes
+    lightProjectionView: mat4x2<f32>,   // 64 bytes
     cameraPosition: vec4<f32>,          // 16 bytes
     cameraForward: vec4<f32>,           // 16 bytes
     cameraRight: vec4<f32>,             // 16 bytes
@@ -38,21 +39,19 @@ struct VertexOutput {
 
 @vertex
 fn main(input: VertexInput) -> VertexOutput {
+    var output: VertexOutput;
     let modelMatrix = instanceData[input.instanceID].modelMatrix;
     let inverseModel = instanceData[input.instanceID].modelMatrixInverseTranspose;
 
-    var output: VertexOutput;
     output.textureCoord = input.textureCoord;
     output.instanceID = input.instanceID;
 
     output.position = global.projectionViewMatrix * modelMatrix * vec4<f32>(input.position, 1);
-
-//    output.normal = extract_mat3_from_mat4(inverseModel) * input.normal;
     output.pixelPosition = (modelMatrix * vec4<f32>(input.position, 1.0)).xyz;
 
+    // COMPUTE TBN MATRIX
     let normalMatrix = extract_mat3_from_mat4(inverseModel);
     let normal = normalize(normalMatrix * input.normal);
-//    let tangent = normalize(modelMatrix * input.tangent).xyz;
     let tangent = normalize(normalMatrix * input.tangent.xyz);
     let bitangent = cross(normal, tangent) * input.tangent.w;
 

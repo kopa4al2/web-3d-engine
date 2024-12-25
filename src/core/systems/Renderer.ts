@@ -1,3 +1,4 @@
+// @ts-nocheck
 import Component from "core/components/Component";
 import Mesh from 'core/components/Mesh';
 import Transform from 'core/components/Transform';
@@ -22,6 +23,7 @@ import DebugCanvas from "../../util/DebugCanvas";
 import JavaMap from "../../util/JavaMap";
 import { rateLimitedLog } from "../../util/Logger";
 import ThrottleUtil from "../../util/ThrottleUtil";
+import Globals from '../../engine/Globals';
 
 /**
  * Knows of global buffers / textures (to bind them)
@@ -32,43 +34,43 @@ export default class Renderer implements System {
 
     private projectionViewMatrix: mat4 = mat4.create();
 
-    // private readonly shadowPassPipeline: PipelineId;
-    // private readonly shadowPassGlobalBuffer: BufferId;
-    // private readonly shadowPassModelBuffer: BufferId;
-    // private readonly shadowPassBindGroup: BindGroupId;
+    private readonly shadowPassPipeline: PipelineId;
+    private readonly shadowPassGlobalBuffer: BufferId;
+    private readonly shadowPassModelBuffer: BufferId;
+    private readonly shadowPassBindGroup: BindGroupId;
 
     constructor(private graphics: Graphics,
                 private entityManager: EntityManager,
                 private resourceManager: ResourceManager,
                 private shaderManager: ShaderManager) {
-        // const bufferLength = 256;
-        // const mat4ByteLength = 16 * Float32Array.BYTES_PER_ELEMENT;
-        // const shadowPassGlobal = createStruct('shadow-pass-global', 'uniform', 0, UniformVisibility.VERTEX, bufferLength);
-        // const shadowPassModel = createStruct('shadow-pass-model', 'uniform', 1, UniformVisibility.VERTEX, mat4ByteLength);
-        // const layout = this.resourceManager.getOrCreateLayout({
-        //     label: 'ShadowPass',
-        //     entries: [shadowPassGlobal, shadowPassModel]
-        // })
-        // const modelBuffer = this.resourceManager.createBuffer({
-        //     byteLength: mat4ByteLength,
-        //     label: 'ShadowPassModelBuffer',
-        //     usage: BufferUsage.UNIFORM | BufferUsage.COPY_DST,
-        // });
-        // const globalBuffer = this.resourceManager.createBuffer({
-        //     byteLength: bufferLength,
-        //     label: 'ShadowGlobalBuffer',
-        //     usage: BufferUsage.UNIFORM | BufferUsage.COPY_DST,
-        // })
-        //
-        // const bindGroup = this.resourceManager.createBindGroup(layout, {
-        //     label: 'ShadowPassGlobalBindGroup',
-        //     entries: [{ ...shadowPassGlobal, bufferId: globalBuffer }, { ...shadowPassModel, bufferId: modelBuffer }]
-        // });
-        //
-        // this.shadowPassGlobalBuffer = globalBuffer;
-        // this.shadowPassModelBuffer = modelBuffer;
-        // this.shadowPassBindGroup = bindGroup;
-        // this.shadowPassPipeline = this.shaderManager.createShadowPass(layout);
+        const bufferLength = 256;
+        const mat4ByteLength = 16 * Float32Array.BYTES_PER_ELEMENT;
+        const shadowPassGlobal = createStruct('shadow-pass-global', 'uniform', 0, UniformVisibility.VERTEX, mat4ByteLength);
+        const shadowPassModel = createStruct('shadow-pass-model', 'uniform', 1, UniformVisibility.VERTEX, mat4ByteLength);
+        const layout = this.resourceManager.getOrCreateLayout({
+            label: 'ShadowPass',
+            entries: [shadowPassGlobal, shadowPassModel]
+        })
+        const modelBuffer = this.resourceManager.createBuffer({
+            byteLength: mat4ByteLength,
+            label: 'ShadowPassModelBuffer',
+            usage: BufferUsage.UNIFORM | BufferUsage.COPY_DST,
+        });
+        const globalBuffer = this.resourceManager.createBuffer({
+            byteLength: bufferLength,
+            label: 'ShadowGlobalBuffer',
+            usage: BufferUsage.UNIFORM | BufferUsage.COPY_DST,
+        })
+
+        const bindGroup = this.resourceManager.createBindGroup(layout, {
+            label: 'ShadowPassGlobalBindGroup',
+            entries: [{ ...shadowPassGlobal, bufferId: globalBuffer }, { ...shadowPassModel, bufferId: modelBuffer }]
+        });
+
+        this.shadowPassGlobalBuffer = globalBuffer;
+        this.shadowPassModelBuffer = modelBuffer;
+        this.shadowPassBindGroup = bindGroup;
+        this.shadowPassPipeline = this.shaderManager.createShadowPass(layout);
     }
 
     public update(deltaTime: number): void {
@@ -98,7 +100,7 @@ export default class Renderer implements System {
         const dirLights = this.entityManager.getComponentsWithId<DirectionalLight>(DirectionalLight.ID);
 
         if (dirLights.length > DirectionalLight.MAX_DIRECTION_LIGHTS) {
-            throw new Error(`Too many directional lights. Max is ${ DirectionalLight.MAX_DIRECTION_LIGHTS }, provided: ${ dirLights.length }`);
+            throw new Error(`Too many directional lights. Max is ${DirectionalLight.MAX_DIRECTION_LIGHTS}, provided: ${dirLights.length}`);
         }
         if (dirLights.find(l => l.hasChanged)) {
             for (let i = 0; i < DirectionalLight.MAX_DIRECTION_LIGHTS; i++) {
@@ -134,7 +136,7 @@ export default class Renderer implements System {
 
 
         if (pointLights.length > PointLight.MAX_POINT_LIGHTS) {
-            throw new Error(`Too many point lights. Max is ${ PointLight.MAX_POINT_LIGHTS }, provided: ${ pointLights.length }`);
+            throw new Error(`Too many point lights. Max is ${PointLight.MAX_POINT_LIGHTS}, provided: ${pointLights.length}`);
         }
 
         for (let i = 0; i < PointLight.MAX_POINT_LIGHTS; i++) {
@@ -156,7 +158,7 @@ export default class Renderer implements System {
         }
 
         if (spotLights.length > SpotLight.MAX_SPOT_LIGHTS) {
-            throw new Error(`Too many point lights. Max is ${ SpotLight.MAX_SPOT_LIGHTS }, provided: ${ spotLights.length }`);
+            throw new Error(`Too many point lights. Max is ${SpotLight.MAX_SPOT_LIGHTS}, provided: ${spotLights.length}`);
         }
 
         for (let i = 0; i < SpotLight.MAX_SPOT_LIGHTS; i++) {
@@ -183,7 +185,7 @@ export default class Renderer implements System {
         }
 
         if (byteOffset !== bytesForDirLight + bytesForPointLights + bytesForSpotLights) {
-            console.warn(`[SPOT LIGHT] byte offset: ${ byteOffset } does not match expected: ${ bytesForDirLight + bytesForPointLights }`);
+            console.warn(`[SPOT LIGHT] byte offset: ${byteOffset} does not match expected: ${bytesForDirLight + bytesForPointLights}`);
         }
 
         dataView.setUint32(byteOffset, dirLights.length, true);
@@ -213,7 +215,7 @@ export default class Renderer implements System {
         // FAKE DATA
         this.resourceManager.bufferManager.writeToGlobalBuffer('Time', new Float32Array([1.0, 1.0, 1.0, 1.0]));
 
-        // this.drawShadowPass(scene);
+        this.drawShadowPass(scene);
 
         const renderPass = this.graphics.beginRenderPass();
 
@@ -289,11 +291,11 @@ export default class Renderer implements System {
 
     lights: WeakMap<Component, { texture: TextureId, layer: number }> = new WeakMap();
 
-    /*private drawShadowPass(scene: Scene) {
-        const dirLights = this.entityManager.getComponentsWithId<DirectionalLight>(DirectionalLight.ID);
-        if (dirLights.length <= 0) {
-            return;
-        }
+    private drawShadowPass(scene: Scene) {
+        // const dirLights = this.entityManager.getComponentsWithId<DirectionalLight>(DirectionalLight.ID);
+        // if (dirLights.length <= 0) {
+        //     return;
+        // }
 
         const spotLights = scene.getVisibleLights()
             .map(lightEntity => this.entityManager.getComponents<[SpotLight, Transform]>(lightEntity, SpotLight.ID, Transform.ID))
@@ -310,41 +312,83 @@ export default class Renderer implements System {
                     layer: this.resourceManager.textureManager.getShadowMapLayer()
                 });
             }
+            
             const shadowPass = this.graphics.beginRenderPass({
                 label: `shadow-pass-${spotLight.id.description}`,
                 depthAttachment: {
-                    textureId: this.lights.get(spotLight).texture,
+                    textureId: this.lights.get(spotLight)!.texture,
                     textureView: {
-                        baseArrayLayer: this.lights.get(spotLight).layer,
+                        baseArrayLayer: this.lights.get(spotLight)!.layer,
+                        aspect: 'depth-only',
                         dimension: '2d'
                     }
                 },
                 colorAttachment: { skip: true },
-                viewport: { x: 0, y: 0, width: 1024, height: 1024 }
+                viewport: { x: 0, y: 0, width: Globals.SHADOW_PASS_TEXTURE_SIZE, height: Globals.SHADOW_PASS_TEXTURE_SIZE }
             });
             shadowPass.usePipeline(this.shadowPassPipeline);
             shadowPass.setBindGroup(0, this.shadowPassBindGroup);
 
 
-            const projectionMatrix = mat4.perspectiveZO(mat4.create(), Math.PI / 4, 1, 1.0, 50.0);
+            const projectionMatrix = mat4.perspectiveZO(mat4.create(),
+                Math.PI / 4,
+                1,
+                0.1,
+                100.0);
             const position = transform.worldTransform.position;
             const direction = vec3.transformQuat(vec3.create(), vec3.fromValues(0, 0, -1.0), transform.worldTransform.rotation);
             vec3.normalize(direction, direction);
             const target = vec3.add(vec3.create(), position, direction);
             const up = vec3.fromValues(0, 1, 0);
             const lightViewMatrix = mat4.targetTo(mat4.create(), position, target, up);
+
+            const viewMat = mat4.create();
+
+            const rotationMatrix = mat4.create();
+            mat4.fromQuat(rotationMatrix, transform.worldTransform.rotation);
+
+            mat4.transpose(rotationMatrix, rotationMatrix);
+
+            const translationMatrix = mat4.create();
+            // mat4.fromTranslation(translationMatrix, this.position);
+            mat4.fromTranslation(translationMatrix, vec3.negate(vec3.create(), transform.worldTransform.position));
+
+            // Combine rotation and translation to get the view matrix
+            mat4.multiply(viewMat, rotationMatrix, translationMatrix);
+
+            // const lightProjViewMatrix = this.projectionViewMatrix;
             const lightProjViewMatrix = mat4.multiply(mat4.create(), projectionMatrix, lightViewMatrix);
             this.graphics.writeToBuffer(this.shadowPassGlobalBuffer, lightProjViewMatrix as Float32Array);
-            for (const meshData of scene.getVisibleEntities().values()) {
-                for (const mesh of meshData.keys()) {
-                    this.graphics.writeToBuffer(this.shadowPassModelBuffer, mesh.modelMatrix.getWorldMatrix() as Float32Array);
+            for (const [pipeline, meshes] of scene.getVisibleEntities()) {
+                for (const [mesh, entities] of meshes) {
                     shadowPass.setVertexBuffer(0, mesh.geometry.vertexBuffer);
-                    shadowPass.drawIndexed(mesh.geometry.indexBuffer, mesh.geometry.indices);
+                    // mesh.setBindGroup(this.graphics, renderPass);
+                    for (let index = 0; index < entities.length; index++) {
+                        const [_, transform] = entities[index];
+                        this.graphics.writeToBuffer(this.shadowPassModelBuffer, transform as Float32Array);
+                        shadowPass.drawIndexed(mesh.geometry.indexBuffer, mesh.geometry.indices);
+                    }
                 }
             }
+            // for (const meshData of scene.getVisibleEntities().values()) {
+            //     for (const mesh of meshData.keys()) {
+            //         this.graphics.writeToBuffer(this.shadowPassModelBuffer, mat4.create() as Float32Array);
+            //         // this.graphics.writeToBuffer(this.shadowPassModelBuffer, mesh.transform.getWorldMatrix() as Float32Array);
+            //         shadowPass.setVertexBuffer(0, mesh.geometry.vertexBuffer);
+            //         shadowPass.drawIndexed(mesh.geometry.indexBuffer, mesh.geometry.indices);
+            //     }
+            // }
             shadowPass.submit();
         }
-
+        // ThrottleUtil.throttle(() => {
+            this.graphics._getTextureData!(this.resourceManager.textureManager.getShadowMap())
+                .then(data => {
+                    // requestAnimationFrame(() => {
+                        DebugCanvas.visualizeDepth(data, Globals.SHADOW_PASS_TEXTURE_SIZE, Globals.SHADOW_PASS_TEXTURE_SIZE);
+                    // });
+                });
+        // }, 200);
+        
 
         // DIR LIGHT
         // const lightPosition = vec3.fromValues(0, 20, 0);
@@ -385,7 +429,7 @@ export default class Renderer implements System {
         // shadowPass.submit();
 
         // DebugCanvas.debug(this.graphics, { id: this.shadowMapFrameBuffer, width: 1024, height: 1024 });
-    }*/
+    }
 }
 
 function getFrustumCorners(viewProjectionMatrix: mat4) {

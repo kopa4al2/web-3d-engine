@@ -88,7 +88,7 @@ export class LightControl {
 
         container.addBinding(light.data, 'intensity', { min: 0.1, max: 50.0, step: 0.1, label: 'Intensity' });
 
-        const cutoff = { innerCutoff: 5, outerCutoff: 5 };
+        const cutoff = { innerCutoff: 30, outerCutoff: 40 };
 
         function onChange(currentCutoff: 'inner' | 'outer', e: TpChangeEvent<number>) {
             if (currentCutoff === 'inner') {
@@ -109,6 +109,5 @@ export class LightControl {
             .on('change', e => onChange('inner', e));
         container.addBinding(cutoff, 'outerCutoff', { min: 5, max: 90, step: 1, label: 'Outer cutoff' })
             .on('change', e => onChange('outer', e));
-
     }
 }

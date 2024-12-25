@@ -8,6 +8,7 @@ import TexturePackerOld from "core/texture/TexturePackerOld";
 import PromiseQueue from "core/utils/PromiseQueue";
 import { vec2 } from 'gl-matrix';
 import DebugUtil from "../../util/DebugUtil";
+import Globals from '../../engine/Globals';
 
 const normalFormat = 'rgba8unorm';
 const hdrImgFormat = 'rgba16float';
@@ -32,13 +33,10 @@ interface GlobalTextureLayer {
 export default class TextureManager {
     private static readonly SHADOW_MAP_TEXTURE_KEY: string = 'SHADOW_MAP_TEXTURE_KEY';
     private static readonly ENV_MAP_TEXTURE_KEY: string = 'ENV_MAP_TEXTURE_KEY';
-    public static readonly MAX_TEXTURE_ARRAY_SIZE: TextureSize = { width: 1024, height: 1024 };
-    public static readonly TEXTURE_ARRAY_LAYERS = 90;
+    public static readonly MAX_TEXTURE_ARRAY_SIZE: TextureSize = { width: 4096, height: 4096 };
+    public static readonly TEXTURE_ARRAY_LAYERS = 20;
     private cachedTextures: Map<string, Texture> = new Map();
-    // textures currently loading by path TODO: We may not need this anymore
-    private loadingTextures: Set<TextureName> = new Set();
-    private textureArraysData: WeakMap<TextureId, GlobalTextureData> = new WeakMap();
-
+    
     private globalTextures: Map<string, TextureId> = new Map();
     private cubeTextures: Map<string, TextureId> = new Map();
 
@@ -48,11 +46,13 @@ export default class TextureManager {
 
     constructor(private graphics: Graphics) {
         DebugUtil.addToWindowObject('textureManager', this);
-        // @ts-ignore
-        this.shadowMapPacker = new TexturePackerOld(1024, 1024, 20);
+        
+        this.shadowMapPacker = new TexturePacker(1024, 1024, 20);
         this.texturePacker = new TexturePacker(TextureManager.MAX_TEXTURE_ARRAY_SIZE.width,
             TextureManager.MAX_TEXTURE_ARRAY_SIZE.height,
-            TextureManager.TEXTURE_ARRAY_LAYERS);
+            TextureManager.TEXTURE_ARRAY_LAYERS,
+            8
+            );
 
         this.promiseQueue = new PromiseQueue();
 
@@ -68,9 +68,9 @@ export default class TextureManager {
                 type: TextureType.TEXTURE_ARRAY,
                 usage: TextureUsage.COPY_DST | TextureUsage.TEXTURE_BINDING | TextureUsage.RENDER_ATTACHMENT | TextureUsage.COPY_SRC,
                 image: {
-                    channel: { format: 'depth24plus', dataType: 'uint8' },
-                    width: 1024,
-                    height: 1024,
+                    channel: { format: Globals.SHADOW_PASS_DEPTH_FN, dataType: 'float' },
+                    width: Globals.SHADOW_PASS_TEXTURE_SIZE,
+                    height: Globals.SHADOW_PASS_TEXTURE_SIZE,
                 }
             }));
 
@@ -132,6 +132,7 @@ export default class TextureManager {
 
     public getShadowMapLayer(): number {
         const packed = this.shadowMapPacker.addTexture('shadowMap', 1024, 1024);
+        console.log('shadowMapLayer', packed);
         return packed.layer;
     }
 

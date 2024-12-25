@@ -97,13 +97,10 @@ vec3 calculateSpotlight(SpotLight spotlight, vec3 fragPosition, vec3 normal,
 vec3 viewDir, vec3 baseColor, float roughnessSquared, float metallic, vec3 F0);
 
 void main() {
-    vec2 normalizedUv = vTextureCoord;
-//    if (vTextureCoord.x > 1.0 || vTextureCoord.y > 1.0 || vTextureCoord.x < 0.0 || vTextureCoord.y < 0.0) {
-//        normalizedUv = fract(vTextureCoord);
-//    }
+    highp vec2 normalizedUv = fract(vTextureCoord);
 
     vec2 albedoUv = albedo_map.uv_scale * normalizedUv + albedo_map.uv_offset;
-//    albedoUv = clamp(albedoUv, albedo_map.uv_offset, albedo_map.uv_offset + albedo_map.uv_scale);
+    albedoUv = clamp(albedoUv, albedo_map.uv_offset, albedo_map.uv_offset + albedo_map.uv_scale - vec2(EPSILON));
     vec4 baseColor = texture(TexturesArray, vec3(albedoUv, albedo_map.texture_layer)) * base_color;
 
     // TODO: Hard coded alpha mask, by default enabled for all
@@ -113,6 +110,7 @@ void main() {
 
     // --- Metallic and Roughness ---
     vec2 metallicRoughtnessUv = metallic_map.uv_scale * normalizedUv + metallic_map.uv_offset;
+    metallicRoughtnessUv = clamp(metallicRoughtnessUv, metallic_map.uv_offset, metallic_map.uv_offset + metallic_map.uv_scale - vec2(EPSILON));
     vec3 metallicRoughness = texture(TexturesArray, vec3(metallicRoughtnessUv, metallic_map.texture_layer)).rgb;
     float metallic = metallicRoughness.b;
     float roughness = metallicRoughness.g;
@@ -120,6 +118,7 @@ void main() {
     // --- Normal Mapping ---
     mat3 TBN = mat3(vTangent, vBitangent, vNormal);
     vec2 normalUv = normal_map.uv_scale * normalizedUv + normal_map.uv_offset;
+    normalUv = clamp(normalUv, normal_map.uv_offset, normal_map.uv_offset + normal_map.uv_scale - vec2(EPSILON));
     vec3 normalTangent = texture(TexturesArray, vec3(normalUv, normal_map.texture_layer)).rgb;
     normalTangent = normalize(normalTangent * 2.0 - 1.0);
     vec3 normalWorld = normalize(TBN * normalTangent);
@@ -227,8 +226,8 @@ void main() {
     vec3 ambient = vec3(0.1);
     finalColor += ambient * (1.0 - metallic);
 
-//    fragColor = vec4(finalColor, base_color.a);
-    fragColor = texture(TexturesArray, vec3(albedoUv, albedo_map.texture_layer));
+    fragColor = vec4(finalColor, baseColor.a);
+    //    fragColor = texture(TexturesArray, vec3(albedoUv, albedo_map.texture_layer));
     //    vec2 normalizedUv = fract(normalizedUv);
     //    vec2 uv = albedo_map.uv_scale * normalizedUv + albedo_map.uv_offset;
     //    vec2 subRegionEnd = albedo_map.uv_offset + vec2(2048, 2048) * albedo_map.uv_scale;

@@ -143,19 +143,25 @@ export default class Engine {
         const sunLightEntity = this.entityFactory.createEntity('Sun', sunLight);
         this.scene.addEntities(sunLightEntity);
 
-        this.createPointLight('BRIGHT_POINT',
-            {
-                color: PointLight.MOON_LIGHT, quadraticAttenuation: 0.001,
-                linearAttenuation: 0.001, intensity: 4
-            },
-            defaultTransform().translate([0, 30, 0]));
+        // this.createPointLight('BRIGHT_POINT',
+        //     {
+        //         color: PointLight.MOON_LIGHT, quadraticAttenuation: 0.001,
+        //         linearAttenuation: 0.001, intensity: 4
+        //     },
+        //     defaultTransform().translate([0, 30, 0]));
 
 
-        // this.createSpotLight('SPOT_LIGHT_2', {
-        //     color: vec4.fromValues(0, 1, 1, 1),
-        //     intensity: 20,
-        //     innerCutoff: Math.cos(glMatrix.toRadian(60.0))
-        // });
+        const spotLightTransform = defaultTransform();
+        // spotLightTransform.worldTransform.rotation = quat.fromValues(0.5, -0.8, -0.06, -0.2);
+        spotLightTransform.worldTransform.position = vec3.fromValues(5, 20, -10);
+        this.createSpotLight('SPOT_LIGHT_2', {
+            color: vec4.fromValues(0, 1, 1, 1),
+            intensity: 20,
+            innerCutoff: Math.cos(glMatrix.toRadian(60.0)),
+            outerCutoff: Math.cos(glMatrix.toRadian(90.0)),
+            quadraticAttenuation: 0.004
+        }, spotLightTransform
+        );
         // this.createPointLight('Red', { color: PointLight.WARM_LIGHT }, defaultTransform().translate([10, 10, 0]));
 
 
@@ -193,7 +199,7 @@ export default class Engine {
         //         .addTask(async () => this.createSpotLight('BulbLight', { color: vec4.fromValues(1.0, 0.2, 0.7, 1) }, lightTransform));
         // });
 
-
+        this.loadAndAddMesh(() => this.modelRepository.createCrate(), [-5, 10, 10])
         SdiPerformance.log('Begin loading Sponza Atrium');
         this.modelRepository.drawScene()
             .then(meshes => {
@@ -215,7 +221,6 @@ export default class Engine {
                     this.scene.addEntities(entityId);
                 });
                 SdiPerformance.log('Added the whole Sponza Atrium to the scene');
-                this.loadAndAddMesh(() => this.modelRepository.createCrate(), [-5, 10, 10])
             });
 
         // this.modelRepository.lightBulb().then(mesh => {

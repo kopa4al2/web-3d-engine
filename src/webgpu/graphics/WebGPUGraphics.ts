@@ -124,6 +124,7 @@ export default class WebGPUGraphics implements Graphics {
                 : this.depthTexture!;
 
             const view = depthTexture.createView({
+                label: descriptor.label + '_depthAttachment',
                 aspect: descriptor.depthAttachment.textureView?.aspect,
                 baseArrayLayer: descriptor.depthAttachment.textureView?.baseArrayLayer,
                 dimension: descriptor.depthAttachment.textureView?.dimension,
@@ -143,14 +144,14 @@ export default class WebGPUGraphics implements Graphics {
         };
 
         const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
-
         const viewport = descriptor.viewport || {};
+
         passEncoder.setViewport(
             viewport.x || 0,
             viewport.y || 0,
             viewport.width || this.props.getAbsolute('window.width'),
             viewport.height || this.props.getAbsolute('window.height'),
-            0.1,
+            0.001,
             1.0
         );
         return new WebGPURenderPass(passEncoder, commandEncoder, this);
@@ -375,6 +376,7 @@ export default class WebGPUGraphics implements Graphics {
         if (textureDescription.type === TextureType.TEXTURE_ARRAY
             || textureDescription.type === TextureType.CUBE_MAP) {
             return this._device.createTexture({
+                label: textureDescription.label,
                 size: {
                     width: image.width,
                     height: image.height,
@@ -634,20 +636,3 @@ export class WebGPURenderPass implements RenderPass {
     }
 
 }
-
-// RE CREATE DEPTH TEXTURE
-/*
-
-if (!depthTexture ||
-        depthTexture.width !== canvasTexture.width ||
-        depthTexture.height !== canvasTexture.height) {
-      if (depthTexture) {
-        depthTexture.destroy();
-      }
-      depthTexture = device.createTexture({
-        size: [canvasTexture.width, canvasTexture.height],
-        format: 'depth24plus',
-        usage: GPUTextureUsage.RENDER_ATTACHMENT,
-      });
-    }
- */
