@@ -21,57 +21,6 @@ export class LightControl {
         this.pointLightsTab = layout.newPane('Point lights');
     }
 
-    addDirLight(title: string, light: DirectionalLight) {
-        const folder = this.dirLightsTab.addFolder({ title });
-        folder.addBinding(light.direction, 'xyzw', {
-            picker: 'inline',
-            label: 'Direction',
-            view: 'rotation',
-            rotationMode: 'euler',
-            x: { min: -1, max: 1, step: 0.01, label: 'X' },
-            y: { min: -1, max: 1, step: 0.01, label: 'Y' },
-            z: { min: -1, max: 1, step: 0.01, label: 'Z' },
-        })
-        folder.addBinding(light.color, 'rgba', { label: 'color', color: { type: 'float' }, picker: 'inline' });
-        folder.addBinding(light.props, 'intensity', { min: 0.1, max: 10.0, step: 0.1, label: 'Intensity' });
-    }
-
-    addPointLight(title: string, light: PointLight) {
-        const folder = this.pointLightsTab.addFolder({ title });
-        folder.addBinding(light.data, 'linearAttenuation', {
-            // format: val => (Number(val.toFixed(3))) * 100,
-            min: 0.0,
-            max: 1.0,
-            step: 0.01,
-            keyScale: 10,
-            pointerScale: 10,
-            label: 'Linear Attenuation'
-        })
-        folder.addBinding(light.data, 'quadraticAttenuation', {
-            format: val => (Number(val.toFixed(3))) * 100,
-            min: 0.0001,
-            max: 0.1,
-            step: 0.0001,
-            keyScale: 1,
-            pointerScale: 100,
-            label: 'Quad Attenuation'
-        })
-        folder.addBinding(light.position, 'xyz', {
-            label: 'position',
-            x: { min: -100, max: 100, step: 1, label: 'X' },
-            y: { min: -100, max: 100, step: 1, label: 'Y' },
-            z: { min: -100, max: 100, step: 1, label: 'Z' },
-        });
-        folder.addBinding(light.color, 'rgba', {
-            color: { type: 'float' },
-            label: 'color',
-            picker: 'inline'
-        });
-
-        folder.addBinding(light.data, 'intensity', { min: 0.1, max: 50.0, step: 0.1, label: 'Intensity' });
-
-    }
-
     static addDirectionalLight(folder: ContainerApi, light: DirectionalLight) {
         folder.addBinding(light.direction, 'xyzw', {
             label: 'Direction',
@@ -95,7 +44,7 @@ export class LightControl {
             step: 0.01,
             format: val => val.toFixed(2),
         });
-        console.log(light.data.quadraticAttenuation)
+
         container.addBinding(light.data, 'quadraticAttenuation', {
             label: 'Quad Attenuation',
             min: 0.001,

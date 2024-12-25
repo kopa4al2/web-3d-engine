@@ -33,6 +33,8 @@ self.onmessage = (event: MessageEvent<GLTFWorkerRequest>) => {
 let canvas: OffscreenCanvas;
 
 function getCanvas(width: number, height: number): OffscreenCanvas {
+    return new OffscreenCanvas(width, height);
+    
     if (!canvas) {
         canvas = new OffscreenCanvas(width, height);
     }

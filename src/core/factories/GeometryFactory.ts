@@ -120,7 +120,7 @@ export default class GeometryFactory {
             vertexLayout: vertexLayout,
         }, data);
 
-        return new Geometry(vertexBuffer, indexBuffer, geometry.indices.length, { vertexShader, vertexLayout });
+        return new Geometry(vertexBuffer, indexBuffer, geometry.indices.length, { vertexShader, vertexLayout, data: geometry });
     }
 
     private createVertexLayoutFromShader(vertexShader: VertexShaderName): VertexLayout {

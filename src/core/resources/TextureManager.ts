@@ -32,8 +32,8 @@ interface GlobalTextureLayer {
 export default class TextureManager {
     private static readonly SHADOW_MAP_TEXTURE_KEY: string = 'SHADOW_MAP_TEXTURE_KEY';
     private static readonly ENV_MAP_TEXTURE_KEY: string = 'ENV_MAP_TEXTURE_KEY';
-    public static readonly MAX_TEXTURE_ARRAY_SIZE: TextureSize = { width: 2048, height: 2048 };
-    public static readonly TEXTURE_ARRAY_LAYERS = 20;
+    public static readonly MAX_TEXTURE_ARRAY_SIZE: TextureSize = { width: 1024, height: 1024 };
+    public static readonly TEXTURE_ARRAY_LAYERS = 90;
     private cachedTextures: Map<string, Texture> = new Map();
     // textures currently loading by path TODO: We may not need this anymore
     private loadingTextures: Set<TextureName> = new Set();
@@ -80,8 +80,6 @@ export default class TextureManager {
         // console.log(this.texturePacker.addTexture('512x512', 512, 512)); // Layer 0: { x: 0, y: 512, layer: 0, uv: [...] }
         // console.log(this.texturePacker.addTexture('724x724', 724, 724));
         // console.log(this.texturePacker.addTexture('256x256', 256, 256));
-        // console.log(this.texturePacker.addTexture('1024x1024', 1024, 1024)); // Layer 1: Takes the entire layer
-        // console.log(this.texturePacker.addTexture('1024x1024', 1024, 1024)); // Layer 1: Takes the entire layer
         // console.log(this.texturePacker.addTexture('2048x2048', 2048, 2048)); // Layer 1: Takes the entire layer
         // console.groupEnd()
     }

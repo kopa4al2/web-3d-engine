@@ -521,11 +521,9 @@ export default class WebGPUGraphics implements Graphics {
         }
 
         const device = await adapter.requestDevice({ requiredLimits: { maxBindGroups: 4 } });
-        device.onuncapturederror = (error) => {
-            // alert('web gpu error')
-            console.error("WebGPU Error:", error);
-        };
-        console.groupCollapsed('WebGPU Adapter limits')
+        
+        console.groupCollapsed('WebGPU Adapter info')
+        console.log(adapter)
         console.log(device)
         console.table(adapter.limits)
         console.log('Prefered canvas format: ', navigator.gpu.getPreferredCanvasFormat())

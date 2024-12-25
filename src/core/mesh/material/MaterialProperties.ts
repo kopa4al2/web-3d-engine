@@ -60,7 +60,6 @@ export class PBRMaterialProperties implements MaterialProperties {
         const dataView = new DataView(bufferData);
 
 
-      
         let byteOffset = this.setTextureData(dataView, 0, this.albedo);
         // console.log(`Albedo byte offset. Expected: ${32}, Actual: ${byteOffset}`)
         byteOffset = this.setTextureData(dataView, byteOffset, this.normalMap);

@@ -98,7 +98,6 @@ export default class EntityControl extends EntityManager {
 
         const { name, components, pane } = entityComponent;
 
-
         for (const component of componentsToAdd) {
             components.push(component);
             switch (component.id) {
@@ -109,15 +108,15 @@ export default class EntityControl extends EntityManager {
                     }
                     break;
                 case Mesh.ID:
-                    checkEvery(() => {
-                        const transform = components.find(c => c.id === Transform.ID) as Transform;
-                        if (transform) {
-                            TransformControl.create(pane, transform);
-                            return true;
-                        }
-                        return false;
-                    });
-                    this._addMeshControl(pane, component as Mesh);
+                    // checkEvery(() => {
+                    //     const transform = components.find(c => c.id === Transform.ID) as Transform;
+                    //     if (transform) {
+                    //         TransformControl.create(pane, transform);
+                    //         return true;
+                    //     }
+                    //     return false;
+                    // });
+                    // this._addMeshControl(pane, component as Mesh);
                     break;
                 case PointLight.ID:
                     checkEvery(() => {

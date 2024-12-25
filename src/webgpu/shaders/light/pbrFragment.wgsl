@@ -100,7 +100,10 @@ struct FragmentInput {
 
 @fragment
 fn main(input: FragmentInput) -> @location(0) vec4<f32> {
-    let uv = material.albedo_map.uv_scale * input.textureCoord + material.albedo_map.uv_offset;
+//    let normalizedUv = input.textureCoord;
+    let normalizedUv = fract(input.textureCoord);
+
+    let uv = material.albedo_map.uv_scale * normalizedUv + material.albedo_map.uv_offset;
 //    return vec4<f32>(material.albedo_map.uv_offset, 0, 1);
 //    return textureSample(globalTextures, globalSampler, uv, material.albedo_map.texture_layer);
     let baseColor = textureSample(globalTextures, globalSampler, uv, material.albedo_map.texture_layer) * material.base_color;
@@ -112,7 +115,7 @@ fn main(input: FragmentInput) -> @location(0) vec4<f32> {
 
 
     // --- Metallic and Roughness ---
-    let metallicRoughtnessUv = material.metallic_map.uv_scale * input.textureCoord + material.metallic_map.uv_offset;
+    let metallicRoughtnessUv = material.metallic_map.uv_scale * normalizedUv + material.metallic_map.uv_offset;
     let metallicRoughness = textureSample(globalTextures, globalSampler, metallicRoughtnessUv, material.metallic_map.texture_layer).rgb;
     let metallic = metallicRoughness.b;
     let roughness = metallicRoughness.g;
@@ -121,7 +124,7 @@ fn main(input: FragmentInput) -> @location(0) vec4<f32> {
 
     // --- Normal Mapping ---
     let TBN: mat3x3<f32> = mat3x3<f32>(input.tangent, input.bitangent, input.normal);
-    let normalUv = material.normal_map.uv_scale * input.textureCoord + material.normal_map.uv_offset ;
+    let normalUv = material.normal_map.uv_scale * normalizedUv + material.normal_map.uv_offset ;
     var normalTangent = textureSample(globalTextures, globalSampler, normalUv, material.normal_map.texture_layer).rgb;
     normalTangent = normalize(normalTangent * 2.0 - 1.0);
     let normalWorld: vec3<f32> = normalize(TBN * normalTangent);

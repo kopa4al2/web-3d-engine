@@ -87,6 +87,7 @@ export default class ResourceManager {
                         label: 'global-sampler',
                         magFilter: 'linear',
                         minFilter: 'linear',
+                        // mipmapFilter: 'nearest',
                         addressModeU: 'repeat',
                         addressModeV: 'repeat',
                         targetTexture: this.textureManager.getTextureArrayIdForSize(TextureManager.MAX_TEXTURE_ARRAY_SIZE),

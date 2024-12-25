@@ -59,6 +59,26 @@ export function wrapArrayAsXYZW(arr: number[] | Float32Array) {
     }
 }
 
+export function wrapArrayAsXY(arr: number[] | Float32Array) {
+    return {
+        xy: {
+            set x(x: number) {
+                arr[0] = x;
+            },
+            get x() {
+                return arr[0];
+            },
+
+            set y(y: number) {
+                arr[1] = y;
+            },
+            get y() {
+                return arr[1];
+            },
+        }
+    }
+}
+
 export function checkEvery(fn: () => boolean, timeout: number = 500) {
     if (fn()) {
         return;

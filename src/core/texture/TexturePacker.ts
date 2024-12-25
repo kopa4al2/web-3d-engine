@@ -2,6 +2,7 @@ import Texture from "core/texture/Texture";
 import debugCanvas from "../../util/DebugCanvas";
 import DebugCanvas from "../../util/DebugCanvas";
 import DebugUtil from "../../util/DebugUtil";
+import MathUtil from '../../util/MathUtil';
 
 interface TextureRegion {
     x: number,
@@ -35,7 +36,7 @@ export default class TexturePacker {
         this.layers = [];
 
         this.layers.push({
-            freeRegions: this.addFreeSpaceFor1x1Textures(256),
+            freeRegions: this.addFreeSpaceFor1x1Textures(16),
             occupiedRegions: []
         })
         DebugUtil.addToWindowObject('texturePacker', this);
@@ -45,11 +46,11 @@ export default class TexturePacker {
         if (width > this.atlasWidth || height > this.atlasHeight) {
             throw new Error(`Texture ${label} (${width}x${height}) exceeds atlas dimensions (${this.atlasWidth}x${this.atlasHeight})`);
         }
-        if ((width !== 1 && Math.sqrt(width) % 2 !== 0) || (height !== 1 && Math.sqrt(height) % 2 !== 0)) {
+        if ((width !== 1 && !MathUtil.isPowerOfTwo(width)) || (height !== 1 && !MathUtil.isPowerOfTwo(height))) {
             console.warn('Texture is not with size that is power of 2, this may cause errors!!!', label, width, height);
         }
 
-        // if (width === 1 && height === 1) {
+        // if (width <= 16 && height <= 16) {
         //     return this.tryFitTexture(this.layers[0], 0, label, width, height)!;
         // }
         const startIndex = 0;
@@ -87,10 +88,10 @@ export default class TexturePacker {
                 layer.occupiedRegions.push(packedTexture);
 
                 this.splitFreeSpace(layer, space, width, height);
-                if (layerIndex > 1) {
-                    // Layer 1 has reserve spots for 1x1 textures which should not be merged
-                    this.mergeFreeRegions(layer);
-                }
+                // if (layerIndex > 1) {
+                //     // Layer 1 has reserve spots for 1x1 textures which should not be merged
+                //     this.mergeFreeRegions(layer);
+                // }
 
                 return packedTexture;
             }
@@ -246,7 +247,7 @@ export default class TexturePacker {
             const scaledX = region.x * canvasScaleX + spacing * canvasScaleX;
             const scaledY = region.y * canvasScaleY + spacing * canvasScaleY;
 
-            ctx.fillStyle = isTaken ?  'red' : 'green';
+            ctx.fillStyle = isTaken ? 'red' : 'green';
             ctx.fillRect(scaledX, scaledY, region.width * globalScale, region.height * globalScale);
 
             ctx.strokeStyle = isTaken ? 'white' : 'black';

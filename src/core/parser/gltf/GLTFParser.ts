@@ -16,6 +16,7 @@ import Texture from "core/texture/Texture";
 import { mat4 } from 'gl-matrix';
 import DebugUtil from "../../../util/DebugUtil";
 import MathUtil from "../../../util/MathUtil";
+import directionalLight from 'core/light/DirectionalLight';
 
 export interface GLTFModel {
     label?: string,
@@ -129,8 +130,6 @@ class WorkerPool {
 export default class GLTFParser {
     private static readonly workerPool: WorkerPool = new WorkerPool();
 
-    debugMap: Record<number, PBRMaterialProperties[]> = {}
-
     constructor(public rootDir: string, public json: GLTFJson, public buffers: Map<number, ArrayBuffer>, public images: Texture[]) {
         DebugUtil.addToWindowObject('gltf', this);
     }
@@ -141,22 +140,6 @@ export default class GLTFParser {
                         resourceManager: ResourceManager): Mesh {
         const textureManager: TextureManager = resourceManager.textureManager;
 
-        const vertexInstancedBuffer = resourceManager.createBuffer({
-            label: `sponza-atrium-vertex-instance`,
-            byteLength: 4096,
-            usage: BufferUsage.STORAGE | BufferUsage.COPY_DST
-        });
-
-        const vertexInstancedLayout = resourceManager.getOrCreateLayout(ShaderManager.INSTANCE_BUFFER_GROUP);
-        const vertexBindGroup = resourceManager.createBindGroup(vertexInstancedLayout, {
-            label: 'sponza-atrium-instance',
-            entries: [{
-                binding: 0,
-                bufferId: vertexInstancedBuffer,
-                name: 'InstanceData',
-                type: 'storage'
-            }]
-        });
 
         let counter = 1;
         const buildNode = (node: GLTFNode, parentTransform?: Transform): Mesh => {
@@ -183,6 +166,23 @@ export default class GLTFParser {
                     console.warn('MORE than one PRIMITIVES', mesh)
                 }
                 for (const primitive of mesh.primitives) {
+                    // TODO: REUSE THE INSTANCE BUFFERS
+                    const vertexInstancedBuffer = resourceManager.createBuffer({
+                        label: `sponza-atrium-vertex-instance`,
+                        byteLength: 4096,
+                        usage: BufferUsage.STORAGE | BufferUsage.COPY_DST
+                    });
+
+                    const vertexInstancedLayout = resourceManager.getOrCreateLayout(ShaderManager.INSTANCE_BUFFER_GROUP);
+                    const vertexBindGroup = resourceManager.createBindGroup(vertexInstancedLayout, {
+                        label: 'sponza-atrium-instance',
+                        entries: [{
+                            binding: 0,
+                            bufferId: vertexInstancedBuffer,
+                            name: 'InstanceData',
+                            type: 'storage'
+                        }]
+                    });
 
                     const gltfMaterial = this.json.materials[primitive.material];
                     const pbr = gltfMaterial.pbrMetallicRoughness || {};
@@ -194,14 +194,13 @@ export default class GLTFParser {
                     const normal = gltfMaterial.normalTexture
                         ? this.images[gltfMaterial.normalTexture.index]
                         : textureManager.getTexture(Texture.DEFAULT_NORMAL_MAP);
-                    // const albedo = this.images[pbr.baseColorTexture.index]
                     const albedo = pbr.baseColorTexture
                         ? this.images[pbr.baseColorTexture.index]
                         : textureManager.getTexture(Texture.DEFAULT_ALBEDO_MAP);
                     const metallicRoughness = pbr.metallicRoughnessTexture
                         ? this.images[pbr.metallicRoughnessTexture.index]
                         : textureManager.create1x1Texture(
-                            `${ Texture.DEFAULT_METALLIC_ROUGHNESS_MAP }-${ metallicFactor }-${ roughnessFactor }`,
+                            `${Texture.DEFAULT_METALLIC_ROUGHNESS_MAP}-${metallicFactor}-${roughnessFactor}`,
                             new Uint8ClampedArray([255, metallicFactor * 255, roughnessFactor * 255, 255]));
 
 
@@ -219,28 +218,17 @@ export default class GLTFParser {
 
                     const geometry = this.createGeometry(mesh.name, primitive, geometryFactory);
 
-                    if (node.name?.includes('57') || node.name?.includes('81')
-                        || node.name?.includes('50')
+                    if (
+                        node.name?.includes('50')
+                        || node.name?.includes('57') || node.name?.includes('81')
+                        || node.name?.includes('46')
+                        || node.name?.endsWith('_9')
                     ) {
                         console.groupCollapsed(node.name);
-                        // @ts-ignore
-                        console.log('Normal: ', window.texturePacker.debugFindTexture(normal));
-                        // @ts-ignore
-                        console.log('Albedo: ', window.texturePacker.debugFindTexture(albedo));
-                        // @ts-ignore
-                        console.log('MetallicRoughness: ', window.texturePacker.debugFindTexture(metallicRoughness));
 
-                        console.log('material', pbrMaterialProperties);
-
-                        console.log('albedo', albedo);
-                        console.log('pbr.baseColorTexture?.index', pbr.baseColorTexture?.index ? 'true' : 'false');
-                        console.log('this.images[pbr.baseColorTexture?.index]', this.images[pbr.baseColorTexture?.index]);
-                        // console.log('this.images', this.images)
-                        console.log('gltfMaterial', gltfMaterial);
-                        console.log('pbr', pbr);
-                        console.log('normal', normal);
-                        console.log('albedo', albedo);
-                        console.log('metallicRoughness', metallicRoughness);
+                        console.log(`geometry: ${mesh.name}`, geometry);
+                        console.log(`material: ${gltfMaterial.name}`, pbrMaterialProperties);
+                        
                         console.groupEnd();
                     }
 
@@ -280,9 +268,15 @@ export default class GLTFParser {
         const texCoords = name === 'material_11'
             ? this.parseAccessor(primitive.attributes.TEXCOORD_2)
             : this.parseAccessor(primitive.attributes.TEXCOORD_0);
+        
+        // texCoords.forEach((texCoord) => {
+        //     if (texCoord > 1 || texCoord < 0) {
+        //         console.log(`${name} has tex coordinate outside [-1,1]`,);
+        //     }
+        // })
 
         if (primitive.attributes.TANGENT === undefined) {
-            console.warn(`Geometry with name: ${ name } is missing tangent. Will generate TBN Matrix on the cpu`, primitive);
+            console.warn(`Geometry with name: ${name} is missing tangent. Will generate TBN Matrix on the cpu`, primitive);
             return geometryFactory.createGeometry(
                 name,
                 VertexShaderName.LIT_GEOMETRY,
@@ -340,7 +334,7 @@ export default class GLTFParser {
         } else if (accessor.componentType === 5126) { // FLOAT
             return new Float32Array(targetBuffer)
         } else {
-            console.warn(`Unknown componentType: ${ accessor.componentType }, returning Uint8Array`);
+            console.warn(`Unknown componentType: ${accessor.componentType}, returning Uint8Array`);
             return new Uint8Array(targetBuffer);
         }
     }
@@ -369,7 +363,7 @@ export default class GLTFParser {
             case 5126: // FLOAT
                 return 4;
             default:
-                throw new Error(`Unsupported componentType: ${ componentType }`);
+                throw new Error(`Unsupported componentType: ${componentType}`);
         }
     }
 
@@ -475,7 +469,20 @@ export default class GLTFParser {
             const idx = i;
             const image = json.images[i];
             if (image.uri) {
+                // const uri = 'assets/scene/sponza_atrium/gltf/textures/material_3_baseColor.jpeg';
                 const uri = rootPath + image.uri;
+                // promises.push(fetch(uri)
+                //     .then(response => response.blob())
+                //     .then(blob => createImageBitmap(blob))
+                //     .then(bitmap => {
+                //         const width = bitmap.width;
+                //         const height = bitmap.height;
+                //         const canvas = new OffscreenCanvas(width, height);
+                //         const context = canvas.getContext('2d', { willReadFrequently: true })!;
+                //         context.drawImage(bitmap, 0, 0);
+                //
+                //         return textureManager.addPreloadedToGlobalTexture(uri, context.getImageData(0, 0, width, height));
+                //     }));
                 promises.push(this.workerPool.submit({ uri })
                     .then(({ width, height, data }) => {
                         return textureManager
@@ -483,7 +490,7 @@ export default class GLTFParser {
                     }));
             } else if (image.bufferView !== undefined) {
                 const bufferView = json.bufferViews[image.bufferView];
-                console.warn(`Image at idx: ${ i } is expecting a bufferView: `, image, bufferView);
+                console.warn(`Image at idx: ${i} is expecting a bufferView: `, image, bufferView);
             } else {
                 console.error('Image: ', image);
                 throw new Error("Unsupported texture format");
@@ -516,14 +523,14 @@ export default class GLTFParser {
                     console.warn('Buffer is external file: ', buffer)
                     // External file (load it via fetch)
                     const response = await fetch(rootPath + buffer.uri);
-                    if (!response.ok) throw new Error(`Failed to load buffer: ${ buffer.uri }`);
+                    if (!response.ok) throw new Error(`Failed to load buffer: ${buffer.uri}`);
                     buffers.set(i, await response.arrayBuffer());
                 }
             } else if (glbBinaryData) {
                 // Use the binary chunk from the GLB file
                 buffers.set(i, glbBinaryData);
             } else {
-                throw new Error(`Buffer ${ i } is missing data`);
+                throw new Error(`Buffer ${i} is missing data`);
             }
         }
 

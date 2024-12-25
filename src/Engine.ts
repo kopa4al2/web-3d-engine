@@ -38,6 +38,7 @@ import { glMatrix, quat, vec2, vec3, vec4 } from 'gl-matrix';
 import { SdiColor, SdiDirection, SdiPoint3D } from './types/engine-types/EngineTypes';
 import DebugUtil from './util/DebugUtil';
 import ObjectUtils from './util/ObjectUtils';
+import MaterialControl from './engine/ui/controls/MaterialControl';
 
 export default class Engine {
 
@@ -69,7 +70,7 @@ export default class Engine {
         this.resourceManager = new ResourceManager(graphicsApi);
         this.entityFactory = new EntityFactory(this.entityManager);
         this.shaderManager = new ShaderManager(this.graphicsApi, this.resourceManager);
-        this.materialFactory = new MaterialFactory(this.resourceManager);
+        this.materialFactory = MaterialControl.wrapFactory(new MaterialFactory(this.resourceManager));
         this.geometryFactory = new GeometryFactory(this.resourceManager);
         this.modelRepository = new ModelRepository(this.geometryFactory, this.materialFactory, this.shaderManager, this.resourceManager);
 

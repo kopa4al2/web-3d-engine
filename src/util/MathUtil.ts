@@ -12,14 +12,19 @@ import DebugUtil from 'util/DebugUtil';
 // }
 
 class MathUtil {
-    
+
+    isPowerOfTwo(n: number): boolean {
+        return n > 0 && Math.log2(n) % 1 === 0;
+    }
+
     normalize(value: number, min: number, max: number) {
         return Math.max(Math.min(value, min), Math.min(value, max));
     }
-    
+
     float32ToFloat16(source: Float32Array) {
         const float32Array = new Float32Array(1);
         const uint32Array = new Uint32Array(float32Array.buffer);
+
         function toFloat16(value: number) {
             const floatView = float32Array;
             const intView = uint32Array;
@@ -46,6 +51,7 @@ class MathUtil {
 
         return Uint16Array.from(source, toFloat16)
     }
+
     clamp(value: number, min: number, max: number) {
         return Math.max(min, Math.min(value, max));
         // return Math.min(Math.max(value, min), max);
