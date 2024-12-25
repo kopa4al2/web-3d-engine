@@ -26,7 +26,6 @@ export default class FreeCameraSystem implements UpdateSystem {
 
             const {inputState: {inputFlags: input, mouseDelta, mousePos, deltaWheel}} = inputComponent;
 
-
             if (inputComponent.inputState.inputFlags['MouseDown']) {
                 const xOffset = -mouseDelta[0] * camera.sensitivity;
                 const yOffset = -mouseDelta[1] * camera.sensitivity;
@@ -60,20 +59,16 @@ export default class FreeCameraSystem implements UpdateSystem {
                 vec3.scaleAndAdd(accelerationVector, accelerationVector, camera.forward, -camera.acceleration * deltaTime);
             }
             if (isLeftPressed(input)) {
-                // let right = vec3.normalize(vec3.create(), vec3.cross(vec3.create(), camera.forward, camera.up));
-                // vec3.scaleAndAdd(camera.position, camera.position, right, -velocity);
                 vec3.scaleAndAdd(accelerationVector, accelerationVector, camera.right, -camera.acceleration * deltaTime);
             }
             if (isRightPressed(input)) {
-                // let right = vec3.normalize(vec3.create(), vec3.cross(vec3.create(), camera.forward, camera.up));
-                // vec3.scaleAndAdd(camera.position, camera.position, right, velocity);
                 vec3.scaleAndAdd(accelerationVector, accelerationVector, camera.right, camera.acceleration * deltaTime);
             }
             if (input[' ']) {
-                vec3.scaleAndAdd(camera.position, camera.position, camera.up, camera.acceleration * deltaTime * 0.5);
+                vec3.scaleAndAdd(camera.position, camera.position, camera.up, camera.acceleration * deltaTime * 0.75);
             }
             if (input['shift']) {
-                vec3.scaleAndAdd(camera.position, camera.position, camera.up, -camera.acceleration * deltaTime * 0.5);
+                vec3.scaleAndAdd(camera.position, camera.position, camera.up, -camera.acceleration * deltaTime * 0.75);
             }
 
 
@@ -90,9 +85,23 @@ export default class FreeCameraSystem implements UpdateSystem {
                 vec3.scale(camera.velocity, camera.velocity, Math.max(0, 1 - camera.deceleration * deltaTime));
             }
 
-            // Update the camera's position based on the velocity
-            // vec3.add(camera.position, camera.position, vec3.scale(camera.velocity, camera.velocity, deltaTime));
             vec3.scaleAndAdd(camera.position, camera.position, camera.velocity, deltaTime);
+
+            // TODO: Bezier introduces too much intertia and is not needed for free camera
+            // vec3.scaleAndAdd(camera.targetPosition, camera.targetPosition, camera.velocity, deltaTime);
+            // const distance = vec3.distance(camera.position, camera.targetPosition);
+            // const p0 = camera.position; // Start
+            // const p3 = camera.targetPosition; // End
+            // const p1 = vec3.lerp(vec3.create(), p0, p3, 0.25);
+            // const p2 = vec3.lerp(vec3.create(), p0, p3, 0.75);
+            // vec3.add(p1, p1, vec3.fromValues(0, distance * 0.1, 0));
+            // vec3.add(p2, p2, vec3.fromValues(0, -distance * 0.1, 0));
+            //
+            // let elapsed = 0;
+            // const duration = 1; // Duration in seconds
+            // elapsed = Math.min(elapsed + deltaTime, duration);
+            // const t = elapsed / duration;
+            // vec3.bezier(camera.position, p0, p1, p2, p3, t);
 
             if (deltaWheel[1] !== this.lastDeltaY) {
                 /*const minFov = Math.PI / 9;

@@ -24,7 +24,7 @@ export type TextureDescription = { type: TextureType.TEXTURE_2D } & BaseTextureD
     | { type: TextureType.CUBE_MAP } & BaseTextureDescriptor & CubeTextureDescriptor
     | { type: TextureType.TEXTURE_ARRAY } & BaseTextureDescriptor & TextureArrayDescriptor
 
-export type ImageChannelFormat = 'rgba8unorm' | 'rgba8unorm-srgb' | 'rgba16float' | 'rgba32float'
+export type ImageChannelFormat = 'rgba8unorm' | 'rgba8unorm-srgb' | 'rgba16float' | 'rgba32float' | 'depth32float' | 'depth24plus'
 
 export const ImageChannelRange = {
     uint8: 4,
@@ -73,20 +73,24 @@ export interface TextureArrayDescriptor extends BaseTextureDescriptor {
 }
 
 export enum TextureUsage {
+    COPY_SRC = 1,
     COPY_DST = 2,
     TEXTURE_BINDING = 4,
+    STORAGE_BINDING = 8,
     RENDER_ATTACHMENT = 16,
 }
 
-
 export default class Texture {
 
-    public static readonly DEFAULT_ALBEDO_MAP: string = 'default_metallic_roughness'
+    public static readonly SHADOW_MAP: string = 'shadow_map';
+
+    public static readonly DEFAULT_ALBEDO_MAP: string = 'default_albedo'
     public static readonly DEFAULT_METALLIC_ROUGHNESS_MAP: string = 'default_metallic_roughness'
-    public static readonly DEFAULT_NORMAL_MAP: string = 'default_metallic_roughness'
+    public static readonly DEFAULT_NORMAL_MAP: string = 'default_normal'
 
 
-    constructor(public path: string,
+    constructor(public id: TextureId,
+                public path: string,
                 public imageData: TextureData,
                 public index: TextureArrayIndex,
                 public size: TextureSize) {

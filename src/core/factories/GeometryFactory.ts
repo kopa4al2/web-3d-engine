@@ -38,7 +38,7 @@ export default class GeometryFactory {
     }
 
     public createFrustumDescriptor(vertexShader: VertexShaderName): Geometry {
-        const vertexBuffer = this.resourceManager.createBufferV2({
+        const vertexBuffer = this.resourceManager.createBuffer({
             label: `basic-vertex`,
             byteLength: 8 * 3 * Float32Array.BYTES_PER_ELEMENT,
             usage: BufferUsage.VERTEX | BufferUsage.COPY_DST,
@@ -58,7 +58,7 @@ export default class GeometryFactory {
             // Connecting edges
             0, 4, 1, 5, 2, 6, 3, 7
         ]);
-        const indexBuffer = this.resourceManager.createBufferV2({
+        const indexBuffer = this.resourceManager.createBuffer({
             label: 'basic-index',
             byteLength: indices.byteLength,
             usage: BufferUsage.INDEX | BufferUsage.COPY_DST
@@ -79,13 +79,13 @@ export default class GeometryFactory {
                                          indices: BufferData): Geometry {
         const vertexLayout = this.createVertexLayoutFromShader(vertexShader)
 
-        const indexBuffer = this.resourceManager.createBufferV2({
+        const indexBuffer = this.resourceManager.createBuffer({
             label: `${ label }-index`,
             byteLength: indices.byteLength,
             usage: BufferUsage.INDEX | BufferUsage.COPY_DST
         }, indices);
 
-        const vertexBuffer = this.resourceManager.createBufferV2({
+        const vertexBuffer = this.resourceManager.createBuffer({
             label: `${ label }-vertex`,
             byteLength: vertexData.byteLength,
             usage: BufferUsage.VERTEX | BufferUsage.COPY_DST,
@@ -107,13 +107,13 @@ export default class GeometryFactory {
         const { vertexLayout, data } = this.createVertexLayout(geometry, strides);
         const indices = new Uint32Array(geometry.indices);
 
-        const indexBuffer = this.resourceManager.createBufferV2({
+        const indexBuffer = this.resourceManager.createBuffer({
             label: `${ label }-index`,
             byteLength: indices.byteLength,
             usage: BufferUsage.INDEX | BufferUsage.COPY_DST
         }, indices);
 
-        const vertexBuffer = this.resourceManager.createBufferV2({
+        const vertexBuffer = this.resourceManager.createBuffer({
             label: `${ label }-vertex`,
             byteLength: data.byteLength,
             usage: BufferUsage.VERTEX | BufferUsage.COPY_DST,

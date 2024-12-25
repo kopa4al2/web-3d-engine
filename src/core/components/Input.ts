@@ -8,13 +8,15 @@ class Input implements Component {
 
     inputState: InputState;
 
-    constructor() {
+    constructor(mousePos = vec2.create(),
+                wheel = vec3.create(),
+                inputFlags = {}) {
         this.inputState = {
-            mousePos: vec2.create(),
+            mousePos,
             mouseDelta: vec2.create(),
             deltaWheel: vec3.create(),
-            wheel: vec3.create(),
-            inputFlags: {}
+            wheel,
+            inputFlags
         };
     }
 }

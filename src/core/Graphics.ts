@@ -3,7 +3,7 @@ import BindGroupLayout from 'core/resources/BindGroupLayout';
 import { BufferData, BufferDescription, BufferId } from "core/resources/gpu/BufferDescription";
 import { ShaderProgramDescription } from "core/resources/gpu/GpuShaderData";
 import SamplingConfig from "core/texture/SamplingConfig";
-import {
+import Texture, {
     SamplerId,
     TextureDescription,
     ImageChannelFormat,
@@ -38,9 +38,10 @@ export interface UpdateTexture {
     glFace?: GlFace,
 }
 
+
 export default interface Graphics {
 
-    beginRenderPass(): RenderPass;
+    beginRenderPass(descriptor?: RenderPassDescriptor): RenderPass;
 
     initPipeline(shader: ShaderProgramDescription): PipelineId;
 
@@ -64,6 +65,33 @@ export default interface Graphics {
 
     // ONLY FOR DEBUGGING
     _rawApi(): WebGL2RenderingContext | GPUDevice
+
+    _getTextureData?(texture: TextureId): Promise<Float32Array>
+
+    _exportTextureArray?(textureId: TextureId): void
+}
+
+
+export type RenderPassAttachment = { skip: true } | {
+    skip?: false
+    textureId: TextureId,
+    textureView?: { dimension: '2d', baseArrayLayer: number, aspect: 'all' | 'stencil-only' | 'depth-only' }
+};
+export type RenderPassDepthAttachment = RenderPassAttachment;
+export type RenderPassColorAttachment = RenderPassAttachment;
+
+export interface Viewport {
+    x?: number,
+    y?: number,
+    width?: number,
+    height?: number,
+}
+
+export interface RenderPassDescriptor {
+    label?: string,
+    depthAttachment: RenderPassDepthAttachment,
+    colorAttachment: RenderPassColorAttachment,
+    viewport?: Viewport,
 }
 
 export interface RenderPass {

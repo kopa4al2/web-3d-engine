@@ -3,7 +3,15 @@ import { BufferData } from 'core/resources/gpu/BufferDescription';
 import { UniformVisibility } from 'core/resources/gpu/GpuShaderData';
 import Bitmask from 'util/BitMask';
 
-export default interface ShaderStruct {
+export type TextureStruct = { readonly type: 'texture-array' | 'texture' | 'cube-texture' } & {
+    sampleType: | 'float' | 'unfilterable-float' | 'depth' | 'sint' | 'uint'
+}
+
+export type SamplerStruct = { readonly type: 'sampler' } & {
+    samplerType: 'filtering' | 'non-filtering' | 'comparison'
+}
+
+type ShaderType = {
     readonly type: BindGroupEntryType,
     readonly binding: number,
     readonly name: ShaderStructName,
@@ -16,9 +24,12 @@ export default interface ShaderStruct {
     readonly instanced?: {
         readonly offset: number
     }
-}
+};
+
+// export default interface ShaderStruct {
+export type ShaderStruct = ShaderType & (TextureStruct  | SamplerStruct) | ShaderType
 
 export type ShaderStructName = 'Global' | 'Material' | 'InstanceData'
-    | 'TexturesArray' | 'Sampler' | 'GlobalSampler' | 'EnvCubeMap' | 'EnvSampler'
+    | 'TexturesArray' | 'Sampler' | 'GlobalSampler' | 'EnvCubeMap' | 'EnvSampler' | 'ShadowMap' | 'ShadowMapSampler'
     | 'Camera' | 'Time' | 'Light'
     | 'PhongMaterial' | 'PBRMaterial'

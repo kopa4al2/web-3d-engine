@@ -22,6 +22,10 @@ export default class ProjectionMatrix {
         return this.projectionMatrix;
     }
 
+    public getOrtho() {
+        return mat4.ortho(mat4.create(), -1, 1, -1, 1, this.zNear, this.zFar);
+    }
+
     private setProjectionMatrix(properties: PropertiesManager) {
         const isWebGl = properties.getString('gpuApi') === 'webgl2';
 

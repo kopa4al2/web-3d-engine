@@ -129,3 +129,37 @@ export type InputType = 'ArrowUp' | 'W' | 'ArrowDown' | 'S' | string
     'D' = 'D',
     'd' = 'd',
 }*/
+
+
+// RAY CASTING
+//
+// const mouseX = (event.clientX / canvas.width) * 2 - 1; // Normalized device coordinates
+// const mouseY = -(event.clientY / canvas.height) * 2 + 1;
+//
+// const clipCoords = [mouseX, mouseY, -1.0, 1.0]; // Homogeneous clip space
+//
+// // Convert to world space
+// const inverseProjectionView = mat4.invert([], projectionViewMatrix);
+// const worldCoords = vec4.transformMat4([], clipCoords, inverseProjectionView);
+//
+// const rayOrigin = cameraPosition; // Camera origin
+// const rayDirection = vec3.normalize([], vec3.sub([], worldCoords, rayOrigin));
+//
+// function rayIntersectsAABB(rayOrigin, rayDirection, aabbMin, aabbMax) {
+//     let tMin = (aabbMin[0] - rayOrigin[0]) / rayDirection[0];
+//     let tMax = (aabbMax[0] - rayOrigin[0]) / rayDirection[0];
+//
+//     if (tMin > tMax) [tMin, tMax] = [tMax, tMin];
+//
+//     let tyMin = (aabbMin[1] - rayOrigin[1]) / rayDirection[1];
+//     let tyMax = (aabbMax[1] - rayOrigin[1]) / rayDirection[1];
+//
+//     if (tyMin > tyMax) [tyMin, tyMax] = [tyMax, tyMin];
+//
+//     if ((tMin > tyMax) || (tyMin > tMax)) return false;
+//
+//     tMin = Math.max(tMin, tyMin);
+//     tMax = Math.min(tMax, tyMax);
+//
+//     return tMax >= tMin;
+// }

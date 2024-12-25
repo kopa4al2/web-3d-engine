@@ -12,6 +12,7 @@ export default interface SamplingConfig {
     addressModeU: SamplerAddressMode,
     addressModeV: SamplerAddressMode,
     addressModeW?: SamplerAddressMode,
+    compare?: 'less' | 'never' | 'always',
     // TODO: Hack for webgl
     targetTexture?: TextureId,
 }

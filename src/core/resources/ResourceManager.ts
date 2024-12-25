@@ -7,6 +7,7 @@ import { BufferData, BufferDescription } from 'core/resources/gpu/BufferDescript
 import { DEFAULT_PIPELINE_OPTIONS, PipelineOptions } from 'core/resources/gpu/GpuShaderData';
 import ShaderManager from 'core/resources/shader/ShaderManager';
 import TextureManager from 'core/resources/TextureManager';
+import Texture from "core/texture/Texture";
 import DebugUtil from 'util/DebugUtil';
 import logger from 'util/Logger';
 import ObjectUtils from 'util/ObjectUtils';
@@ -76,7 +77,7 @@ export default class ResourceManager {
                 },
                 {
                     type: 'texture-array',
-                    bufferId: this.textureManager.getTextureArrayIdForSize({ width: 1024, height: 1024 }),
+                    bufferId: this.textureManager.getTextureArrayIdForSize(TextureManager.MAX_TEXTURE_ARRAY_SIZE),
                     depth: TextureManager.TEXTURE_ARRAY_LAYERS,
                     binding: 3,
                     name: 'TexturesArray',
@@ -88,7 +89,7 @@ export default class ResourceManager {
                         minFilter: 'linear',
                         addressModeU: 'repeat',
                         addressModeV: 'repeat',
-                        targetTexture: this.textureManager.getTextureArrayIdForSize({ width: 1024, height: 1024 }),
+                        targetTexture: this.textureManager.getTextureArrayIdForSize(TextureManager.MAX_TEXTURE_ARRAY_SIZE),
                     }),
                     binding: 4,
                     name: 'GlobalSampler',
@@ -113,6 +114,25 @@ export default class ResourceManager {
                     }),
                     binding: 6,
                 },
+                {
+                    type: 'texture-array',
+                    name: 'ShadowMap',
+                    bufferId: this.textureManager.getShadowMap(),
+                    binding: 7,
+                }, {
+                    type: 'sampler',
+                    name: 'ShadowMapSampler',
+                    bufferId: this.graphics.createSampler({
+                        label: 'ShadowMapSampler',
+                        magFilter: 'linear',
+                        minFilter: 'linear',
+                        addressModeU: 'clamp-to-edge',
+                        addressModeV: 'clamp-to-edge',
+                        compare: 'less',
+                        targetTexture: this.textureManager.getShadowMap(),
+                    }),
+                    binding: 8,
+                },
             ]
         });
     }
@@ -128,7 +148,7 @@ export default class ResourceManager {
         return this.bindGroupLayoutsCache[uniqueKey];
     }
 
-    public createBufferV2(description: BufferDescription, data?: BufferData) {
+    public createBuffer(description: BufferDescription, data?: BufferData) {
         // TODO: Use buffer manager
         if (data) {
             return this.graphics.createBufferWithData(description, data);

@@ -4,6 +4,7 @@ import DirectionalLight from "core/light/DirectionalLight";
 import directionalLight from "core/light/DirectionalLight";
 import PointLight from "core/light/PointLight";
 import PropertiesManager from "core/PropertiesManager";
+import SdiPerformance from "core/utils/SdiPerformance";
 import { vec3 } from "gl-matrix";
 import { EntitySelectPayload } from 'html/entity-select/EntitySelect';
 import { Pane } from "tweakpane";
@@ -96,6 +97,7 @@ export function enableGpuGraphicsApiSwitch(properties: PropertiesManager, attach
             currentApi = e.target.value;
             properties.updateProperty('gpuApi', currentApi);
             localStorage.setItem('gpuApi', currentApi);
+            SdiPerformance.reset();
         })
     });
 }

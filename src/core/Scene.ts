@@ -6,6 +6,7 @@ import Transform, { ModelMatrix } from 'core/components/Transform';
 import EntityManager, { EntityId } from "core/EntityManager";
 import { PipelineId } from 'core/Graphics';
 import PointLight from 'core/light/PointLight';
+import SpotLight from "core/light/SpotLight";
 import BoundingSphere from 'core/physics/BoundingSphere';
 import Frustum from 'core/physics/Frustum';
 import { Blend } from 'core/resources/gpu/Blend';
@@ -16,7 +17,9 @@ import JavaMap from 'util/JavaMap';
 
 
 export default class Scene {
-    public static readonly CHANGED = 0b001;
+    public static readonly DEFAULT = 0b000;
+    public static readonly ENTITY_ADDED = 0b001;
+    public static readonly CHANGED = 0b010;
 
     public flags: Bitmask<number> = new Bitmask();
 
@@ -46,14 +49,14 @@ export default class Scene {
 
     public addEntity(id: EntityId) {
         this.entities.push(id);
-        this.sortEntities();
-        this.flags.setFlag(Scene.CHANGED)
+        this.flags.setFlag(Scene.CHANGED);
+        this.flags.setFlag(Scene.ENTITY_ADDED);
     }
 
     public addEntities(...ids: EntityId[]) {
         ids.forEach(e => this.entities.push(e));
-        this.sortEntities();
-        this.flags.setFlag(Scene.CHANGED)
+        this.flags.setFlag(Scene.CHANGED);
+        this.flags.setFlag(Scene.ENTITY_ADDED);
     }
 
     public updateFrustum(viewProjectionMatrix: mat4) {
@@ -61,22 +64,32 @@ export default class Scene {
     }
 
     public update() {
-        // if (!this.hasChanged()) {
-        //     return;
+        // if (this.flags.hasFlag(Scene.ENTITY_ADDED)) {
+        //     this.sortEntities()
+        //     this.flags.toggleFlag(Scene.ENTITY_ADDED);
         // }
-        // TODO: Do not clear every time
-        // TODO: Handle spatial
-        // TODO: Handle bounding box
+
+        // if (this.flags.hasFlag(Scene.CHANGED)) {
+        //     this.flags.toggleFlag(Scene.CHANGED);
+        //     this.updateMeshes();
+        // }
+
+        this.sortEntities();
+        this.updateMeshes();
+    }
+
+    private updateMeshes() {
         this.lights = [];
         this.meshes.clear();
         const culled: Mesh[] = [];
         this.entities.forEach(entity => {
-            const [transform, mesh] = this.entityManager.getComponents<[Transform, Mesh]>(entity, Transform.ID, Mesh.ID);
-            const isLight = this.entityManager.hasAnyComponent(entity, PointLight.ID);
-
-            if (isLight) {
+            if (this.entityManager.hasAnyComponent(entity, PointLight.ID, SpotLight.ID)) {
                 this.lights.push(entity);
-            } else if (mesh) {
+                return;
+            }
+            const [transform, mesh] = this.entityManager.getComponents<[Transform, Mesh]>(entity, Transform.ID, Mesh.ID);
+
+            if (mesh) {
                 const { pipelineId, geometry } = mesh;
 
                 if (!this.frustum.isSphereWithinFrustum(geometry.getBoundingVolume(BoundingSphere), this.camera.viewMatrix())) {
@@ -94,7 +107,7 @@ export default class Scene {
                     entitiesByMesh.set(mesh, []);
                 }
 
-                entitiesByMesh.get(mesh).push([entity, transform ? transform.createModelMatrix() : mat4.create()]);
+                entitiesByMesh.get(mesh).push([entity, transform ? transform.getWorldMatrix() : mat4.create()]);
             }
         });
         this.flags.clearFlag(Scene.CHANGED);
@@ -116,27 +129,21 @@ export default class Scene {
         return this.lights;
     }
 
-    public hasChanged() {
-        return true; // TODO Temporrary disabled to test
-        // return this.flags.hasFlag(Scene.CHANGED);
-    }
-
     private sortEntities() {
-        // const blendModes: Record<BlendMode, number> = { 'none': 0, 'alpha': 1, 'additive': 2 };
         this.entities.sort((e1, e2) => {
             const [transform1, mesh1, order1] = this.entityManager.getComponents<[Transform, Mesh, OrderComponent]>(e1, Transform.ID, Mesh.ID, OrderComponent.ID);
             const [transform2, mesh2, order2] = this.entityManager.getComponents<[Transform, Mesh, OrderComponent]>(e2, Transform.ID, Mesh.ID, OrderComponent.ID);
 
             if (order1 || order2) {
-                return ( order2?.order || -1 ) - ( order1?.order || -1 );
+                return (order2?.order || -1) - (order1?.order || -1);
             }
 
             if (!mesh1 || !mesh2) {
                 return -1;
             }
 
-            const blendMode1 = mesh1.material.descriptor.properties.blendMode as Blend;
-            const blendMode2 = mesh2.material.descriptor.properties.blendMode as Blend;
+            const blendMode1 = mesh1.material.descriptor.properties.colorAttachment?.blendMode as Blend;
+            const blendMode2 = mesh2.material.descriptor.properties.colorAttachment?.blendMode as Blend;
 
             // Sort by blend mode first
             if (blendMode1 !== blendMode2) {

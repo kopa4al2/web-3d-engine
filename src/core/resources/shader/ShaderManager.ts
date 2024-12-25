@@ -1,20 +1,23 @@
-import Graphics, { PipelineId } from 'core/Graphics';
+import Graphics, { BindGroupLayoutId, PipelineId } from 'core/Graphics';
 import Geometry, { GeometryDescriptor } from 'core/mesh/Geometry';
 import Material, { MaterialDescriptor } from 'core/mesh/material/Material';
 import { FragmentShaderName, VertexLayoutEntry, VertexShaderName } from 'core/resources/cpu/CpuShaderData';
+import { Blend } from "core/resources/gpu/Blend";
 import {
     CAMERA_STRUCT,
     GLOBAL_ENV_CUBE_SAMPLER_STRUCT,
     GLOBAL_ENV_CUBE_TEXTURE_STRUCT,
     GLOBAL_TEXTURE_ARRAY_SAMPLER_STRUCT,
     GLOBAL_TEXTURE_ARRAY_STRUCT,
+    DEPTH_TEXTURE_ARRAY_SAMPLER_STRUCT,
+    DEPTH_TEXTURE_ARRAY_STRUCT,
     LIGHT_STRUCT,
     TIME_STRUCT,
     VERTEX_STORAGE_BUFFER_STRUCT
 } from 'core/resources/shader/DefaultBindGroupLayouts';
 import { BufferFormat } from 'core/resources/gpu/BufferDescription';
 import {
-    DEFAULT_PIPELINE_OPTIONS,
+    DEFAULT_PIPELINE_OPTIONS, PipelineColorAttachment, PipelineDepthAttachment,
     PipelineOptions,
     ShaderProgramDescription,
     VertexBufferLayout
@@ -56,6 +59,7 @@ export enum ShaderTemplate {
     PBR = 'PBR',
     TERRAIN = 'TERRAIN',
     SKYBOX = 'SKYBOX',
+    SHADOW_PASS = 'SHADOW_PASS'
 }
 
 
@@ -74,6 +78,8 @@ export default class ShaderManager {
             GLOBAL_TEXTURE_ARRAY_SAMPLER_STRUCT,
             GLOBAL_ENV_CUBE_TEXTURE_STRUCT,
             GLOBAL_ENV_CUBE_SAMPLER_STRUCT,
+            DEPTH_TEXTURE_ARRAY_STRUCT,
+            DEPTH_TEXTURE_ARRAY_SAMPLER_STRUCT,
         ]
     }
 
@@ -105,6 +111,43 @@ export default class ShaderManager {
     //
     //     return this.pipelinesCache['SKY_BOX'];
     // }
+
+    public createShadowPass(layout: BindGroupLayoutId) {
+        const uniqueId = ShaderTemplate.SHADOW_PASS;
+
+        const properties: PipelineOptions = {
+            wireframe: false,
+            cullFace: 'none',
+            depthAttachment: {
+                depthCompare: 'less',
+                depthWriteEnabled: true,
+                format: 'depth24plus'
+            },
+            colorAttachment: {
+                disabled: true,
+                writeMask: 'ALL',
+                format: 'bgra8unorm',
+            }
+        };
+
+        const shaderLayoutIds = [layout];
+        const [vertexShaderSource, fragmentShaderSource] = this.getShadowPassShaders();
+        if (!this.pipelinesCache[uniqueId]) {
+            this.pipelinesCache[uniqueId] = this.graphics.initPipeline({
+                label: 'Shadow Pass',
+                shaderLayoutIds,
+
+                options: properties,
+                fragmentShaderSource,
+
+                vertexShaderSource,
+                vertexShaderLayout: this.createVertexShaderLayout([{ elementsPerVertex: 3, dataType: 'float32' }]),
+                vertexShaderStride: 12,
+            } as ShaderProgramDescription);
+        }
+
+        return this.pipelinesCache[uniqueId];
+    }
 
     public createPipeline(geometry: Geometry,
                           material: Material,
@@ -138,13 +181,13 @@ export default class ShaderManager {
                 label,
                 shaderLayoutIds,
 
-                options: this.mergeWithDefaultOptions(properties),
+                options: properties,
+                // options: this.mergeWithDefaultOptions(properties),
                 fragmentShaderSource: this.getFragmentSource(materialDescriptor.fragmentShader),
 
                 vertexShaderSource: this.getVertexSource(geometryDescriptor.vertexShader),
                 vertexShaderLayout: this.createVertexShaderLayout(geometryDescriptor.vertexLayout.entries),
                 vertexShaderStride: geometryDescriptor.vertexLayout.stride,
-                // textureArraySize: material.textureSize,
             } as ShaderProgramDescription);
         }
 
@@ -173,7 +216,7 @@ export default class ShaderManager {
 
     private generatePipelineHash(geometry: GeometryDescriptor,
                                  material: MaterialDescriptor) {
-        return `${geometry.vertexShader}-${material.fragmentShader}-${JSON.stringify(material.textureSize)}-${JSON.stringify(this.mergeWithDefaultOptions(material.properties))}-${geometry.vertexLayout.entries.map(e => e.elementsPerVertex).join('-')}`
+        return `${ geometry.vertexShader }-${ material.fragmentShader }-${ JSON.stringify(material.textureSize) }-${ JSON.stringify(this.mergeWithDefaultOptions(material.properties)) }-${ geometry.vertexLayout.entries.map(e => e.elementsPerVertex).join('-') }`
     }
 
 
@@ -182,7 +225,7 @@ export default class ShaderManager {
         let lastEl = 0, lastOffset = 0;
         for (let i = 0; i < layout.length; i++) {
             const { dataType, elementsPerVertex } = layout[i];
-            const format = ( elementsPerVertex === 1 ? dataType : `${dataType}x${elementsPerVertex}` ) as BufferFormat;
+            const format = (elementsPerVertex === 1 ? dataType : `${ dataType }x${ elementsPerVertex }`) as BufferFormat;
 
             lastOffset = lastOffset + Float32Array.BYTES_PER_ELEMENT * lastEl;
             vertexShaderLayout.push({
@@ -196,7 +239,42 @@ export default class ShaderManager {
     }
 
     private mergeWithDefaultOptions(pipelineOptions: Partial<PipelineOptions>): PipelineOptions {
+        pipelineOptions.colorAttachment = ObjectUtils.mergePartial(
+            pipelineOptions.colorAttachment as Partial<PipelineColorAttachment>,
+            DEFAULT_PIPELINE_OPTIONS.colorAttachment);
+        pipelineOptions.depthAttachment = ObjectUtils.mergePartial(
+            pipelineOptions.depthAttachment as Partial<PipelineDepthAttachment>,
+            DEFAULT_PIPELINE_OPTIONS.depthAttachment);
         return ObjectUtils.mergePartial(pipelineOptions, DEFAULT_PIPELINE_OPTIONS);
+    }
+
+    private getShadowPassShaders(): [string, string] {
+        if (this.graphics instanceof WebGPUGraphics) {
+            return [`
+                    struct Global {
+                        lightViewProjectionMatrix : mat4x4<f32>,
+                    }
+                    struct Model {
+                        modelMatrix : mat4x4<f32>,
+                    };
+                    
+                    @binding(0) @group(0) var<uniform> global : Global;
+                    @binding(1) @group(0) var<uniform> model : Model;
+                    
+                    @vertex
+                    fn main(@location(0) position : vec3<f32>) -> @builtin(position) vec4<f32> {
+                        return global.lightViewProjectionMatrix * model.modelMatrix * vec4<f32>(position, 1.0);
+                    }
+            `,
+                `
+                    @fragment
+                    fn main(@builtin(position) input: vec4<f32>) -> @location(0) vec4<f32> {
+                        return input;
+                    }
+            `];
+        }
+
+        throw new Error('WEBGL2 Shadow pass shaders are not yet created');
     }
 
     private getFragmentSource(shaderName: FragmentShaderName) {
@@ -230,7 +308,7 @@ export default class ShaderManager {
             case VertexShaderName.TERRAIN:
                 return gpuTerrainVertexShader
             default: {
-                logger.warn(`Unknown vertex shader name: ${shaderName}. Defaulting to basic!`);
+                logger.warn(`Unknown vertex shader name: ${ shaderName }. Defaulting to basic!`);
                 return gpuBasicVertex;
             }
         }
@@ -251,7 +329,7 @@ export default class ShaderManager {
             case VertexShaderName.TERRAIN:
                 return glTerrainVertexShader
             default: {
-                logger.warn(`Unknown vertex shader name: ${shaderName}. Defaulting to basic!`);
+                logger.warn(`Unknown vertex shader name: ${ shaderName }. Defaulting to basic!`);
                 return glBasicVertexShader;
             }
         }
@@ -274,7 +352,7 @@ export default class ShaderManager {
             case FragmentShaderName.TERRAIN:
                 return gpuTerrainFragmentShader;
             default: {
-                logger.warn(`Unknown fragment shader name: ${shaderName}. Defaulting to basic!`);
+                logger.warn(`Unknown fragment shader name: ${ shaderName }. Defaulting to basic!`);
                 return gpuBasicFragment;
             }
         }
@@ -296,7 +374,7 @@ export default class ShaderManager {
             case FragmentShaderName.TERRAIN:
                 return glTerrainFragmentShader;
             default: {
-                logger.warn(`Unknown fragment shader name: ${shaderName}. Defaulting to basic!`);
+                logger.warn(`Unknown fragment shader name: ${ shaderName }. Defaulting to basic!`);
                 return glBasicFragmentShader;
             }
         }
@@ -326,7 +404,7 @@ export default class ShaderManager {
             return ShaderTemplate.PBR;
         }
 
-        throw new Error(`Template could not be determined: ${vertexShader} ${fragmentShader}`);
+        throw new Error(`Template could not be determined: ${ vertexShader } ${ fragmentShader }`);
     }
 
     private getShaderNames(shaderTemplate: ShaderTemplate): [VertexShaderName, FragmentShaderName] {
@@ -340,7 +418,7 @@ export default class ShaderManager {
             case ShaderTemplate.TERRAIN:
                 return [VertexShaderName.TERRAIN, FragmentShaderName.TERRAIN]
             default:
-                throw new Error(`Unknown shader template: ${shaderTemplate}`);
+                throw new Error(`Unknown shader template: ${ shaderTemplate }`);
         }
     }
 

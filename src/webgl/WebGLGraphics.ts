@@ -4,8 +4,10 @@ import BindGroup from 'core/resources/BindGroup';
 import BindGroupLayout from 'core/resources/BindGroupLayout';
 import { BufferData, BufferDescription, BufferId, BufferUsage, } from "core/resources/gpu/BufferDescription";
 import { ShaderProgramDescription } from "core/resources/gpu/GpuShaderData";
+import TextureManager from "core/resources/TextureManager";
 import SamplingConfig from "core/texture/SamplingConfig";
 import { SamplerId, TextureDescription, TextureId, TextureType } from "core/texture/Texture";
+import TexturePacker from "core/texture/TexturePacker";
 import { vec3 } from 'gl-matrix';
 import DebugUtil from 'util/DebugUtil';
 import { BlendModeConverter } from 'webgl/BlendModeConverter';
@@ -75,7 +77,7 @@ export default class WebGLGraphics implements Graphics {
     }
 
     public initPipeline(shader: ShaderProgramDescription): PipelineId {
-        const pipelineId = Symbol(`WebGl2Pipeline-${ shader.label }`);
+        const pipelineId = Symbol(`WebGl2Pipeline-${shader.label}`);
         const gl = this.glContext;
         const shaderProgram = gl.createProgram() as WebGLProgram;
 
@@ -94,7 +96,7 @@ export default class WebGLGraphics implements Graphics {
         shader.shaderLayoutIds.forEach(bindGroupLayoutId => {
             if (!this.bindGroupsByLayout.has(bindGroupLayoutId)) {
                 console.error(
-                    `ERROR: Pipeline ${ shader.label } references bindGroupLayout ${ bindGroupLayoutId.description } which is not defined`, bindGroupLayoutId, this.bindGroupsByLayout, shader)
+                    `ERROR: Pipeline ${shader.label} references bindGroupLayout ${bindGroupLayoutId.description} which is not defined`, bindGroupLayoutId, this.bindGroupsByLayout, shader)
             }
             gl.useProgram(shaderProgram);
             this._createBindGroups(gl, shaderProgram, this.bindGroupsByLayout.get(bindGroupLayoutId)!.bindGroup);
@@ -112,12 +114,12 @@ export default class WebGLGraphics implements Graphics {
             }
         }
 
-        return Symbol(`webgl2-${ layout.label }-layout`);
+        return Symbol(`webgl2-${layout.label}-layout`);
     }
 
     public createBindGroup(groupLayoutId: BindGroupLayoutId, bindGroup: BindGroup): BindGroupId {
         const gl = this.glContext;
-        const id = Symbol(`webgl2-bind-group-${ bindGroup.label }`);
+        const id = Symbol(`webgl2-bind-group-${bindGroup.label}`);
 
         this.bindGroupsByLayout.set(groupLayoutId, { bindGroup, bindGroupId: id });
         this.bindGroups.set(id, bindGroup);
@@ -132,7 +134,7 @@ export default class WebGLGraphics implements Graphics {
     }
 
     createBuffer(buffer: BufferDescription): BufferId {
-        const bId = Symbol(`buffer-${ buffer.label }`);
+        const bId = Symbol(`buffer-${buffer.label}`);
         const gpuBuffer = this.glContext.createBuffer() as WebGLBuffer;
 
         this.buffers.set(bId, {
@@ -155,7 +157,7 @@ export default class WebGLGraphics implements Graphics {
     }
 
     createBufferWithData(buffer: BufferDescription, data: BufferData): BufferId {
-        const bId = Symbol(`${ buffer.label }-buffer`);
+        const bId = Symbol(`${buffer.label}-buffer`);
         // @ts-ignore We will populate the gpuBuffer
         this.buffers.set(bId, { gpuBuffer: undefined, bufferInfo: buffer, });
 
@@ -227,7 +229,7 @@ export default class WebGLGraphics implements Graphics {
     }
 
     createTexture(textureDescription: TextureDescription): TextureId {
-        const textureId = Symbol(`texture-${ textureDescription.label || 'gl2' }`);
+        const textureId = Symbol(`texture-${textureDescription.label || 'gl2'}`);
         const activeTexture = this.textureUnitCounter++;
         const texture = GlTexture.createTexture(this.glContext, textureDescription, activeTexture);
         this.textures.set(textureId, {
@@ -239,7 +241,7 @@ export default class WebGLGraphics implements Graphics {
     }
 
     createSampler(sampler: SamplingConfig): SamplerId {
-        const samplerId = Symbol(`sampler-webgl-${ sampler.label }`);
+        const samplerId = Symbol(`sampler-webgl-${sampler.label}`);
         const glSampler = GlSampler.createSampler(this.glContext, sampler);
         this.samplers.set(samplerId, { glSampler, targetTexture: sampler.targetTexture });
         return samplerId;
@@ -271,6 +273,8 @@ export default class WebGLGraphics implements Graphics {
     }
 
     /**
+     * TODO: Rework instancing in webgl!!!
+     *
      * Simulate storage buffer using texture.
      */
     private _createInstancedBuffer(bufferDesc: BufferDescription, id: BufferId) {
@@ -334,7 +338,7 @@ export default class WebGLGraphics implements Graphics {
                                 data: BufferData): BufferId {
         const gl = this.glContext;
 
-        const vaoBufferId = Symbol(`VAO-Buffer-${ buffer.label }`);
+        const vaoBufferId = Symbol(`VAO-Buffer-${buffer.label}`);
         const vao = gl.createVertexArray();
         const glBuffer = gl.createBuffer();
 
@@ -362,6 +366,110 @@ export default class WebGLGraphics implements Graphics {
     public _rawApi(): WebGL2RenderingContext {
         return this.glContext;
     }
+
+    public _exportTextureArray(textureId: TextureId, texturePackerOpt?: TexturePacker) {
+        // @ts-ignore
+        const texturePacker: TexturePacker = window.texturePacker;
+
+        const gl = this.glContext;
+        const framebuffer = gl.createFramebuffer();
+        const layerWidth = TextureManager.MAX_TEXTURE_ARRAY_SIZE.width;
+        const layerHeight = TextureManager.MAX_TEXTURE_ARRAY_SIZE.height;
+        const layers = TextureManager.TEXTURE_ARRAY_LAYERS;
+        const gridColumns = Math.ceil(Math.sqrt(layers)); // Square-ish grid
+        const gridRows = Math.ceil(layers / gridColumns);
+
+        const pixelBuffer = new Uint8Array(layerWidth * layerHeight * 4); // RGBA8 format
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d')!;
+        canvas.width = gridColumns * layerWidth;
+        canvas.height = gridRows * layerHeight;
+
+        for (let layer = 0; layer < texturePacker.layers.length; layer++) {
+            // for (let layer = 0; layer < layers; layer++) {
+            gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+            gl.framebufferTextureLayer(
+                gl.FRAMEBUFFER,
+                gl.COLOR_ATTACHMENT0,
+                this.textures.get(textureId)!.glTexture,
+                0,
+                layer
+            );
+
+            // Check framebuffer status
+            if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+                console.error(`Framebuffer is not complete for layer ${layer}`);
+                continue;
+            }
+
+            const col = layer % gridColumns;
+            const row = Math.floor(layer / gridColumns);
+            ctx.font = "48px bold";
+            ctx.fillStyle = "white";
+
+            const textX = col * layerWidth + 50;
+            const textY = row * layerHeight + 30;
+
+            new Promise((resolve) => {
+                gl.readPixels(0, 0, layerWidth, layerHeight, gl.RGBA, gl.UNSIGNED_BYTE, pixelBuffer);
+                const imageData = ctx.createImageData(layerWidth, layerHeight);
+                imageData.data.set(pixelBuffer);
+                ctx.putImageData(imageData, textX, textY);
+                ctx.lineWidth = 4;
+                ctx.strokeStyle = 'white';
+                ctx.strokeRect(col * layerWidth, row * layerHeight, layerWidth, layerHeight)
+                ctx.fillText(`Layer ${layer}`, textX, textY + 30);
+                for (let i = 0; i < texturePacker.layers[layer].occupiedRegions.length; i++) {
+                    const {
+                        label,
+                        x,
+                        y,
+                        width,
+                        height,
+                        uvScaleX,
+                        uvScaleY,
+                        uvOffsetX,
+                        uvOffsetY
+                    } = texturePacker.layers[layer].occupiedRegions[i];
+                    if (width <= 16 || height <= 16) {
+                        if (width > 1 && height > 1) {
+                            continue;
+                        }
+                        ctx.font = "12px";
+                        ctx.fillText(`${label.substring(label.lastIndexOf('/') + 1, (label.lastIndexOf('.')))}`, textX + x + 120, textY + y);
+                        ctx.font = "48px bold";
+                        continue;
+                    }
+
+                    ctx.fillText(`(x: ${x} y: ${y} w: ${width} h: ${height})`, textX + x, textY + y + 90);
+                    ctx.fillText(`${label.substring(label.lastIndexOf('/') + 1, (label.lastIndexOf('.')))}`, textX + x, textY + y + 180);
+                    ctx.fillText(`uvOff: (${uvOffsetX.toFixed(1)},${uvOffsetY.toFixed(1)})`, textX + x, textY + y + 240);
+                    ctx.fillText(`uvScale: (${uvScaleX.toFixed(1)},${uvScaleY.toFixed(1)})`, textX + x, textY + y + 300);
+                }
+
+                resolve(null);
+            }).then()
+
+            // gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixelBuffer);
+
+            // const imageData = ctx.createImageData(width, height);
+            // imageData.data.set(pixelBuffer);
+            // ctx.putImageData(imageData, col * width, row * height);
+            //
+            // ctx.font = "60px Arial";
+            // ctx.fillStyle = "white";
+            // ctx.fillText(`Layer ${layer}`, col * width + 10, row * height + 30);
+        }
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+        // Save the canvas as an image
+        const dataURL = canvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.href = dataURL;
+        link.download = 'texture_atlas_grid.png';
+        link.click();
+    }
 }
 
 
@@ -385,11 +493,15 @@ export class WebGLRenderPass implements RenderPass {
         const {
             options: {
                 wireframe,
-                depthCompare,
+                depthAttachment: {
+                    depthCompare,
+                    depthWriteEnabled,
+                },
+                colorAttachment: {
+                    blendMode,
+                    writeMask
+                },
                 cullFace,
-                blendMode,
-                depthWriteEnabled,
-                writeMask
             }
         } = shaderDescription
 
@@ -416,11 +528,6 @@ export class WebGLRenderPass implements RenderPass {
     }
 
     public setBindGroup(index: number, bindGroupId: BindGroupId, offset: number[]): RenderPass {
-        // TODO: This is hardcoded to 1, since we know that 1 is the material index
-        //       and only materials should be using UBOs REWORK IT!!!
-        if (index !== 1) {
-            return this;
-        }
         const gl = this.glGraphics.glContext;
         const buffers = this.glGraphics.bindGroups.get(bindGroupId)!.entries;
         buffers.forEach((buffer) => {
@@ -428,6 +535,12 @@ export class WebGLRenderPass implements RenderPass {
                 const { gpuBuffer } = this.glGraphics.buffers.get(buffer.bufferId)!;
                 const uboIndex = this.glGraphics.uniformBlockIndices[buffer.name];
                 gl.bindBufferBase(gl.UNIFORM_BUFFER, uboIndex, gpuBuffer);
+            } else if (buffer.type === 'storage') {
+                // const { gpuBuffer } = this.glGraphics.buffers.get(buffer.bufferId)!;
+                // gl.bindTexture(gl.TEXTURE_2D, gpuBuffer);
+                // TODO: This is the hard coded texture slot for textures used as instance buffers
+                //       This will not work if more than one instance buffers are present.
+                gl.activeTexture(gl.TEXTURE15);
             }
         });
 
@@ -462,10 +575,6 @@ export class WebGLRenderPass implements RenderPass {
 
 
     submit(): void {
-        // this.commandBuffer.forEach(fn => fn());
-        // this.glGraphics.glContext.finish();
-        // this.glGraphics.glContext.flush();
-        // this.commandBuffer = [];
     }
 
 }

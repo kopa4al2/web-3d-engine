@@ -11,13 +11,7 @@ class MeshV2 implements Component {
     readonly id: symbol = Mesh.ID;
 
 
-    constructor(public pipelineId: PipelineId,
-                public geometry: Geometry,
-                public material: Material,
-                public modelMatrix: ModelMatrix,
-                public instanceBuffer?: BufferId,
-                public instanceCount: number = 0,
-                public subMesh: Mesh[] = []) {
+    constructor(public geometry: Geometry) {
 
         // if (instanceData) {
         //     this.instanceBuffer = this.createBuffer(instanceData);
@@ -50,15 +44,10 @@ class Mesh implements Component {
     constructor(public pipelineId: PipelineId,
                 public geometry: Geometry,
                 public material: Material,
-                public modelMatrix: Transform = defaultTransform(),
+                public transform: Transform = defaultTransform(),
                 public instanceBuffers?: InstanceBuffer[],
                 public subMesh: Mesh[] = []) {
     }
-
-    public get transform() {
-        return Transform.copyOf(this.modelMatrix);
-    }
-
 
     public setBindGroup(graphics: Graphics, renderPass: RenderPass) {
         this.material.setBindGroups(graphics, renderPass);

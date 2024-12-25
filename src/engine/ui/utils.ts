@@ -58,3 +58,16 @@ export function wrapArrayAsXYZW(arr: number[] | Float32Array) {
         }
     }
 }
+
+export function checkEvery(fn: () => boolean, timeout: number = 500) {
+    if (fn()) {
+        return;
+    }
+
+    let interval = setInterval(() => {
+        const shouldStop = fn();
+        if (shouldStop) {
+            clearInterval(interval);
+        }
+    }, timeout);
+}

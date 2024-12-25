@@ -1,5 +1,8 @@
 const MAX_DIRECTIONAL_LIGHTS = 2;
 const MAX_POINT_LIGHTS = 4;
+const MAX_SPOT_LIGHTS = 4;
+
+const EPSILON = 0.001;
 
 const PI = radians(180.0);
 const TAU = radians(360.0);
@@ -17,9 +20,11 @@ struct Camera {
 struct Light {
     directionalLights: array<DirectionalLight, MAX_DIRECTIONAL_LIGHTS>,
     pointLights: array<PointLight, MAX_POINT_LIGHTS>,
+    spotLights: array<Spotlight, MAX_SPOT_LIGHTS>,
     numDirectionalLights: u32,
     numPointLights: u32,
-    _padding: vec2<f32>,
+    numSpotLights: u32,
+    _padding: u32,
 }
 
 struct Time {
@@ -51,6 +56,19 @@ struct PointLight {
     quadraticAtt: f32, // Quadratic attenuation
 };
 
+struct Spotlight {
+    position: vec4<f32>,
+    direction: vec4<f32>,
+    color: vec4<f32>,
+    innerCutoff: f32,
+    outerCutoff: f32,
+    intensity: f32,
+    constantAtt: f32,
+    linearAtt: f32,
+    quadraticAtt: f32,
+     // Padding: vec2<f32> (to align to 16 bytes boundary for next Spotlight)
+};
+
 struct DirectionalLight {
     direction: vec4<f32>,
     color: vec4<f32>,
@@ -69,23 +87,29 @@ struct FragmentInput {
 @group(0) @binding(0) var<uniform> camera: Camera;
 @group(0) @binding(1) var<uniform> light: Light;
 @group(0) @binding(2) var<uniform> time: Time;
+
 @group(0) @binding(3) var globalTextures: texture_2d_array<f32>;
 @group(0) @binding(4) var globalSampler: sampler;
 @group(0) @binding(5) var envMap: texture_cube<f32>;
 @group(0) @binding(6) var envSampler: sampler;
 
+@group(0) @binding(7) var shadowMap: texture_depth_2d_array;
+@group(0) @binding(8) var shadowSampler: sampler_comparison;
 
 @group(1) @binding(0) var<uniform> material: PBRMaterial;
 
 @fragment
 fn main(input: FragmentInput) -> @location(0) vec4<f32> {
     let uv = material.albedo_map.uv_scale * input.textureCoord + material.albedo_map.uv_offset;
+//    return vec4<f32>(material.albedo_map.uv_offset, 0, 1);
+//    return textureSample(globalTextures, globalSampler, uv, material.albedo_map.texture_layer);
     let baseColor = textureSample(globalTextures, globalSampler, uv, material.albedo_map.texture_layer) * material.base_color;
-
+//    textureSampleCompare(shadowMap, shadowSampler, shadowUV, lightSpacePosition.z);
     // TODO: Hard coded alpha mask, by default enabled for all
     if (baseColor.a <= 0.5) {
         discard;
     }
+
 
     // --- Metallic and Roughness ---
     let metallicRoughtnessUv = material.metallic_map.uv_scale * input.textureCoord + material.metallic_map.uv_offset;
@@ -103,19 +127,26 @@ fn main(input: FragmentInput) -> @location(0) vec4<f32> {
     let normalWorld: vec3<f32> = normalize(TBN * normalTangent);
 
     // --- View Direction ---
-//    let blendedNormal = normalize(mix(input.normal, normalWorld, 0.2));
     let viewDir: vec3<f32> = normalize(camera.position.xyz - input.fragPosition);
     let reflectedDir = reflect(-viewDir, normalWorld);
     let envColor = textureSample(envMap, envSampler, reflectedDir).rgb;
 
     // Fresnel Reflectance at Normal Incidence
     let F0 = mix(vec3<f32>(0.04), baseColor.rgb, metallic);
-    let roughnessSquared = max(roughness * roughness, 0.01);
+    let roughnessSquared = roughness * roughness;
+//    let roughnessSquared = max(roughness * roughness, 0.01);
     let envNdotL = max(dot(normalWorld, reflectedDir), 0.0);
     let envNdotV = max(dot(normalWorld, viewDir), 0.0);
     let fresnelEnv = F0 + (1.0 - F0) * pow(1.0 - envNdotV, 5.0);
 
     var finalColor: vec3<f32> = vec3<f32>(0.0);
+
+    // --- Spot Lights ---
+    for (var i = 0u; i < light.numSpotLights; i = i + 1u) {
+        let spotLight = light.spotLights[i];
+        finalColor += calculateSpotlight(spotLight, input.fragPosition, normalWorld, viewDir, baseColor.rgb, roughnessSquared, metallic, F0);
+    }
+
     // --- Point Lights ---
     for (var i = 0u; i < light.numPointLights; i = i + 1u) {
         let light = light.pointLights[i];
@@ -129,7 +160,7 @@ fn main(input: FragmentInput) -> @location(0) vec4<f32> {
 
         // Fresnel term (Schlick's approximation)
         let halfwayDir = normalize(lightDir + viewDir);
-        let NdotH = max(dot(normalWorld, halfwayDir), 0.0);
+        let NdotH = max(dot(normalWorld, halfwayDir), EPSILON);
         let fresnel = F0 + (1.0 - F0) * pow(1.0 - NdotH, 5.0);
 
         // Normal Distribution Function (NDF) - GGX
@@ -138,8 +169,8 @@ fn main(input: FragmentInput) -> @location(0) vec4<f32> {
         let D = alpha2 / (PI * pow(NdotH2 * (alpha2 - 1.0) + 1.0, 2.0));
 
         // Geometry Function (Schlick-GGX)
-        let NdotV = max(dot(normalWorld, viewDir), 0.1);
-        let NdotL = max(dot(normalWorld, lightDir), 0.1);
+        let NdotV = max(dot(normalWorld, viewDir), EPSILON);
+        let NdotL = max(dot(normalWorld, lightDir), EPSILON);
         let k = roughnessSquared / 2.0;
         let Gv = NdotV / (NdotV * (1.0 - k) + k);
         let Gl = NdotL / (NdotL * (1.0 - k) + k);
@@ -166,7 +197,7 @@ fn main(input: FragmentInput) -> @location(0) vec4<f32> {
 
         // Fresnel term (Schlick's approximation)
         let halfwayDir = normalize(lightDir + viewDir);
-        let NdotH = max(dot(normalWorld, halfwayDir), 0.0);
+        let NdotH = max(dot(normalWorld, halfwayDir), EPSILON);
         let fresnel = F0 + (1.0 - F0) * pow(1.0 - NdotH, 5.0);
 
         // Normal Distribution Function (NDF) - GGX
@@ -175,8 +206,8 @@ fn main(input: FragmentInput) -> @location(0) vec4<f32> {
         let D = alpha2 / (PI * pow(NdotH2 * (alpha2 - 1.0) + 1.0, 2.0));
 
         // Geometry Function (Schlick-GGX)
-        let NdotV = max(dot(normalWorld, viewDir), 0.1);
-        let NdotL = max(dot(normalWorld, lightDir), 0.1);
+        let NdotV = max(dot(normalWorld, viewDir), EPSILON);
+        let NdotL = max(dot(normalWorld, lightDir), EPSILON);
         let k = roughnessSquared / 2.0;
         let Gv = NdotV / (NdotV * (1.0 - k) + k);
         let Gl = NdotL / (NdotL * (1.0 - k) + k);
@@ -202,10 +233,70 @@ fn main(input: FragmentInput) -> @location(0) vec4<f32> {
     let ambient = vec3<f32>(0.1);
     finalColor += ambient * (1.0 - metallic);
 
-//    return vec4<f32>(textureSample(globalTextures, globalSampler, vec2(0.0, 0.0), 0).rgb, 1.0);
-//    return vec4<f32>(textureSample(globalTextures, globalSampler, input.textureCoord, 10).rgb, 1.0);
-
-      return baseColor;
-//      return vec4<f32>(finalColor, baseColor.a);
+//      return light.spotLights[0].color;
+//      return baseColor;
+      return vec4<f32>(finalColor, baseColor.a);
 //      return vec4<f32>(normalWorld, baseColor.a);
+}
+
+
+fn calculateSpotlight(
+    spotlight: Spotlight,
+    fragPosition: vec3<f32>,
+    normal: vec3<f32>,
+    viewDir: vec3<f32>,
+    baseColor: vec3<f32>,
+    roughnessSquared: f32,
+    metallic: f32,
+    F0: vec3<f32>
+) -> vec3<f32> {
+    // Compute the light direction
+    let lightDir = normalize(spotlight.position.xyz - fragPosition);
+
+    // Compute the distance and attenuation
+    let distance = length(spotlight.position.xyz - fragPosition);
+    let attenuation = 1.0 / (spotlight.constantAtt +
+                             spotlight.linearAtt * distance +
+                             spotlight.quadraticAtt * distance * distance);
+
+    // Compute the spotlight cone influence
+    let theta = dot(lightDir, -normalize(spotlight.direction.xyz));
+    if (theta < spotlight.outerCutoff) {
+        return vec3<f32>(0.0); // Skip lighting outside the cone
+    }
+    let epsilon = spotlight.innerCutoff - spotlight.outerCutoff;
+    let spotlightEffect = clamp((theta - spotlight.outerCutoff) / epsilon, 0.0, 1.0);
+
+    // Fresnel term (Schlick approximation)
+    let halfwayDir = normalize(lightDir + viewDir);
+    let NdotH = max(dot(normal, halfwayDir), EPSILON);
+    let fresnel = F0 + (1.0 - F0) * pow(1.0 - NdotH, 5.0);
+
+    // Normal Distribution Function (GGX)
+    let NdotH2 = NdotH * NdotH;
+    let alpha2 = roughnessSquared * roughnessSquared;
+    let D = alpha2 / (PI * pow(NdotH2 * (alpha2 - 1.0) + 1.0, 2.0));
+
+    // Geometry Function (Schlick-GGX)
+    let NdotV = max(dot(normal, viewDir), EPSILON);
+    let NdotL = max(dot(normal, lightDir), EPSILON);
+
+    if (NdotL <= 0.0) {
+        return vec3<f32>(0.0); // Skip back-facing surfaces
+    }
+
+    let k = roughnessSquared / 2.0;
+    let Gv = NdotV / (NdotV * (1.0 - k) + k);
+    let Gl = NdotL / (NdotL * (1.0 - k) + k);
+    let G = Gv * Gl;
+
+    // Specular term
+    let specular = (D * fresnel * G) / (4.0 * NdotV * NdotL + 0.001);
+
+    // Diffuse term (Lambertian)
+    let diffuse = (1.0 - fresnel) * (1.0 - metallic) * baseColor;
+
+    // Final radiance from spotlight
+    let radiance = spotlight.color.rgb * spotlight.intensity;
+    return attenuation * spotlightEffect * radiance * (diffuse + specular) * NdotL;
 }

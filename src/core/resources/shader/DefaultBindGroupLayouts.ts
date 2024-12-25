@@ -1,7 +1,7 @@
 import TerrainGeometry from 'core/components/geometry/TerrainGeometry';
 import { BindGroupEntryType } from 'core/resources/BindGroup';
 import { UniformVisibility } from 'core/resources/gpu/GpuShaderData';
-import ShaderStruct from 'core/resources/shader/ShaderStruct';
+import { ShaderStruct, TextureStruct } from 'core/resources/shader/ShaderStruct';
 import Bitmask from 'util/BitMask';
 
 export function createStruct(name: string, type: BindGroupEntryType, binding: number, visibilities: UniformVisibility, byteLength?: number): ShaderStruct {
@@ -16,13 +16,6 @@ export const VERTEX_STORAGE_BUFFER_STRUCT: ShaderStruct = {
     binding: 0,
     visibilityMask: visibility(UniformVisibility.VERTEX | UniformVisibility.FRAGMENT),
     // defaultValue: defaultTransform().createModelMatrix() as Float32Array<any>,
-};
-export const GLOBAL_STRUCT: ShaderStruct = {
-    type: 'uniform',
-    name: 'Global',
-    byteLength: 256,
-    binding: 0,
-    visibilityMask: visibility(UniformVisibility.VERTEX | UniformVisibility.FRAGMENT)
 };
 
 export const TEXTURE_ARRAY_STRUCT: ShaderStruct = {
@@ -146,5 +139,20 @@ export const GLOBAL_ENV_CUBE_SAMPLER_STRUCT: ShaderStruct = {
     type: 'sampler',
     name: 'EnvSampler',
     binding: 6,
+    visibilityMask: visibility(UniformVisibility.FRAGMENT)
+};
+
+export const DEPTH_TEXTURE_ARRAY_STRUCT: ShaderStruct = {
+    type: 'texture-array',
+    name: 'ShadowMap',
+    sampleType: 'depth',
+    binding: 7,
+    visibilityMask: visibility(UniformVisibility.FRAGMENT)
+};
+export const DEPTH_TEXTURE_ARRAY_SAMPLER_STRUCT: ShaderStruct = {
+    type: 'sampler',
+    name: 'ShadowMapSampler',
+    samplerType: 'comparison',
+    binding: 8,
     visibilityMask: visibility(UniformVisibility.FRAGMENT)
 };

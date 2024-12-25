@@ -5,8 +5,26 @@ precision highp sampler2DArray;
 
 const int MAX_DIRECTIONAL_LIGHTS = 2;
 const int MAX_POINT_LIGHTS = 4;
+const int MAX_SPOT_LIGHTS = 4;
+
+const float EPSILON = 0.0001;
+
 const float PI = radians(180.0);
 const float TAU = radians(360.0);
+
+struct SpotLight {
+    vec4 position;
+    vec4 direction;
+    vec4 color;
+
+    float innerCutoff;
+    float outerCutoff;
+
+    float intensity;
+    float constantAtt;
+    float linearAtt;
+    float quadraticAtt;
+};
 
 struct PointLight {
     vec4 position;
@@ -28,7 +46,7 @@ struct TextureMap {
     vec2 uv_scale;
     uint texture_layer;
     float _padding;
-//    vec3 _padding;
+    //    vec3 _padding;
 };
 
 layout (std140) uniform PBRMaterial {
@@ -39,7 +57,7 @@ layout (std140) uniform PBRMaterial {
 };
 
 
-layout(std140) uniform Camera {
+layout (std140) uniform Camera {
     mat4 projectionViewMatrix;
     mat4 projectionMatrix;
     mat4 viewMatrix;
@@ -52,8 +70,10 @@ layout(std140) uniform Camera {
 layout (std140) uniform Light {
     DirectionalLight directionalLights[MAX_DIRECTIONAL_LIGHTS];
     PointLight pointLights[MAX_POINT_LIGHTS];
+    SpotLight spotLights[MAX_SPOT_LIGHTS];
     uint numDirectionalLights;
     uint numPointLights;
+    uint numSpotLights;
     vec2 padding;
 };
 
@@ -72,6 +92,9 @@ in vec2 vTextureCoord;
 in vec3 vTangent;
 in vec3 vBitangent;
 out vec4 fragColor;
+
+vec3 calculateSpotlight(SpotLight spotlight, vec3 fragPosition, vec3 normal,
+                        vec3 viewDir, vec3 baseColor, float roughnessSquared, float metallic, vec3 F0);
 
 void main() {
     vec2 uv = albedo_map.uv_scale * vTextureCoord + albedo_map.uv_offset;
@@ -103,11 +126,18 @@ void main() {
     // Fresnel Reflectance at Normal Incidence
     vec3 F0 = mix(vec3(0.04), baseColor.rgb, metallic);
     float roughnessSquared = roughness * roughness;
-    float envNdotL = max(dot(normalWorld, reflectedDir), 0.001);
-    float envNdotV = max(dot(normalWorld, viewDir), 0.001);
+    float envNdotL = max(dot(normalWorld, reflectedDir), EPSILON);
+    float envNdotV = max(dot(normalWorld, viewDir), EPSILON);
     vec3 fresnelEnv = F0 + (1.0 - F0) * pow(1.0 - envNdotV, 5.0);
 
     vec3 finalColor = vec3(0.0);
+
+    // --- Spot Lights ---
+    for (uint i = 0u; i < numSpotLights; i++) {
+        SpotLight spotLight = spotLights[i];
+        finalColor += calculateSpotlight(spotLight, vFragPosition, normalWorld,
+                        viewDir, baseColor.rgb, roughnessSquared, metallic, F0);
+    }
 
     // --- Point Lights ---
     for (uint i = 0u; i < numPointLights; i++) {
@@ -122,7 +152,7 @@ void main() {
 
         // Fresnel term (Schlick's approximation)
         vec3 halfwayDir = normalize(lightDir + viewDir);
-        float NdotH = max(dot(normalWorld, halfwayDir), 0.0);
+        float NdotH = max(dot(normalWorld, halfwayDir), EPSILON);
         vec3 fresnel = F0 + (1.0 - F0) * pow(1.0 - NdotH, 5.0);
 
         // Normal Distribution Function (NDF) - GGX
@@ -131,8 +161,8 @@ void main() {
         float D = alpha2 / (PI * pow(NdotH2 * (alpha2 - 1.0) + 1.0, 2.0));
 
         // Geometry Function (Schlick-GGX)
-        float NdotV = max(dot(normalWorld, viewDir), 0.001);
-        float NdotL = max(dot(normalWorld, lightDir), 0.001);
+        float NdotV = max(dot(normalWorld, viewDir), EPSILON);
+        float NdotL = max(dot(normalWorld, lightDir), EPSILON);
         float k = roughnessSquared / 2.0;
         float Gv = NdotV / (NdotV * (1.0 - k) + k);
         float Gl = NdotL / (NdotL * (1.0 - k) + k);
@@ -157,7 +187,7 @@ void main() {
 
         // Fresnel term (Schlick's approximation)
         vec3 halfwayDir = normalize(lightDir + viewDir);
-        float NdotH = max(dot(normalWorld, halfwayDir), 0.0);
+        float NdotH = max(dot(normalWorld, halfwayDir), EPSILON);
         vec3 fresnel = F0 + (1.0 - F0) * pow(1.0 - NdotH, 5.0);
 
         // Normal Distribution Function (NDF) - GGX
@@ -166,8 +196,8 @@ void main() {
         float D = alpha2 / (PI * pow(NdotH2 * (alpha2 - 1.0) + 1.0, 2.0));
 
         // Geometry Function (Schlick-GGX)
-        float NdotV = max(dot(normalWorld, viewDir), 0.001);
-        float NdotL = max(dot(normalWorld, lightDir), 0.001);
+        float NdotV = max(dot(normalWorld, viewDir), EPSILON);
+        float NdotL = max(dot(normalWorld, lightDir), EPSILON);
         float k = roughnessSquared / 2.0;
         float Gv = NdotV / (NdotV * (1.0 - k) + k);
         float Gl = NdotL / (NdotL * (1.0 - k) + k);
@@ -184,20 +214,75 @@ void main() {
     }
 
     vec3 envSpecular = fresnelEnv * envNdotL * envColor;
-    vec3 envDiffuse = fresnelEnv * envNdotL  * (1.0 - metallic) * (1.0 - fresnelEnv);
+    vec3 envDiffuse = fresnelEnv * envNdotL * (1.0 - metallic) * (1.0 - fresnelEnv);
     finalColor += envDiffuse + envSpecular;
 
     // Ambient Light
     vec3 ambient = vec3(0.1);
     finalColor += ambient * (1.0 - metallic);
 
-    fragColor = baseColor;
-//    fragColor = vec4(finalColor, base_color.a);
+    //    fragColor = baseColor;
+    fragColor = vec4(finalColor, base_color.a);
     //    fragColor = vec4(normalWorld, base_color.a);
     //    fragColor = vec4(float(numDirectionalLights) / float(MAX_DIRECTIONAL_LIGHTS) , float(numPointLights) / float(MAX_POINT_LIGHTS), 0.0, 1.0);
     //    fragColor = texture(TexturesArray, vec3(vTextureCoord, normal_map.texture_layer));
 }
 
+
+vec3 calculateSpotlight(SpotLight spotlight, vec3 fragPosition, vec3 normal, vec3 viewDir, vec3 baseColor, float roughnessSquared, float metallic, vec3 F0) {
+    // Compute the light direction
+    vec3 lightDir = normalize(spotlight.position.xyz - fragPosition);
+
+    // Compute the distance and attenuation
+    float distance = length(spotlight.position.xyz - fragPosition);
+    float attenuation = 1.0 / (spotlight.constantAtt +
+    spotlight.linearAtt * distance +
+    spotlight.quadraticAtt * distance * distance);
+
+    // Compute the spotlight cone influence
+    float theta = dot(lightDir, -normalize(spotlight.direction.xyz));
+    if (theta < spotlight.outerCutoff) {
+        // Skip lighting outside the cone
+        return vec3(0.0);
+    }
+
+    float epsilon = spotlight.innerCutoff - spotlight.outerCutoff;
+    float spotlightEffect = clamp((theta - spotlight.outerCutoff) / epsilon, 0.0, 1.0);
+
+    // Fresnel term (Schlick approximation)
+    vec3 halfwayDir = normalize(lightDir + viewDir);
+    float NdotH = max(dot(normal, halfwayDir), EPSILON);
+    vec3 fresnel = F0 + (1.0 - F0) * pow(1.0 - NdotH, 5.0);
+
+    // Normal Distribution Function (GGX)
+    float NdotH2 = NdotH * NdotH;
+    float alpha2 = roughnessSquared * roughnessSquared;
+    float D = alpha2 / (PI * pow(NdotH2 * (alpha2 - 1.0) + 1.0, 2.0));
+
+    // Geometry Function (Schlick-GGX)
+    float NdotV = max(dot(normal, viewDir), EPSILON);
+    float NdotL = max(dot(normal, lightDir), EPSILON);
+
+    if (NdotL <= 0.0) {
+        // Skip back-facing surfaces
+        return vec3(0.0);
+    }
+
+    float k = roughnessSquared / 2.0;
+    float Gv = NdotV / (NdotV * (1.0 - k) + k);
+    float Gl = NdotL / (NdotL * (1.0 - k) + k);
+    float G = Gv * Gl;
+
+    // Specular term
+    vec3 specular = (D * fresnel * G) / (4.0 * NdotV * NdotL + 0.001);
+
+    // Diffuse term (Lambertian)
+    vec3 diffuse = (1.0 - fresnel) * (1.0 - metallic) * baseColor;
+
+    // Final radiance from spotlight
+    vec3 radiance = spotlight.color.rgb * spotlight.intensity;
+    return attenuation * spotlightEffect * radiance * (diffuse + specular) * NdotL;
+}
 
 /*
 float DistributionGGX(vec3 N, vec3 H, float roughness);

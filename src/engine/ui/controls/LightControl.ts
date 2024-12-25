@@ -1,8 +1,10 @@
+import { ContainerApi, TpChangeEvent } from '@tweakpane/core';
 import DirectionalLight from "core/light/DirectionalLight";
 import PointLight from "core/light/PointLight";
+import SpotLight from "core/light/SpotLight";
+import { glMatrix } from "gl-matrix";
 import UILayout from "../UILayout";
-import MathUtil from '../../../util/MathUtil';
-import { ContainerApi } from '@tweakpane/core';
+import { wrapArrayAsColor } from "../utils";
 
 export class LightControl {
 
@@ -76,6 +78,7 @@ export class LightControl {
             picker: 'inline',
             view: 'rotation',
             rotationMode: 'euler',
+            expanded: true,
             x: { min: -1, max: 1, step: 0.01, label: 'X' },
             y: { min: -1, max: 1, step: 0.01, label: 'Y' },
             z: { min: -1, max: 1, step: 0.01, label: 'Z' },
@@ -90,24 +93,73 @@ export class LightControl {
             min: 0.0,
             max: 1.0,
             step: 0.01,
-            format: val => (val * 100).toFixed(2),
+            format: val => val.toFixed(2),
         });
+        console.log(light.data.quadraticAttenuation)
         container.addBinding(light.data, 'quadraticAttenuation', {
             label: 'Quad Attenuation',
-            min: 0.0001,
+            min: 0.001,
             max: 0.1,
-            step: 0.0001,
-            format: val => (Number(val.toFixed(3))) * 100,
+            step: 0.001,
+            format: val => (Number(val.toFixed(4))),
         })
-        container.addBinding(light.position, 'xyz', {
-            label: 'position',
-            x: { min: -999, max: 999, step: 1, label: 'X' },
-            y: { min: -999, max: 999, step: 1, label: 'Y' },
-            z: { min: -999, max: 999, step: 1, label: 'Z' },
-        });
+        // container.addBinding(light.position, 'xyz', {
+        //     label: 'position',
+        //     x: { min: -999, max: 999, step: 1, label: 'X' },
+        //     y: { min: -999, max: 999, step: 1, label: 'Y' },
+        //     z: { min: -999, max: 999, step: 1, label: 'Z' },
+        // });
         container.addBinding(light.color, 'rgba', { color: { type: 'float' }, label: 'color', picker: 'inline' });
 
         container.addBinding(light.data, 'intensity', { min: 0.1, max: 50.0, step: 0.1, label: 'Intensity' });
+    }
+
+    static addSpotLight(container: ContainerApi, light: SpotLight) {
+        container.addBinding(light.data, 'linearAttenuation', {
+            label: 'Linear Attenuation',
+            min: 0.0,
+            max: 1.0,
+            step: 0.01,
+            format: val => val.toFixed(2),
+        });
+
+        container.addBinding(light.data, 'quadraticAttenuation', {
+            label: 'Quad Attenuation',
+            min: 0.001,
+            max: 0.1,
+            step: 0.001,
+            format: val => (Number(val.toFixed(4))),
+        });
+
+        container.addBinding(wrapArrayAsColor(light.color), 'color', {
+            color: { type: 'float' },
+            label: 'color',
+            picker: 'inline'
+        });
+
+        container.addBinding(light.data, 'intensity', { min: 0.1, max: 50.0, step: 0.1, label: 'Intensity' });
+
+        const cutoff = { innerCutoff: 5, outerCutoff: 5 };
+
+        function onChange(currentCutoff: 'inner' | 'outer', e: TpChangeEvent<number>) {
+            if (currentCutoff === 'inner') {
+                light.data.innerCutoff = Math.cos(glMatrix.toRadian(e.value))
+            }
+
+            if (currentCutoff === 'outer') {
+                light.data.outerCutoff = Math.cos(glMatrix.toRadian(e.value))
+            }
+
+            if (cutoff.outerCutoff < cutoff.innerCutoff) {
+                cutoff.outerCutoff = cutoff.innerCutoff;
+                container.refresh();
+            }
+        }
+
+        container.addBinding(cutoff, 'innerCutoff', { min: 5, max: 60, step: 1, label: 'Inner cutoff' })
+            .on('change', e => onChange('inner', e));
+        container.addBinding(cutoff, 'outerCutoff', { min: 5, max: 90, step: 1, label: 'Outer cutoff' })
+            .on('change', e => onChange('outer', e));
 
     }
 }

@@ -27,7 +27,13 @@ export default class MaterialFactory {
             bindGroupLayouts: [],
             properties: {
                 cullFace: 'none',
-                depthWriteEnabled: false
+                depthAttachment: {
+                    depthWriteEnabled: false,
+                    disabled: true,
+                    // TODO: Boilerplate
+                    format: "depth24plus",
+                    depthCompare: 'less'
+                }
             },
             fragmentShader: FragmentShaderName.SKY_BOX
         }, NOOP_MATERIAL);
@@ -62,7 +68,7 @@ export default class MaterialFactory {
             const layoutId = this.resourceManager.getOrCreateLayout(bindGroupLayout);
             const bufferData = data.getBufferData();
 
-            const buffer = this.resourceManager.createBufferV2({
+            const buffer = this.resourceManager.createBuffer({
                 byteLength: 64,
                 // byteLength: 64,
                 // byteLength: bindGroupLayout.entries.reduce((acc: number, entry: ShaderStruct) => acc + (entry.byteLength || 0), 0),
@@ -137,7 +143,7 @@ export default class MaterialFactory {
             const layoutId = this.resourceManager.getOrCreateLayout(bindGroupLayout);
             const bufferData = data.getBufferData();
 
-            const buffer = this.resourceManager.createBufferV2({
+            const buffer = this.resourceManager.createBuffer({
                 byteLength: bufferData.byteLength,
                 label: 'Material',
                 usage: BufferUsage.UNIFORM | BufferUsage.COPY_DST,

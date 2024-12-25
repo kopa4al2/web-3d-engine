@@ -1,4 +1,5 @@
 import Graphics from 'core/Graphics';
+import SpotLight from "core/light/SpotLight";
 import { BufferData, BufferId, BufferUsage } from 'core/resources/gpu/BufferDescription';
 import { ShaderStructName } from 'core/resources/shader/ShaderStruct';
 
@@ -17,9 +18,12 @@ export default class BufferManager {
             label: 'Camera',
             usage: BufferUsage.UNIFORM | BufferUsage.COPY_DST,
         }));
+
+        const spotLightBytes = 80;
         this.globalBuffers.set('Light', graphics.createBuffer({
             // byteLength: 2048,
-            byteLength: 464,
+            // byteLength: 464,
+            byteLength: 464 + (spotLightBytes * SpotLight.MAX_SPOT_LIGHTS),
             label: 'Light',
             usage: BufferUsage.UNIFORM | BufferUsage.COPY_DST,
         }));

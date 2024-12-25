@@ -4,8 +4,9 @@ import EntityManager from "core/EntityManager";
 import Graphics from "core/Graphics";
 import PropertiesManager, { PartialProperties, Property, PropertyValue } from "core/PropertiesManager";
 import EntityComponentSystem from "core/systems/EntityComponentSystem";
+import SdiPerformance from "core/utils/SdiPerformance";
 import Engine, { OnRenderPlugin } from "Engine";
-import { glMatrix, mat4, vec2, vec3 } from "gl-matrix";
+import { glMatrix, mat4, quat, vec2, vec3 } from "gl-matrix";
 import { enableGpuGraphicsApiSwitch, enableSplitScreenSwitch } from "html/Controls";
 import { enableWebComponentEntitySelect } from 'html/entity-select/EntitySelect';
 import DebugUtil from 'util/DebugUtil';
@@ -19,20 +20,24 @@ import FpsCounter from "./engine/ui/views/FpsCounter";
 Symbol.prototype.toString = function () {
     return this.description || 'N/A';
 }
+DebugUtil.addToWindowObject('quat', quat);
+DebugUtil.addToWindowObject('vec3', vec3);
 DebugUtil.addToWindowObject('mat4', mat4);
 DebugUtil.addToWindowObject('glMatrix', glMatrix);
 
 enableWebComponentEntitySelect();
 
-const loadTimer = 'LOAD_TIMER';
-console.time(loadTimer);
+SdiPerformance.begin();
+// const loadTimer = 'LOAD_TIMER';
+// console.time(loadTimer);
 const onRender: OnRenderPlugin = () => {
     screenProps.flushBuffer()
 };
 
 
 document.body.onload = async () => {
-    console.timeLog(loadTimer, 'DOM loaded');
+    SdiPerformance.log('DOM loaded');
+    // console.timeLog(loadTimer, 'DOM loaded');
 
     // const globalUI = new UILayout('GLOBAL', document.getElementById('global-controls')!);
     // const graphicsApiBlade = globalUI.pane.addBlade({
@@ -48,7 +53,6 @@ document.body.onload = async () => {
     // // graphicsApiBlade.on()
     enableSplitScreenSwitch(screenProps, document.getElementById('global-controls')!);
     enableGpuGraphicsApiSwitch(screenProps, document.getElementById('global-controls')!);
-    console.timeLog(loadTimer, 'HTML Controls enabled');
 
     let gpuEngine: Engine | undefined,
         glEngine: Engine | undefined,
@@ -158,8 +162,9 @@ document.body.onload = async () => {
     });
 
 
-    console.timeEnd(loadTimer)
-    console.log("=============FINISHED ENGINE LOADING====================")
+    SdiPerformance.log('Initialized both engines')
+    // console.timeEnd(loadTimer)
+    // console.log("=============FINISHED ENGINE LOADING====================")
 };
 
 const screenProps = new PropertiesManager({
@@ -305,7 +310,6 @@ async function createEngine(
         entityControl,
         new EntityComponentSystem(),
         projectionMatrix,
-        uiLayout,
         [onRender, fpsCounter.tick.bind(fpsCounter)],
     );
     // enableWireframeSwitch(properties, canvas.parent);

@@ -4,6 +4,21 @@ precision highp float;
 
 const int MAX_DIRECTIONAL_LIGHTS = 2;
 const int MAX_POINT_LIGHTS = 4;
+const int MAX_SPOT_LIGHTS = 4;
+
+struct SpotLight {
+    vec4 position;
+    vec4 direction;
+    vec4 color;
+
+    float innerCutoff;
+    float outerCutoff;
+
+    float intensity;
+    float constantAtt;
+    float linearAtt;
+    float quadraticAtt;
+};
 
 struct PointLight {
     vec4 position;
@@ -30,13 +45,23 @@ layout(std140) uniform Camera {
     vec4 nearFarFovAspect;
 };
 
-layout(std140) uniform Light {
+layout (std140) uniform Light {
     DirectionalLight directionalLights[MAX_DIRECTIONAL_LIGHTS];
     PointLight pointLights[MAX_POINT_LIGHTS];
+    SpotLight spotLights[MAX_SPOT_LIGHTS];
     uint numDirectionalLights;
     uint numPointLights;
+    uint numSpotLights;
     vec2 padding;
 };
+
+//layout(std140) uniform Light {
+//    DirectionalLight directionalLights[MAX_DIRECTIONAL_LIGHTS];
+//    PointLight pointLights[MAX_POINT_LIGHTS];
+//    uint numDirectionalLights;
+//    uint numPointLights;
+//    vec2 padding;
+//};
 
 layout(std140) uniform Time {
     float deltaTime;

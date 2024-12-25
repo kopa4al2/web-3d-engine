@@ -1,6 +1,6 @@
 import EntityManager, { EntityId } from "core/EntityManager";
 import { UpdateSystem } from "core/systems/EntityComponentSystem";
-import { quat } from "gl-matrix";
+import { mat4, quat, vec3 } from "gl-matrix";
 import { rateLimitedLog } from "../../util/Logger";
 import ThrottleUtil from "../../util/ThrottleUtil";
 import Transform from "../components/Transform";
@@ -8,6 +8,7 @@ import Transform from "../components/Transform";
 export default class TransformSystem implements UpdateSystem {
 
     random = new WeakMap<EntityId, number>();
+    isSet = false;
 
     constructor(private entityManager: EntityManager) {
     }
@@ -16,20 +17,30 @@ export default class TransformSystem implements UpdateSystem {
         const allTransforms = this.entityManager.getComponentsWithId<Transform>(Transform.ID);
 
         for (const transform of allTransforms) {
-            if (transform.needsCalculate) {
-                
+            if (transform.shouldMove()) {
+                vec3.lerp(transform.localTransform.position, transform.localTransform.position, transform.targetTransform.position, 10 * deltaTime);
+                quat.slerp(transform.localTransform.rotation, transform.localTransform.rotation, transform.targetTransform.rotation, 10 * deltaTime);
+                vec3.lerp(transform.localTransform.scale, transform.localTransform.scale, transform.targetTransform.scale, 10 * deltaTime);
+                transform.needsCalculate = true;
             }
-            if (transform.needsCalculate
-                && !transform.parent
-                && transform.children && transform.children.length > 0) {
-                // setInterval(() => {
-                //     console.log('INTERVAL', transform)
-                this.updateRecursive(transform);
-                // }, 3_000);
+
+            if (transform.needsCalculate) {
+                let toUpdate = transform;
+                let i = 0;
+                while (toUpdate.parent && toUpdate.parent.needsCalculate) {
+                    if (i++ > 100) {
+                        console.error('INFINITE WHILE LOOP');
+                        return;
+                    }
+
+                    toUpdate = transform.parent!;
+                }
+
+                this.updateMatrices(toUpdate);
             }
         }
 
-        for (const entity of this.entityManager.scenes[0].getEntities()) {
+        /*for (const entity of this.entityManager.scenes[0].getEntities()) {
             if (!this.random.has(entity)) {
                 this.random.set(entity, Math.random());
             }
@@ -44,23 +55,25 @@ export default class TransformSystem implements UpdateSystem {
                 // transform.rotation[1] += deltaTime * transformMultiplier;  // Rotate by 0.5 radians per second
                 // transform.rotation[2] += deltaTime * 0.5;  // Rotate by 0.5 radians per second
             }
-        }
+        }*/
     }
 
-    counter = 0;
+    private updateMatrices(transform: Transform) {
+        transform.needsCalculate = false;
+        mat4.fromRotationTranslationScale(transform.localTransform.mat4,
+            transform.localTransform.rotation,
+            transform.localTransform.position,
+            transform.localTransform.scale);
 
-    private updateRecursive(transform: Transform) {
-        // transform.needsCalculate = false;
-
-        if (transform.parent) {
-            transform.restoreInitialTransform();
-            transform.transformBy(transform.parent);
+        if (!transform.parent) {
+            transform.worldTransform = transform.localTransform;
+            // transform.worldTransform.mat4 = transform.localTransform.mat4;
+        } else {
+            transform.multiply(transform.worldTransform, transform.parent.worldTransform, transform.localTransform)
         }
 
-        if (transform.children) {
-            for (const child of transform.children) {
-                this.updateRecursive(child);
-            }
+        for (const child of transform.children) {
+            this.updateMatrices(child);
         }
     }
 }

@@ -2,17 +2,19 @@ import Mesh from 'core/components/Mesh';
 import Transform, { defaultTransform } from "core/components/Transform";
 import GeometryFactory from 'core/factories/GeometryFactory';
 import MaterialFactory from 'core/factories/MaterialFactory';
+import Cube from "core/geometries/Cube";
 import { PBRMaterialProperties, PhongMaterialProperties } from 'core/mesh/material/MaterialProperties';
-import GLTFParser from "core/parser/GLTFParser";
+import GLTFParser from "core/parser/gltf/GLTFParser";
 import ObjParser from 'core/parser/ObjParser';
 import { VertexShaderName } from 'core/resources/cpu/CpuShaderData';
 import { BufferUsage } from "core/resources/gpu/BufferDescription";
 import ResourceManager from 'core/resources/ResourceManager';
 import ShaderManager from 'core/resources/shader/ShaderManager';
+import TextureManager from "core/resources/TextureManager";
 import Texture from "core/texture/Texture";
 import { vec4 } from "gl-matrix";
 import MathUtil from 'util/MathUtil';
-import Cube from "core/geometries/Cube";
+import BufferUtils from "../../util/BufferUtils";
 
 
 const cacheablePromise = <T>(promise: Promise<T>): () => Promise<T> => {
@@ -46,14 +48,14 @@ class ModelRepository {
         const geometry = this.geometryFactory.createGeometry('skybox', VertexShaderName.SKY_BOX, Cube.geometry);
         const material = this.materialFactory.skybox();
         const pipeline = this.shaderManager.createPipeline(geometry, material);
-        
+
         return new Mesh(pipeline, geometry, material, defaultTransform().scaleBy(30));
     }
 
     async createCrate(cache: boolean = true): Promise<Mesh> {
         if (cache && this.models.has('crate')) {
             const existing = this.models.get('crate')!;
-            return new Mesh(existing.pipelineId, existing.geometry, existing.material, defaultTransform(), existing.instanceBuffers, existing.subMesh);
+            return new Mesh(existing.pipelineId, existing.geometry, existing.material, Transform.copyOf(existing.transform), existing.instanceBuffers, existing.subMesh);
         }
 
         const obj = await cacheablePromise(ObjParser.parseObjFile('assets/advanced/crate/crate.obj'))();
@@ -68,9 +70,9 @@ class ModelRepository {
                 255,]));
         const albedo = await this.resourceManager.textureManager.addToGlobalTexture('assets/advanced/crate/crate.png');
         const normal = await this.resourceManager.textureManager.addToGlobalTexture('assets/advanced/crate/crateNormal.png');
-        const material = this.materialFactory.pbrMaterial('CratePbr', new PBRMaterialProperties(albedo, normal, metallicRoughnessMap, vec4.fromValues(1, 1, 1, 1)));
+        const material = this.materialFactory.pbrMaterial('CrateMaterial', new PBRMaterialProperties(albedo, normal, metallicRoughnessMap.index, vec4.fromValues(1, 1, 1, 1)));
 
-        const vertexInstancedBuffer = this.resourceManager.createBufferV2({
+        const vertexInstancedBuffer = this.resourceManager.createBuffer({
             label: `crate-vertex-instance`,
             byteLength: 4096,
             usage: BufferUsage.STORAGE | BufferUsage.COPY_DST
@@ -110,7 +112,7 @@ class ModelRepository {
             vec4.fromValues(1.0, 0.2, 0.5, 1.0),
         ));
 
-        const vertexInstancedBuffer = this.resourceManager.createBufferV2({
+        const vertexInstancedBuffer = this.resourceManager.createBuffer({
             label: `dragon-vertex-instance`,
             byteLength: 4096,
             usage: BufferUsage.STORAGE | BufferUsage.COPY_DST
@@ -143,25 +145,17 @@ class ModelRepository {
         }
 
         const obj = await cacheablePromise(ObjParser.parseObjFile('assets/advanced/light/lightBulb.obj', 'assets/advanced/light/lightBulb.mtl'))();
-        console.log('light', obj);
-        const geometry = this.geometryFactory.createGeometry(`light-bulb-geometry`, VertexShaderName.LIT_GEOMETRY, obj.meshes[0]);
 
-        const normal = await this.resourceManager.textureManager.addToGlobalTexture('assets/DALL·E-tex-1.webp');
-        const material = this.materialFactory.litMaterial('LightBulb', new PhongMaterialProperties(
-            vec4.fromValues(0.2, 0.2, 0.2, 1.0),
-            vec4.fromValues(0.2, 0.2, 1.0, 1.0),
-            vec4.fromValues(1.0, 0.2, 0.5, 1.0),
-        ));
-
-        const vertexInstancedBuffer = this.resourceManager.createBufferV2({
-            label: `lightBulb-vertex-instance`,
+        console.log('Loaded light bulb: ', obj);
+        const vertexInstancedBuffer = this.resourceManager.createBuffer({
+            label: `${ obj.name }-instance-buffer`,
             byteLength: 4096,
             usage: BufferUsage.STORAGE | BufferUsage.COPY_DST
         });
 
         const vertexInstancedLayout = this.resourceManager.getOrCreateLayout(ShaderManager.INSTANCE_BUFFER_GROUP);
         const vertexBindGroup = this.resourceManager.createBindGroup(vertexInstancedLayout, {
-            label: 'instance',
+            label: `${ obj.name }-instance-bind-group`,
             entries: [{
                 binding: 0,
                 bufferId: vertexInstancedBuffer,
@@ -170,28 +164,83 @@ class ModelRepository {
             }]
         })
 
-        const pipeline = this.shaderManager.createPipeline(geometry, material);
-        const mesh = new Mesh(pipeline, geometry, material, Transform.scale(5), [{
-            bindGroupId: vertexBindGroup,
-            bufferId: vertexInstancedBuffer
-        }]);
-        this.models.set('lightBulb', mesh);
-        return mesh;
+        let parent: Mesh | undefined;
+        // let parent: Transform = defaultTransform().scaleBy(10);
+        for (const objMesh of obj.meshes) {
+            const transform: Transform = defaultTransform();
+
+
+            const geometry = this.geometryFactory.createGeometry(`${ objMesh.groupName }-geometry`, VertexShaderName.LIT_GEOMETRY, MathUtil.calculateTBNV(objMesh));
+            const albedo = await this.resourceManager.textureManager.addToGlobalTexture('assets/DALL·E-tex-1.webp');
+            const data = BufferUtils.parseVertexAttribToImage(objMesh.normals!, 3);
+            const normalTexture = this.resourceManager.textureManager.addPreloadedToGlobalTexture('lightBulbNormal', data);
+            const material = this.materialFactory.pbrMaterial(
+                `${ objMesh.groupName }-material`,
+                new PBRMaterialProperties(
+                    albedo,
+                    // normalTexture.index,
+                    this.resourceManager.textureManager.getTexture(Texture.DEFAULT_NORMAL_MAP).index,
+                    this.resourceManager.textureManager.getTexture(Texture.DEFAULT_METALLIC_ROUGHNESS_MAP).index,
+                    vec4.fromValues(1.0, 0.0, 1.0, 1.0)
+                ));
+
+            const pipeline = this.shaderManager.createPipeline(geometry, material);
+
+            if (!parent) {
+                transform.scaleBy(10);
+                parent = new Mesh(pipeline, geometry, material, transform, [{
+                    bindGroupId: vertexBindGroup,
+                    bufferId: vertexInstancedBuffer
+                }]);
+            } else {
+                parent.transform.children.push(transform);
+                transform.parent = parent.transform;
+                parent.subMesh.push(new Mesh(pipeline, geometry, material, transform, [{
+                    bindGroupId: vertexBindGroup,
+                    bufferId: vertexInstancedBuffer
+                }]));
+            }
+
+            this.models.set('lightBulb', parent);
+        }
+
+        console.log(parent)
+        // const normal = await this.resourceManager.textureManager.addToGlobalTexture('assets/DALL·E-tex-1.webp');
+        // const material = this.materialFactory.litMaterial('LightBulb', new PhongMaterialProperties(
+        //     vec4.fromValues(0.2, 0.2, 0.2, 1.0),
+        //     vec4.fromValues(0.2, 0.2, 1.0, 1.0),
+        //     vec4.fromValues(1.0, 0.2, 0.5, 1.0),
+        // ));
+        //
+        //
+        // const pipeline = this.shaderManager.createPipeline(geometry, material);
+        // const mesh = new Mesh(pipeline, geometry, material, defaultTransform().scaleBy(5), [{
+        //     bindGroupId: vertexBindGroup,
+        //     bufferId: vertexInstancedBuffer
+        // }]);
+        // this.models.set('lightBulb', mesh);
+        return this.models.get('lightBulb')!;
     }
 
-    // TODO: Dont accept parser
-    // @ts-ignore
     async drawScene(cache: boolean = true): Promise<Mesh> {
-        // const gltf = await ModelRepository.cacheables.cube()();
-        const gltf = await ModelRepository.cacheables.sponzaAtrium()();
-        return await gltf.createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager);
+        if (cache && this.models.has('sponza')) {
+            return this.models.get('sponza')!;
+        }
+
+        const sponzaScene = await ModelRepository.cacheables.sponzaAtrium(this.resourceManager.textureManager)()
+            .then(gltf => gltf
+                .createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager));
+
+        this.models.set('sponza', sponzaScene);
+        sponzaScene.transform.scaleBy(10);
+        return sponzaScene;
     }
 
     static cacheables = {
-        sponzaAtrium: () => cacheablePromise(GLTFParser.parseGltf('assets/scene/sponza_atrium/gltf/', 'scene.gltf', 'scene.bin')),
-        // sponzaAtrium: () => cacheablePromise(GLTFParser.parseGlb('assets/scene/sponza_atrium/', 'sponza_atrium_3.glb')),
+        sponzaAtrium: (textureManager: TextureManager) => cacheablePromise(GLTFParser.parseGltf('assets/scene/sponza_atrium/gltf/', 'scene.gltf', 'scene.bin', textureManager)),
+        sponzaAtriumGLB: () => cacheablePromise(GLTFParser.parseGlb('assets/scene/sponza_atrium/', 'sponza_atrium_3.glb')),
         fox: () => cacheablePromise(GLTFParser.parseGlb('assets/scene/fox/', 'Fox.glb')),
-        cube: () => cacheablePromise(GLTFParser.parseGltf('assets/scene/simple/cube/', 'Cube.gltf', 'Cube.bin')),
+        // cube: () => cacheablePromise(GLTFParser.parseGltf('assets/scene/simple/cube/', 'Cube.gltf', 'Cube.bin')),
     }
 
     static wavefrontFiles = {

@@ -3,21 +3,46 @@ import { Blend } from 'core/resources/gpu/Blend';
 import { BufferFormat, BufferId } from "core/resources/gpu/BufferDescription";
 import { TextureSize } from 'core/texture/Texture';
 
+export interface PipelineDepthAttachment {
+    disabled?: boolean,
+    depthCompare: 'less' | 'greater' | 'equal',
+    depthWriteEnabled: boolean,
+    format: 'depth24plus' | 'depth32float'
+}
+
+export interface PipelineColorAttachment {
+    disabled?: boolean,
+    writeMask: 'ALL' | 'RGB',
+    blendMode?: Blend,
+    format: 'bgra8unorm'
+}
+
 export interface PipelineOptions {
     wireframe: boolean,
     cullFace: 'front' | 'back' | 'none',
-    blendMode?: Blend,
-    depthCompare: 'less' | 'greater' | 'equal',
-    depthWriteEnabled: boolean,
-    writeMask: 'ALL' | 'RGB';
+    // blendMode?: Blend,
+    // depthCompare: 'less' | 'greater' | 'equal',
+    // depthWriteEnabled: boolean,
+    // writeMask: 'ALL' | 'RGB';
+    colorAttachment: PipelineColorAttachment,
+    depthAttachment: PipelineDepthAttachment,
 }
 
 export const DEFAULT_PIPELINE_OPTIONS: PipelineOptions = {
     cullFace: 'back',
     wireframe: false,
-    depthCompare: 'less',
-    depthWriteEnabled: true,
-    writeMask: 'ALL'
+    // depthCompare: 'less',
+    // depthWriteEnabled: true,
+    // writeMask: 'ALL',
+    colorAttachment: {
+        writeMask: 'ALL',
+        format: 'bgra8unorm'
+    },
+    depthAttachment: {
+        depthCompare: 'less',
+        depthWriteEnabled: true,
+        format: 'depth24plus'
+    }
 };
 
 export interface ShaderProgramDescription {
@@ -30,8 +55,6 @@ export interface ShaderProgramDescription {
     vertexShaderSource: string,
     vertexShaderLayout: VertexBufferLayout[],
     vertexShaderStride: number,
-
-    textureArraySize?: TextureSize
 }
 
 export interface IndexBuffer {
