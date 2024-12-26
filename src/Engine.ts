@@ -151,17 +151,24 @@ export default class Engine {
         //     defaultTransform().translate([0, 30, 0]));
 
 
-        const spotLightTransform = defaultTransform();
-        // spotLightTransform.worldTransform.rotation = quat.fromValues(0.5, -0.8, -0.06, -0.2);
-        spotLightTransform.worldTransform.position = vec3.fromValues(5, 20, -10);
-        this.createSpotLight('SPOT_LIGHT_2', {
-            color: vec4.fromValues(0, 1, 1, 1),
-            intensity: 20,
-            innerCutoff: Math.cos(glMatrix.toRadian(60.0)),
-            outerCutoff: Math.cos(glMatrix.toRadian(90.0)),
-            quadraticAttenuation: 0.004
-        }, spotLightTransform
+        const spotLightTransform = defaultTransform().translate(vec3.fromValues(-5, -20, 10));
+        this.createSpotLight('SPOT_LIGHT_1', {
+                color: vec4.fromValues(0, 1, 1, 1),
+                intensity: 20,
+                innerCutoff: Math.cos(glMatrix.toRadian(60.0)),
+                outerCutoff: Math.cos(glMatrix.toRadian(90.0)),
+                quadraticAttenuation: 0.004
+            }, spotLightTransform
         );
+
+        this.createSpotLight('SPOT_LIGHT_2', {
+            color: vec4.fromValues(1, 0, 1, 1),
+            intensity: 10,
+            innerCutoff: Math.cos(glMatrix.toRadian(30.0)),
+            outerCutoff: Math.cos(glMatrix.toRadian(40.0)),
+            quadraticAttenuation: 0.04
+        }, defaultTransform().translate(vec3.fromValues(5, 20, -10)));
+
         // this.createPointLight('Red', { color: PointLight.WARM_LIGHT }, defaultTransform().translate([10, 10, 0]));
 
 

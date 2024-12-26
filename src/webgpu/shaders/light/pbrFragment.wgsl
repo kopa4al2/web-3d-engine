@@ -9,13 +9,14 @@ const PI = radians(180.0);
 const TAU = radians(360.0);
 
 struct Camera {
-    projectionViewMatrix: mat4x4<f32>,  // 64 bytes
-    projectionMatrix: mat4x4<f32>,      // 64 bytes
-    viewMatrix: mat4x4<f32>,            // 64 bytes
-    position: vec4<f32>,                // 16 bytes
-    forward: vec4<f32>,                 // 16 bytes
-    up: vec4<f32>,                      // 16 bytes
-    nearFarFovAspect: vec4<f32>,        // 16 bytes
+    projectionViewMatrix: mat4x4<f32>,                                    // 64 bytes
+    projectionMatrix: mat4x2<f32>,                                        // 64 bytes
+    viewMatrix: mat4x4<f32>,                                              // 64 bytes
+    lightProjectionView: array<mat4x4<f32>, MAX_SHADOW_CASTING_LIGHTS>,   // 128 bytes
+    position: vec4<f32>,                                                  // 16 bytes
+    forward: vec4<f32>,                                                   // 16 bytes
+    up: vec4<f32>,                                                        // 16 bytes
+    nearFarFovAspect: vec4<f32>,                                          // 16 bytes
 }
 
 struct Light {
@@ -82,7 +83,7 @@ struct FragmentInput {
     @location(2) textureCoord: vec2<f32>,
     @location(3) tangent: vec3<f32>,
     @location(4) bitangent: vec3<f32>,
-    @interpolate(flat) @location(5) instanceID: u32,
+//    @interpolate(flat) @location(6) instanceID: u32,
 }
 
 @group(0) @binding(0) var<uniform> camera: Camera;
@@ -102,12 +103,29 @@ struct FragmentInput {
 @fragment
 fn main(input: FragmentInput) -> @location(0) vec4<f32> {
 //    let normalizedUv = input.textureCoord;
+
     let normalizedUv = fract(input.textureCoord);
-//let lightNDC = input.lightSpacePosition.xyz / input.lightSpacePosition.w;
-//     let shadowDepth = textureSampleCompare(shadowMap, shadowSampler, vec3<f32>(lightNDC.xy, f32(0.0)), lightNDC.z);
-    // Shadow factor (1 = fully lit, 0 = fully shadowed)
-//    let shadowFactor = shadowDepth;
-    
+    var shadowFactor: f32 = 0.0;
+//    for (var i = 0u; i < 1; i++) {
+    for (var i = 0u; i < MAX_SHADOW_CASTING_LIGHTS; i++) {
+
+        let lightSpacePosition = camera.lightProjectionView[i] *  vec4<f32>(input.fragPosition, 1.0);
+        let lightNDC = lightSpacePosition.xyz / lightSpacePosition.w;
+        let uv = 0.5 * (lightNDC.xy + vec2<f32>(1.0));
+
+        let shadowDepth = textureSampleCompare(
+            shadowMap,
+            shadowSampler,
+            uv,
+            i,
+            lightNDC.z
+        );
+
+        shadowFactor += shadowDepth;
+    }
+
+    shadowFactor /= f32(MAX_SHADOW_CASTING_LIGHTS);
+
     let uv = material.albedo_map.uv_scale * normalizedUv + material.albedo_map.uv_offset;
     let baseColor = textureSample(globalTextures, globalSampler, uv, material.albedo_map.texture_layer) * material.base_color;
 
@@ -122,8 +140,6 @@ fn main(input: FragmentInput) -> @location(0) vec4<f32> {
     let metallicRoughness = textureSample(globalTextures, globalSampler, metallicRoughtnessUv, material.metallic_map.texture_layer).rgb;
     let metallic = metallicRoughness.b;
     let roughness = metallicRoughness.g;
-//    let metallic = min(0.4, metallicRoughness.b);
-//    let roughness = max(0.2, metallicRoughness.g);
 
     // --- Normal Mapping ---
     let TBN: mat3x3<f32> = mat3x3<f32>(input.tangent, input.bitangent, input.normal);
@@ -150,7 +166,7 @@ fn main(input: FragmentInput) -> @location(0) vec4<f32> {
     // --- Spot Lights ---
     for (var i = 0u; i < light.numSpotLights; i = i + 1u) {
         let spotLight = light.spotLights[i];
-        finalColor += calculateSpotlight(spotLight, input.fragPosition, normalWorld, viewDir, baseColor.rgb, roughnessSquared, metallic, F0);
+        finalColor += calculateSpotlight(spotLight, input.fragPosition, normalWorld, viewDir, baseColor.rgb, roughnessSquared, metallic, F0) * shadowFactor;
     }
 
     // --- Point Lights ---
@@ -241,8 +257,8 @@ fn main(input: FragmentInput) -> @location(0) vec4<f32> {
 
 //      return light.spotLights[0].color;
 //      return baseColor;
+//      return vec4<f32>(finalColor, baseColor.a);
       return vec4<f32>(finalColor, baseColor.a);
-//      return vec4<f32>(finalColor * * shadowFactor, baseColor.a);
 //      return vec4<f32>(normalWorld, baseColor.a);
 }
 

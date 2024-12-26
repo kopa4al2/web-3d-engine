@@ -12,7 +12,7 @@ export default class TransformControl {
         parent
             .addBinding(targetPosition,
                 'xyzw',
-                { picker: 'inline', label: 'translate', min: -1000, max: 1000, step: 3 })
+                { picker: 'inline', label: 'translate', min: -1000, max: 1000, step: 1 })
             .on('change', e => {
                 // const curr = transform.targetTransform.position;
                 // let newPosition = vec3.fromValues(e.value.x, e.value.y, e.value.z);
@@ -29,10 +29,11 @@ export default class TransformControl {
     }
 
     public static create(parent: ContainerApi, transform: Transform) {
+        return;
         const transformFolder = parent.addFolder({ title: 'transformation', expanded: true });
         this.createTranslate(transformFolder.addFolder({ title: 'translation', expanded: true }), transform);
 
-        const rotationFolder = transformFolder.addFolder({ title: 'rotation', expanded: false });
+        const rotationFolder = transformFolder.addFolder({ title: 'rotation', expanded: true });
 
         rotationFolder.addBinding(wrapArrayAsXYZW(transform.targetTransform.rotation), 'xyzw', {
             view: 'rotation',

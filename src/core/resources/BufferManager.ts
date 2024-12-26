@@ -12,9 +12,9 @@ export default class BufferManager {
     public globalBuffers: Map<ShaderStructName, BufferId> = new Map();
 
     public constructor(private graphics: Graphics) {
+
         this.globalBuffers.set('Camera', graphics.createBuffer({
-            byteLength: 256,
-            // byteLength: 80,
+            byteLength: 384,
             label: 'Camera',
             usage: BufferUsage.UNIFORM | BufferUsage.COPY_DST,
         }));

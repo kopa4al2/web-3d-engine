@@ -75,7 +75,7 @@ export default interface Graphics {
 export type RenderPassAttachment = { skip: true } | {
     skip?: false
     textureId: TextureId,
-    textureView?: { dimension: '2d', baseArrayLayer: number, aspect?: 'all' | 'stencil-only' | 'depth-only' }
+    textureView?: { dimension: '2d' | '2d-array', baseArrayLayer: number, aspect?: 'all' | 'stencil-only' | 'depth-only' }
 };
 export type RenderPassDepthAttachment = RenderPassAttachment;
 export type RenderPassColorAttachment = RenderPassAttachment;

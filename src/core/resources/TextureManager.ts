@@ -33,8 +33,8 @@ interface GlobalTextureLayer {
 export default class TextureManager {
     private static readonly SHADOW_MAP_TEXTURE_KEY: string = 'SHADOW_MAP_TEXTURE_KEY';
     private static readonly ENV_MAP_TEXTURE_KEY: string = 'ENV_MAP_TEXTURE_KEY';
-    public static readonly MAX_TEXTURE_ARRAY_SIZE: TextureSize = { width: 4096, height: 4096 };
-    public static readonly TEXTURE_ARRAY_LAYERS = 20;
+    public static readonly MAX_TEXTURE_ARRAY_SIZE: TextureSize = { width: 2048, height: 2048 };
+    public static readonly TEXTURE_ARRAY_LAYERS = 30;
     private cachedTextures: Map<string, Texture> = new Map();
     
     private globalTextures: Map<string, TextureId> = new Map();
@@ -47,7 +47,7 @@ export default class TextureManager {
     constructor(private graphics: Graphics) {
         DebugUtil.addToWindowObject('textureManager', this);
         
-        this.shadowMapPacker = new TexturePacker(1024, 1024, 20);
+        this.shadowMapPacker = new TexturePacker(1024, 1024, Globals.MAX_SHADOW_CASTING_LIGHTS);
         this.texturePacker = new TexturePacker(TextureManager.MAX_TEXTURE_ARRAY_SIZE.width,
             TextureManager.MAX_TEXTURE_ARRAY_SIZE.height,
             TextureManager.TEXTURE_ARRAY_LAYERS,
@@ -63,7 +63,7 @@ export default class TextureManager {
 
         this.globalTextures.set(TextureManager.SHADOW_MAP_TEXTURE_KEY,
             graphics.createTexture({
-                depth: 20,
+                depth: Globals.MAX_SHADOW_CASTING_LIGHTS,
                 label: 'shadowMapDepthTexture',
                 type: TextureType.TEXTURE_ARRAY,
                 usage: TextureUsage.COPY_DST | TextureUsage.TEXTURE_BINDING | TextureUsage.RENDER_ATTACHMENT | TextureUsage.COPY_SRC,
@@ -131,10 +131,15 @@ export default class TextureManager {
     }
 
     public getShadowMapLayer(): number {
-        const packed = this.shadowMapPacker.addTexture('shadowMap', 1024, 1024);
+        const packed = this.shadowMapPacker.addTexture('shadowMap', Globals.SHADOW_PASS_TEXTURE_SIZE, Globals.SHADOW_PASS_TEXTURE_SIZE);
         console.log('shadowMapLayer', packed);
         return packed.layer;
     }
+    // public getShadowMapLayer(): number {
+    //     const packed = this.shadowMapPacker.addTexture('shadowMap', 1024, 1024);
+    //     console.log('shadowMapLayer', packed);
+    //     return packed.layer;
+    // }
 
     public getEnvironmentMap(): TextureId {
         const texture = this.cubeTextures.get(TextureManager.ENV_MAP_TEXTURE_KEY);

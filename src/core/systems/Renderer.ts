@@ -1,4 +1,3 @@
-// @ts-nocheck
 import Component from "core/components/Component";
 import Mesh from 'core/components/Mesh';
 import Transform from 'core/components/Transform';
@@ -38,6 +37,8 @@ export default class Renderer implements System {
     private readonly shadowPassGlobalBuffer: BufferId;
     private readonly shadowPassModelBuffer: BufferId;
     private readonly shadowPassBindGroup: BindGroupId;
+    private readonly lights: WeakMap<Component, { texture: TextureId, layer: number }> = new WeakMap();
+
 
     constructor(private graphics: Graphics,
                 private entityManager: EntityManager,
@@ -165,8 +166,6 @@ export default class Renderer implements System {
             const spotLightTuple = spotLights[i];
             if (spotLightTuple) {
                 const [spotLight, transform] = spotLightTuple;
-                const modelMatrix = transform.getWorldMatrix();
-
 
                 const direction = vec4.transformQuat(vec4.create(), vec4.fromValues(0, 0, -1.0, 0.0), transform.worldTransform.rotation);
                 vec4.normalize(direction, direction);
@@ -198,24 +197,105 @@ export default class Renderer implements System {
         }
         const entitiesToRender = scene.getVisibleEntities();
 
+        const lightViewProjMatrices: mat4[] = Array(Globals.MAX_SHADOW_CASTING_LIGHTS).fill(mat4.create());
+
+        for (let i = 0; i < Globals.MAX_SHADOW_CASTING_LIGHTS; i++) {
+            if (spotLights[i]) {
+                const [spotLight, transform] = spotLights[i];
+
+                if (!this.lights.has(spotLight)) {
+                    this.lights.set(spotLight, {
+                        texture: this.resourceManager.textureManager.getShadowMap(),
+                        layer: this.resourceManager.textureManager.getShadowMapLayer()
+                    });
+                }
+
+                const shadowPass = this.graphics.beginRenderPass({
+                    label: `shadow-pass-${spotLight.id.description}`,
+                    depthAttachment: {
+                        textureId: this.lights.get(spotLight)!.texture,
+                        textureView: {
+                            baseArrayLayer: this.lights.get(spotLight)!.layer,
+                            aspect: 'depth-only',
+                            dimension: '2d'
+                        }
+                    },
+                    colorAttachment: { skip: true },
+                    viewport: {
+                        x: 0, y: 0,
+                        width: Globals.SHADOW_PASS_TEXTURE_SIZE,
+                        height: Globals.SHADOW_PASS_TEXTURE_SIZE
+                    }
+                });
+                shadowPass.usePipeline(this.shadowPassPipeline);
+                shadowPass.setBindGroup(0, this.shadowPassBindGroup);
+
+
+                const SHADOW_MAP_ASPECT_RATIO = Globals.SHADOW_PASS_TEXTURE_SIZE / Globals.SHADOW_PASS_TEXTURE_SIZE;
+                const SHADOW_MAP_Z_NEAR = 0.1;
+                const SHADOW_MAP_Z_FAR = 100.0;
+                const SHADOW_MAP_FOV = Math.PI / 4;
+                const projectionMatrix = mat4.perspectiveZO(mat4.create(), SHADOW_MAP_FOV, SHADOW_MAP_ASPECT_RATIO, SHADOW_MAP_Z_NEAR, SHADOW_MAP_Z_FAR);
+
+                const position = transform.worldTransform.position;
+                const direction = vec3.transformQuat(
+                    vec3.create(),
+                    vec3.fromValues(0, 0, -1.0),
+                    transform.worldTransform.rotation);
+                vec3.normalize(direction, direction);
+                const target = vec3.add(vec3.create(), position, direction);
+                const up = vec3.fromValues(0, 1, 0);
+                const lightViewMatrix = mat4.targetTo(mat4.create(), position, target, up);
+
+                const viewMat = mat4.create();
+
+                const rotationMatrix = mat4.create();
+                mat4.fromQuat(rotationMatrix, transform.worldTransform.rotation);
+                mat4.transpose(rotationMatrix, rotationMatrix);
+                const translationMatrix = mat4.create();
+                // mat4.fromTranslation(translationMatrix, vec3.negate(vec3.create(), transform.worldTransform.position));
+                mat4.fromTranslation(translationMatrix, vec3.negate(transform.worldTransform.position, transform.worldTransform.position));
+                mat4.multiply(viewMat, rotationMatrix, translationMatrix);
+                const lightProjViewMatrix = mat4.multiply(mat4.create(), projectionMatrix, lightViewMatrix);
+                lightViewProjMatrices[i] = lightProjViewMatrix;
+                this.graphics.writeToBuffer(this.shadowPassGlobalBuffer, lightProjViewMatrix as Float32Array);
+                for (const [pipeline, meshes] of scene.getVisibleEntities()) {
+                    for (const [mesh, entities] of meshes) {
+                        shadowPass.setVertexBuffer(0, mesh.geometry.vertexBuffer);
+                        for (let index = 0; index < entities.length; index++) {
+                            const [_, transform] = entities[index];
+                            this.graphics.writeToBuffer(this.shadowPassModelBuffer, transform as Float32Array);
+                            shadowPass.drawIndexed(mesh.geometry.indexBuffer, mesh.geometry.indices);
+                        }
+                    }
+                }
+                shadowPass.submit();
+                if (i <= 0) {
+                    this.graphics._getTextureData!(this.lights.get(spotLight)!.texture)
+                        .then(data => DebugCanvas.visualizeDepth(data, Globals.SHADOW_PASS_TEXTURE_SIZE, Globals.SHADOW_PASS_TEXTURE_SIZE));
+                }
+            }
+        }
+
         const viewMatrix = scene.camera.viewMatrix();
         const projectionMatrix = scene.projectionMatrix;
         const data = BufferUtils.mergeFloat32Arrays([
             this.projectionViewMatrix as Float32Array,
             projectionMatrix.get(),
             viewMatrix,
+            lightViewProjMatrices[0],
+            lightViewProjMatrices[1],
             new Float32Array([...camera.position, 1]),
             new Float32Array([...camera.forward, 1]), // TODO: This may not be correct
             new Float32Array([...camera.up, 1]), // TODO: This may not be correct
             new Float32Array([projectionMatrix.zNear, projectionMatrix.zFar, projectionMatrix.fov, projectionMatrix.aspectRatio]),
         ]);
-        // console.log(data.byteLength)
+
         this.resourceManager.bufferManager.writeToGlobalBuffer('Camera', data);
         this.resourceManager.bufferManager.writeToGlobalBuffer('Light', new Uint8Array(bufferData));
         // FAKE DATA
         this.resourceManager.bufferManager.writeToGlobalBuffer('Time', new Float32Array([1.0, 1.0, 1.0, 1.0]));
 
-        this.drawShadowPass(scene);
 
         const renderPass = this.graphics.beginRenderPass();
 
@@ -225,7 +305,6 @@ export default class Renderer implements System {
             renderPass.usePipeline(pipeline);
 
             // TODO: Try to render instanced - multiple values share the same instance buffer but are rendered separately
-
             // rateLimitedLog.logMax(entitiesToRender.size, `Using pipeline: ${pipeline.toString()} for ${meshes.size} meshes`);
             for (const [mesh, entities] of meshes) {
                 renderPass.setVertexBuffer(0, mesh.geometry.vertexBuffer);
@@ -289,146 +368,94 @@ export default class Renderer implements System {
         });
     }
 
-    lights: WeakMap<Component, { texture: TextureId, layer: number }> = new WeakMap();
-
     private drawShadowPass(scene: Scene) {
         // const dirLights = this.entityManager.getComponentsWithId<DirectionalLight>(DirectionalLight.ID);
         // if (dirLights.length <= 0) {
         //     return;
         // }
 
-        const spotLights = scene.getVisibleLights()
-            .map(lightEntity => this.entityManager.getComponents<[SpotLight, Transform]>(lightEntity, SpotLight.ID, Transform.ID))
-            .filter(spotLights => spotLights && spotLights[0] && spotLights[1]);
-
-        if (!spotLights || spotLights.length === 0) {
-            return;
-        }
-
-        for (const [spotLight, transform] of spotLights) {
-            if (!this.lights.has(spotLight)) {
-                this.lights.set(spotLight, {
-                    texture: this.resourceManager.textureManager.getShadowMap(),
-                    layer: this.resourceManager.textureManager.getShadowMapLayer()
-                });
-            }
-            
-            const shadowPass = this.graphics.beginRenderPass({
-                label: `shadow-pass-${spotLight.id.description}`,
-                depthAttachment: {
-                    textureId: this.lights.get(spotLight)!.texture,
-                    textureView: {
-                        baseArrayLayer: this.lights.get(spotLight)!.layer,
-                        aspect: 'depth-only',
-                        dimension: '2d'
-                    }
-                },
-                colorAttachment: { skip: true },
-                viewport: { x: 0, y: 0, width: Globals.SHADOW_PASS_TEXTURE_SIZE, height: Globals.SHADOW_PASS_TEXTURE_SIZE }
-            });
-            shadowPass.usePipeline(this.shadowPassPipeline);
-            shadowPass.setBindGroup(0, this.shadowPassBindGroup);
-
-
-            const projectionMatrix = mat4.perspectiveZO(mat4.create(),
-                Math.PI / 4,
-                1,
-                0.1,
-                100.0);
-            const position = transform.worldTransform.position;
-            const direction = vec3.transformQuat(vec3.create(), vec3.fromValues(0, 0, -1.0), transform.worldTransform.rotation);
-            vec3.normalize(direction, direction);
-            const target = vec3.add(vec3.create(), position, direction);
-            const up = vec3.fromValues(0, 1, 0);
-            const lightViewMatrix = mat4.targetTo(mat4.create(), position, target, up);
-
-            const viewMat = mat4.create();
-
-            const rotationMatrix = mat4.create();
-            mat4.fromQuat(rotationMatrix, transform.worldTransform.rotation);
-
-            mat4.transpose(rotationMatrix, rotationMatrix);
-
-            const translationMatrix = mat4.create();
-            // mat4.fromTranslation(translationMatrix, this.position);
-            mat4.fromTranslation(translationMatrix, vec3.negate(vec3.create(), transform.worldTransform.position));
-
-            // Combine rotation and translation to get the view matrix
-            mat4.multiply(viewMat, rotationMatrix, translationMatrix);
-
-            // const lightProjViewMatrix = this.projectionViewMatrix;
-            const lightProjViewMatrix = mat4.multiply(mat4.create(), projectionMatrix, lightViewMatrix);
-            this.graphics.writeToBuffer(this.shadowPassGlobalBuffer, lightProjViewMatrix as Float32Array);
-            for (const [pipeline, meshes] of scene.getVisibleEntities()) {
-                for (const [mesh, entities] of meshes) {
-                    shadowPass.setVertexBuffer(0, mesh.geometry.vertexBuffer);
-                    // mesh.setBindGroup(this.graphics, renderPass);
-                    for (let index = 0; index < entities.length; index++) {
-                        const [_, transform] = entities[index];
-                        this.graphics.writeToBuffer(this.shadowPassModelBuffer, transform as Float32Array);
-                        shadowPass.drawIndexed(mesh.geometry.indexBuffer, mesh.geometry.indices);
-                    }
-                }
-            }
-            // for (const meshData of scene.getVisibleEntities().values()) {
-            //     for (const mesh of meshData.keys()) {
-            //         this.graphics.writeToBuffer(this.shadowPassModelBuffer, mat4.create() as Float32Array);
-            //         // this.graphics.writeToBuffer(this.shadowPassModelBuffer, mesh.transform.getWorldMatrix() as Float32Array);
-            //         shadowPass.setVertexBuffer(0, mesh.geometry.vertexBuffer);
-            //         shadowPass.drawIndexed(mesh.geometry.indexBuffer, mesh.geometry.indices);
-            //     }
-            // }
-            shadowPass.submit();
-        }
-        // ThrottleUtil.throttle(() => {
-            this.graphics._getTextureData!(this.resourceManager.textureManager.getShadowMap())
-                .then(data => {
-                    // requestAnimationFrame(() => {
-                        DebugCanvas.visualizeDepth(data, Globals.SHADOW_PASS_TEXTURE_SIZE, Globals.SHADOW_PASS_TEXTURE_SIZE);
-                    // });
-                });
-        // }, 200);
-        
-
-        // DIR LIGHT
-        // const lightPosition = vec3.fromValues(0, 20, 0);
-        // const lightTarget = vec3.fromValues(0, 0, 0);
-        // const up = vec3.fromValues(0, 1, 0);
+        // const spotLights = scene.getVisibleLights()
+        //     .map(lightEntity => this.entityManager.getComponents<[SpotLight, Transform]>(lightEntity, SpotLight.ID, Transform.ID))
+        //     .filter(spotLights => spotLights && spotLights[0] && spotLights[1]);
         //
-        // const left = -20, right = 20, bottom = -20, top = 20, near = 0.1, far = 100;
-        // // const lightProjectionMatrix = scene.projectionMatrix.getOrtho();
-        // const lightProjectionMatrix = mat4.ortho(mat4.create(), left, right, bottom, top, near, far);
-        //
-        // const lightViewMatrix = mat4.lookAt(mat4.create(), lightPosition, lightTarget, up);
-        // const lightViewProjectionMatrix = mat4.multiply(mat4.create(), lightProjectionMatrix, lightViewMatrix);
-        // this.graphics.writeToBuffer(this.shadowPassGlobalBuffer, lightViewProjectionMatrix as Float32Array);
-        // this.graphics.writeToBuffer(this.shadowPassGlobalBuffer, this.projectionViewMatrix as Float32Array);
+        // if (!spotLights || spotLights.length === 0) {
+        //     return;
+        // }
 
+        // for (const [spotLight, transform] of spotLights) {
+        //     if (!this.lights.has(spotLight)) {
+        //         this.lights.set(spotLight, {
+        //             texture: this.resourceManager.textureManager.getShadowMap(),
+        //             layer: this.resourceManager.textureManager.getShadowMapLayer()
+        //         });
+        //     }
 
         // const shadowPass = this.graphics.beginRenderPass({
+        //     label: `shadow-pass-${spotLight.id.description}`,
         //     depthAttachment: {
-        //         textureId: this.shadowMapFrameBuffer,
+        //         textureId: this.lights.get(spotLight)!.texture,
+        //         textureView: {
+        //             baseArrayLayer: this.lights.get(spotLight)!.layer,
+        //             aspect: 'depth-only',
+        //             dimension: '2d'
+        //         }
         //     },
-        //     colorAttachment: {
-        //         // textureId: this.shadowMapColorTexture
-        //         skip: true,
-        //     },
-        //     viewport: {
-        //         x: 0, y: 0, width: 1024, height: 1024,
-        //     }
+        //     colorAttachment: { skip: true },
+        //     viewport: { x: 0, y: 0, width: Globals.SHADOW_PASS_TEXTURE_SIZE, height: Globals.SHADOW_PASS_TEXTURE_SIZE }
         // });
         // shadowPass.usePipeline(this.shadowPassPipeline);
         // shadowPass.setBindGroup(0, this.shadowPassBindGroup);
-        // for (const meshData of scene.getVisibleEntities().values()) {
-        //     for (const mesh of meshData.keys()) {
-        //         this.graphics.writeToBuffer(this.shadowPassModelBuffer, mesh.modelMatrix.getWorldMatrix() as Float32Array);
+        //
+        //
+        // const projectionMatrix = mat4.perspectiveZO(mat4.create(),
+        //     Math.PI / 4,
+        //     1,
+        //     0.1,
+        //     100.0);
+        // const position = transform.worldTransform.position;
+        // const direction = vec3.transformQuat(vec3.create(), vec3.fromValues(0, 0, -1.0), transform.worldTransform.rotation);
+        // vec3.normalize(direction, direction);
+        // const target = vec3.add(vec3.create(), position, direction);
+        // const up = vec3.fromValues(0, 1, 0);
+        // const lightViewMatrix = mat4.targetTo(mat4.create(), position, target, up);
+        //
+        // const viewMat = mat4.create();
+        //
+        // const rotationMatrix = mat4.create();
+        // mat4.fromQuat(rotationMatrix, transform.worldTransform.rotation);
+        //
+        // mat4.transpose(rotationMatrix, rotationMatrix);
+        //
+        // const translationMatrix = mat4.create();
+        // // mat4.fromTranslation(translationMatrix, this.position);
+        // mat4.fromTranslation(translationMatrix, vec3.negate(vec3.create(), transform.worldTransform.position));
+        //
+        // // Combine rotation and translation to get the view matrix
+        // mat4.multiply(viewMat, rotationMatrix, translationMatrix);
+        //
+        // // const lightProjViewMatrix = this.projectionViewMatrix;
+        // const lightProjViewMatrix = mat4.multiply(mat4.create(), projectionMatrix, lightViewMatrix);
+        // this.graphics.writeToBuffer(this.shadowPassGlobalBuffer, lightProjViewMatrix as Float32Array);
+        // for (const [pipeline, meshes] of scene.getVisibleEntities()) {
+        //     for (const [mesh, entities] of meshes) {
         //         shadowPass.setVertexBuffer(0, mesh.geometry.vertexBuffer);
-        //         shadowPass.drawIndexed(mesh.geometry.indexBuffer, mesh.geometry.indices);
+        //         // mesh.setBindGroup(this.graphics, renderPass);
+        //         for (let index = 0; index < entities.length; index++) {
+        //             const [_, transform] = entities[index];
+        //             this.graphics.writeToBuffer(this.shadowPassModelBuffer, transform as Float32Array);
+        //             shadowPass.drawIndexed(mesh.geometry.indexBuffer, mesh.geometry.indices);
+        //         }
         //     }
         // }
+        // // for (const meshData of scene.getVisibleEntities().values()) {
+        // //     for (const mesh of meshData.keys()) {
+        // //         this.graphics.writeToBuffer(this.shadowPassModelBuffer, mat4.create() as Float32Array);
+        // //         // this.graphics.writeToBuffer(this.shadowPassModelBuffer, mesh.transform.getWorldMatrix() as Float32Array);
+        // //         shadowPass.setVertexBuffer(0, mesh.geometry.vertexBuffer);
+        // //         shadowPass.drawIndexed(mesh.geometry.indexBuffer, mesh.geometry.indices);
+        // //     }
+        // // }
         // shadowPass.submit();
-
-        // DebugCanvas.debug(this.graphics, { id: this.shadowMapFrameBuffer, width: 1024, height: 1024 });
     }
 }
 

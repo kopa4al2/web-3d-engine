@@ -22,6 +22,8 @@ export default class TransformSystem implements UpdateSystem {
                 quat.slerp(transform.localTransform.rotation, transform.localTransform.rotation, transform.targetTransform.rotation, 10 * deltaTime);
                 vec3.lerp(transform.localTransform.scale, transform.localTransform.scale, transform.targetTransform.scale, 10 * deltaTime);
                 transform.needsCalculate = true;
+                // console.log('T Local: ', [...transform.localTransform.position], ' Target: ', [...transform.targetTransform.position])
+                // console.log('R Local: ', [...transform.localTransform.rotation], ' Target: ', [...transform.targetTransform.rotation])
             }
 
             if (transform.needsCalculate) {

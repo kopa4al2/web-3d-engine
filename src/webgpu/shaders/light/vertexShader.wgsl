@@ -1,12 +1,14 @@
+const MAX_SHADOW_CASTING_LIGHTS = 2;
+
 struct Camera {
-    projectionViewMatrix: mat4x4<f32>,  // 64 bytes
-    viewMatrix: mat4x4<f32>,            // 64 bytes
-    lightProjectionView: mat4x2<f32>,   // 64 bytes
-    cameraPosition: vec4<f32>,          // 16 bytes
-    cameraForward: vec4<f32>,           // 16 bytes
-    cameraRight: vec4<f32>,             // 16 bytes
-    cameraUp: vec4<f32>,                // 16 bytes
-    nearFarPlanes: vec2<f32>,           // 8 bytes, aligned to 16 bytes
+    projectionViewMatrix: mat4x4<f32>,                                    // 64 bytes
+    projectionMatrix: mat4x2<f32>,                                        // 64 bytes
+    viewMatrix: mat4x4<f32>,                                              // 64 bytes
+    lightProjectionView: array<mat4x4<f32>, MAX_SHADOW_CASTING_LIGHTS>,   // 64 bytes
+    position: vec4<f32>,                                                  // 16 bytes
+    forward: vec4<f32>,                                                   // 16 bytes
+    up: vec4<f32>,                                                        // 16 bytes
+    nearFarFovAspect: vec4<f32>,                                          // 16 bytes
 }
 
 struct InstanceData {
@@ -29,7 +31,8 @@ struct VertexOutput {
     @location(2) textureCoord: vec2<f32>,
     @location(3) tangent: vec3<f32>,
     @location(4) bitangent: vec3<f32>,
-    @interpolate(flat) @location(5) instanceID: u32,
+//    @location(5) light: array<vec4<f32>, MAX_SHADOW_CASTING_LIGHTS>,
+//    @interpolate(flat) @location(6) instanceID: u32,
 };
 
 
@@ -44,7 +47,7 @@ fn main(input: VertexInput) -> VertexOutput {
     let inverseModel = instanceData[input.instanceID].modelMatrixInverseTranspose;
 
     output.textureCoord = input.textureCoord;
-    output.instanceID = input.instanceID;
+//    output.instanceID = input.instanceID;
 
     output.position = global.projectionViewMatrix * modelMatrix * vec4<f32>(input.position, 1);
     output.pixelPosition = (modelMatrix * vec4<f32>(input.position, 1.0)).xyz;
