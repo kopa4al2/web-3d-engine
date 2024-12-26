@@ -28,10 +28,11 @@ import {
     TextureType
 } from "core/texture/Texture";
 import { vec3 } from 'gl-matrix';
-import DebugUtil from 'util/DebugUtil';
+import DebugUtil from '../../util/debug/DebugUtil';
 import { NamedLogger } from "util/Logger";
 import WebGPUContext from "webgpu/graphics/WebGPUContext";
 import WebGPUDevice from "webgpu/graphics/WebGPUDevice";
+import Globals from "../../engine/Globals";
 
 export default class WebGPUGraphics implements Graphics {
 
@@ -98,16 +99,17 @@ export default class WebGPUGraphics implements Graphics {
         }
 
         let colorAttachments: GPURenderPassColorAttachment[] = [];
-        if (!descriptor.colorAttachment.skip) {
-            const colorTexture = descriptor.colorAttachment.textureId
+        // TODO: Temporary if no color attachment present, add default one
+        if (!descriptor.colorAttachment || !descriptor.colorAttachment.skip) {
+            const colorTexture = descriptor.colorAttachment?.textureId
                 ? this.textures.get(descriptor.colorAttachment.textureId)!
                 // : this.currentTexture;
                 : context.getCurrentTexture();
 
             const view = colorTexture.createView({
-                aspect: descriptor.colorAttachment.textureView?.aspect,
-                baseArrayLayer: descriptor.colorAttachment.textureView?.baseArrayLayer,
-                dimension: descriptor.colorAttachment.textureView?.dimension,
+                aspect: descriptor.colorAttachment?.textureView?.aspect,
+                baseArrayLayer: descriptor.colorAttachment?.textureView?.baseArrayLayer,
+                dimension: descriptor.colorAttachment?.textureView?.dimension,
             });
             colorAttachments.push({
                 view,
@@ -151,7 +153,7 @@ export default class WebGPUGraphics implements Graphics {
             viewport.y || 0,
             viewport.width || this.props.getAbsolute('window.width'),
             viewport.height || this.props.getAbsolute('window.height'),
-            0.001,
+            0.1,
             1.0
         );
         return new WebGPURenderPass(passEncoder, commandEncoder, this);
@@ -164,10 +166,32 @@ export default class WebGPUGraphics implements Graphics {
             label: 'vertexShader',
             code: shader.vertexShaderSource
         });
-        const fragmentShader = device.createShaderModule({
-            label: 'fragmentShader',
-            code: shader.fragmentShaderSource
-        });
+
+        let fragment: GPUFragmentState | undefined = undefined;
+        const targets: [GPUColorTargetState | null] = options.colorAttachment.disabled
+            ? [null]
+            : [
+                {
+                    // format: 'rgba16float',
+                    // format: 'rgba8unorm',
+                    // format: 'bgra8unorm',
+                    format: options.colorAttachment.format,
+                    blend: options.colorAttachment.blendMode,
+                    writeMask: options.colorAttachment.writeMask === 'ALL'
+                        ? GPUColorWrite.ALL
+                        : GPUColorWrite.RED | GPUColorWrite.GREEN | GPUColorWrite.BLUE
+                },
+            ];
+        if (shader.fragmentShaderSource) {
+            fragment = {
+                module: device.createShaderModule({
+                    label: 'fragmentShader',
+                    code: shader.fragmentShaderSource
+                }),
+                entryPoint: 'main',
+                targets,
+            };
+        }
 
         const bindGroupLayouts = shader.shaderLayoutIds.map(id => this.shaderLayouts.get(id)!)
         const layout = device.createPipelineLayout({ bindGroupLayouts, label: `pipeline-layout-${ shader.label }` });
@@ -188,20 +212,7 @@ export default class WebGPUGraphics implements Graphics {
                 depthCompare: options.depthAttachment.depthCompare,
             };
 
-        const targets: [GPUColorTargetState | null] = options.colorAttachment.disabled
-            ? [null]
-            : [
-                {
-                    // format: 'rgba16float',
-                    // format: 'rgba8unorm',
-                    // format: 'bgra8unorm',
-                    format: options.colorAttachment.format,
-                    blend: options.colorAttachment.blendMode,
-                    writeMask: options.colorAttachment.writeMask === 'ALL'
-                        ? GPUColorWrite.ALL
-                        : GPUColorWrite.RED | GPUColorWrite.GREEN | GPUColorWrite.BLUE
-                },
-            ];
+        
         this.pipelines.set(pipelineId, device.createRenderPipeline({
             label: `pipeline-${ shader.label }`,
             layout,
@@ -210,11 +221,7 @@ export default class WebGPUGraphics implements Graphics {
                 entryPoint: 'main',
                 buffers,
             },
-            fragment: {
-                module: fragmentShader,
-                entryPoint: 'main',
-                targets,
-            },
+            fragment,
             primitive: {
                 topology: (this.props.getBoolean('wireframe') || options.wireframe) ? 'line-list' : 'triangle-list',
                 frontFace: 'ccw',
@@ -504,12 +511,13 @@ export default class WebGPUGraphics implements Graphics {
         if (width === 0 || height === 0) {
             this.depthTexture?.destroy();
             this.depthTexture = undefined;
+            console.warn('destroying depth texture')
             return;
         }
 
         this.depthTexture = this._device.createTexture({
             size: [width, height, 1],
-            format: 'depth24plus',
+            format: Globals.DEFAULT_DEPTH_FN,
             usage: GPUTextureUsage.RENDER_ATTACHMENT,
         });
     }
@@ -547,18 +555,22 @@ export default class WebGPUGraphics implements Graphics {
         return this._device;
     }
 
-    _getTextureData(textureId: TextureId): Promise<Float32Array> {
+    // _getTextureData(textureId: TextureId, bufferId?: BufferId): Promise<Float32Array> {
+    _getTextureData(textureId: TextureId, bufferId?: BufferId): Promise<ArrayBuffer> {
         const bytesPerPixel = Float32Array.BYTES_PER_ELEMENT;
         const texture = this.textures.get(textureId)!;
-        const buffer = this._device.createBuffer({
-            size: texture.width * texture.height * bytesPerPixel,
-            usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
-        });
+        const buffer = this.buffers.get(bufferId!)!;
+        buffer.unmap();
+        // const buffer = this._device.createBuffer({
+        //     size: texture.width * texture.height * bytesPerPixel,
+        //     usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
+        // });
 
         const commandEncoder = this._device.createCommandEncoder();
         commandEncoder.copyTextureToBuffer(
             {
                 texture,
+                aspect: 'depth-only',
             },
             {
                 buffer,
@@ -568,9 +580,9 @@ export default class WebGPUGraphics implements Graphics {
         );
 
         this._device.queue.submit([commandEncoder.finish()]);
-        return buffer.mapAsync(GPUMapMode.READ)
-            .then(() => this._device.queue.onSubmittedWorkDone())
-            .then(() => new Float32Array(buffer.getMappedRange()));
+        //  I was waiting for this too , this._device.queue.onSubmittedWorkDone()
+        return buffer.mapAsync(GPUMapMode.READ).then(() => buffer.getMappedRange());
+        // return buffer.mapAsync(GPUMapMode.READ).then(() => new Float32Array(buffer.getMappedRange()));
     }
 
 }

@@ -9,7 +9,7 @@ import SamplingConfig from "core/texture/SamplingConfig";
 import { SamplerId, TextureDescription, TextureId, TextureType } from "core/texture/Texture";
 import TexturePacker from "core/texture/TexturePacker";
 import { vec3 } from 'gl-matrix';
-import DebugUtil from 'util/DebugUtil';
+import DebugUtil from '../util/debug/DebugUtil';
 import { BlendModeConverter } from 'webgl/BlendModeConverter';
 import Canvas from "../Canvas";
 import GlSampler from "./textures/GlSampler";
@@ -21,6 +21,10 @@ const idGenerator = (() => {
         return id++;
     }
 })();
+
+const EMPTY_FRAGMENT_SHADER = `#version 300 es 
+                               void main() {}
+                               `;
 
 export type GlTextureCache = { glTexture: WebGLTexture, metaData: TextureDescription, activeTexture: number }
 export type GlSamplerCache = { glSampler: WebGLSampler, targetTexture?: TextureId, }
@@ -81,7 +85,7 @@ export default class WebGLGraphics implements Graphics {
         const shaderProgram = gl.createProgram() as WebGLProgram;
 
         gl.attachShader(shaderProgram, this.loadShader(gl.VERTEX_SHADER, shader.vertexShaderSource));
-        gl.attachShader(shaderProgram, this.loadShader(gl.FRAGMENT_SHADER, shader.fragmentShaderSource));
+        gl.attachShader(shaderProgram, this.loadShader(gl.FRAGMENT_SHADER, shader.fragmentShaderSource || EMPTY_FRAGMENT_SHADER));
         gl.linkProgram(shaderProgram);
 
         if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {

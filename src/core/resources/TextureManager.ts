@@ -7,7 +7,7 @@ import TexturePacker from "core/texture/TexturePacker";
 import TexturePackerOld from "core/texture/TexturePackerOld";
 import PromiseQueue from "core/utils/PromiseQueue";
 import { vec2 } from 'gl-matrix';
-import DebugUtil from "../../util/DebugUtil";
+import DebugUtil from "../../util/debug/DebugUtil";
 import Globals from '../../engine/Globals';
 
 const normalFormat = 'rgba8unorm';
@@ -132,7 +132,6 @@ export default class TextureManager {
 
     public getShadowMapLayer(): number {
         const packed = this.shadowMapPacker.addTexture('shadowMap', Globals.SHADOW_PASS_TEXTURE_SIZE, Globals.SHADOW_PASS_TEXTURE_SIZE);
-        console.log('shadowMapLayer', packed);
         return packed.layer;
     }
     // public getShadowMapLayer(): number {

@@ -54,23 +54,25 @@ class ModelRepository {
 
     async createCrate(cache: boolean = true): Promise<Mesh> {
         if (cache && this.models.has('crate')) {
-            const existing = this.models.get('crate')!;
-            return new Mesh(existing.pipelineId, existing.geometry, existing.material, Transform.copyOf(existing.transform), existing.instanceBuffers, existing.subMesh);
+            // const existing = this.models.get('crate')!;
+            // return new Mesh(existing.pipelineId, existing.geometry, existing.material, Transform.copyOf(existing.transform), existing.instanceBuffers, existing.subMesh);
         }
 
         const obj = await cacheablePromise(ObjParser.parseObjFile('assets/advanced/crate/crate.obj'))();
-        const geometryData = MathUtil.calculateTBNV(obj.meshes[0]);
-        const geometry = this.geometryFactory.createGeometry(`crate-geometry`, VertexShaderName.LIT_GEOMETRY, geometryData);
-
-        const metallicRoughnessMap = await this.resourceManager.textureManager
-            .create1x1Texture(Texture.DEFAULT_METALLIC_ROUGHNESS_MAP, new Uint8ClampedArray([
-                255,
-                Math.floor(1.0 * 255), // G = Roughness
-                Math.floor(1.0 * 255), // B = Metallic
-                255,]));
-        const albedo = await this.resourceManager.textureManager.addToGlobalTexture('assets/advanced/crate/crate.png');
-        const normal = await this.resourceManager.textureManager.addToGlobalTexture('assets/advanced/crate/crateNormal.png');
-        const material = this.materialFactory.pbrMaterial('CrateMaterial', new PBRMaterialProperties(albedo, normal, metallicRoughnessMap.index, vec4.fromValues(1, 1, 1, 1)));
+        // const geometryData = MathUtil.calculateTBNV(obj.meshes[0]);
+        // const geometry = this.geometryFactory.createGeometry(`crate-geometry`, VertexShaderName.LIT_GEOMETRY, geometryData);
+        const geometryData = MathUtil.calculateTangentsVec4(obj.meshes[0]);
+        const geometry = this.geometryFactory.createGeometry(`crate-geometry`, VertexShaderName.LIT_TANGENTS_VEC4, geometryData);
+        const [metallicRoughnessMap, albedo, normal] = await Promise.all([
+            this.resourceManager.textureManager.create1x1Texture(Texture.DEFAULT_METALLIC_ROUGHNESS_MAP,
+                new Uint8ClampedArray([255,
+                Math.floor(255), // G = Roughness
+                Math.floor(255), // B = Metallic
+                255,])),
+            this.resourceManager.textureManager.addToGlobalTexture('assets/advanced/crate/crate.png'),
+            this.resourceManager.textureManager.addToGlobalTexture('assets/advanced/crate/crateNormal.png')]);
+        const material = this.materialFactory.pbrMaterial('CrateMaterial',
+            new PBRMaterialProperties(albedo, normal, metallicRoughnessMap.index, vec4.fromValues(1, 1, 1, 1)));
 
         const vertexInstancedBuffer = this.resourceManager.createBuffer({
             label: `crate-vertex-instance`,
@@ -89,7 +91,7 @@ class ModelRepository {
         })
 
         const pipeline = this.shaderManager.createPipeline(geometry, material);
-        const mesh = new Mesh(pipeline, geometry, material, defaultTransform().scaleBy(0.05), [{
+        const mesh = new Mesh(pipeline, geometry, material, defaultTransform().scaleBy(0.005), [{
             bindGroupId: vertexBindGroup,
             bufferId: vertexInstancedBuffer
         }]);
@@ -232,7 +234,7 @@ class ModelRepository {
                 .createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager));
 
         this.models.set('sponza', sponzaScene);
-        sponzaScene.transform.scaleBy(10);
+        // sponzaScene.transform.scaleBy(10);
         return sponzaScene;
     }
 

@@ -12,7 +12,7 @@ import Frustum from 'core/physics/Frustum';
 import { Blend } from 'core/resources/gpu/Blend';
 import { mat4, vec3 } from 'gl-matrix';
 import Bitmask from 'util/BitMask';
-import DebugUtil from 'util/DebugUtil';
+import DebugUtil from '../util/debug/DebugUtil';
 import JavaMap from 'util/JavaMap';
 
 

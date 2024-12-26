@@ -24,7 +24,7 @@ const BlendFactorToGl: Record<BlendFactor, (gl: WebGL2RenderingContext) => GLenu
 
 export class BlendModeConverter {
 
-    public static setDepthCompare(gl: WebGL2RenderingContext, depthCompare: 'less' | 'greater' | 'equal') {
+    public static setDepthCompare(gl: WebGL2RenderingContext, depthCompare: 'less' | 'greater' | 'equal' | 'always' | 'never' | 'less-equal') {
         if (depthCompare === 'less') {
             gl.depthFunc(gl.LESS);
         } else if (depthCompare === 'greater') {

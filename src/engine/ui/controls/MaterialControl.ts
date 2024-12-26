@@ -3,7 +3,7 @@ import Material from 'core/mesh/material/Material';
 import MaterialFactory from 'core/factories/MaterialFactory';
 import MaterialProperties, { PBRMaterialProperties } from 'core/mesh/material/MaterialProperties';
 import { PipelineOptions } from 'core/resources/gpu/GpuShaderData';
-import { wrapArrayAsXY } from '../utils';
+import { wrapArrayAsColor, wrapArrayAsXY } from '../utils';
 import { BindingApi } from '@tweakpane/core';
 
 export default class MaterialControl extends MaterialFactory {
@@ -15,25 +15,31 @@ export default class MaterialControl extends MaterialFactory {
     constructor(matFactory: MaterialFactory, layout: UILayout) {
         // @ts-ignore
         super(matFactory.resourceManager);
-        this.materialPane = layout.addFolder('Material');
+        
+        this.materialPane = layout.getTopLevelContainer('MATERIALS');
     }
 
     pbrMaterial(label: string = 'PBRMaterial', data: MaterialProperties, overrides: Partial<PipelineOptions> = {}): Material {
-        const material = super.pbrMaterial(label, data, overrides);
         if (this.materialLabels.has(label)) {
-            // console.warn('Material already exists', label, this.materialLabels.get(label));
-            // console.log('Current: ', data, overrides)
-            // return this.materialLabels.get(label)!;
+            console.debug(`Reusing material: ${label}`);
+            return this.materialLabels.get(label)!;
         } else {
+            const material = super.pbrMaterial(label, data, overrides);
             this.addMaterial(material);
             this.materialLabels.set(label, material);
+            return material;
         }
-        return material;
     }
 
     addMaterial(material: Material) {
         const folder = this.materialPane.addFolder({ title: material.label, expanded: false });
         const pbrProps = material.properties as PBRMaterialProperties;
+
+        this.forceUpdateOnChange(folder.addBinding(wrapArrayAsColor(pbrProps.baseColorFactor), 'color', {
+            color: { type: 'float' },
+            picker: 'inline',
+            label: 'Base color factor'
+        }), material);
         this.forceUpdateOnChange(folder.addBinding(pbrProps.albedo, 'textureLayer', {
             label: 'layer',
             step: 1,
@@ -59,9 +65,5 @@ export default class MaterialControl extends MaterialFactory {
     private forceUpdateOnChange(binding: BindingApi<any>, material: Material) {
         binding.on('change', e => material.update(() => {
         }));
-    }
-
-    public static wrapFactory(materialFactory: MaterialFactory): MaterialFactory {
-        return new MaterialControl(materialFactory, new UILayout(document.querySelector('.menu')!));
     }
 }

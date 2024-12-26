@@ -14,6 +14,8 @@ export default class Transform implements Component {
 
     readonly id = Transform.ID;
 
+    public label = 'Unlabeled Transform';
+
     public targetTransform: Transformations;
     public localTransform: Transformations;
     public worldTransform: Transformations;
@@ -23,8 +25,8 @@ export default class Transform implements Component {
                 _scale: vec3,
                 public children: Transform[] = [],
                 private _parent?: Transform,
-                public needsCalculate?: boolean) {
-        this.needsCalculate = true;
+                public needsCalculate: boolean = true) {
+        // this.needsCalculate = true;
 
         this.targetTransform = {
             position: vec3.copy(vec3.create(), _position),
@@ -67,6 +69,13 @@ export default class Transform implements Component {
         return this.worldTransform.scale;
     }
 
+    copy(out: Transformations, toCopy: Transformations) {
+        vec3.copy(out.position, toCopy.position);
+        quat.copy(out.rotation, toCopy.rotation);
+        vec3.copy(out.scale, toCopy.scale);
+        mat4.copy(out.mat4, toCopy.mat4);
+    }
+
     multiply(out: Transformations, matA: Transformations, matB: Transformations) {
         mat4.multiply(out.mat4, matA.mat4, matB.mat4);
         mat4.getTranslation(out.position, out.mat4);
@@ -78,25 +87,11 @@ export default class Transform implements Component {
         return this.worldTransform.mat4;
     }
 
-    /*createModelMatrix(): ModelMatrix {
-        const modelMatrix = mat4.create();
-        return mat4.fromRotationTranslationScale(modelMatrix, this.rotation, this.position, this.scale);
-    }*/
+    rotateByEuler(x: number, y: number, z: number): Transform {
+        quat.fromEuler(this.targetTransform.rotation, x, y, z);
+        quat.fromEuler(this.localTransform.rotation, x, y, z);
 
-    restoreInitialTransform() {
-        /*if (!this.parent) {
-            console.error(this);
-            throw new Error('Restore initial was called on a transform without parent!');
-        }
-        if (!this.localTransform) {
-            console.warn('No local transform. Will not restore initial transform');
-            this.localTransform = this.createModelMatrix();
-            return;
-        }*/
-
-        // mat4.getTranslation(this.position, this.localTransform);
-        // mat4.getScaling(this.scale, this.localTransform);
-        // mat4.getRotation(this.rotation, this.localTransform);
+        return this;
     }
 
     translate(value: vec3 | number[] | Float32Array): Transform {

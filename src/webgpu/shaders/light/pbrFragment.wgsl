@@ -10,7 +10,7 @@ const TAU = radians(360.0);
 
 struct Camera {
     projectionViewMatrix: mat4x4<f32>,                                    // 64 bytes
-    projectionMatrix: mat4x2<f32>,                                        // 64 bytes
+    projectionMatrix: mat4x4<f32>,                                        // 64 bytes
     viewMatrix: mat4x4<f32>,                                              // 64 bytes
     lightProjectionView: array<mat4x4<f32>, MAX_SHADOW_CASTING_LIGHTS>,   // 128 bytes
     position: vec4<f32>,                                                  // 16 bytes
@@ -83,6 +83,7 @@ struct FragmentInput {
     @location(2) textureCoord: vec2<f32>,
     @location(3) tangent: vec3<f32>,
     @location(4) bitangent: vec3<f32>,
+    @location(5) shadowPos: vec4<f32>,
 //    @interpolate(flat) @location(6) instanceID: u32,
 }
 
@@ -102,29 +103,32 @@ struct FragmentInput {
 
 @fragment
 fn main(input: FragmentInput) -> @location(0) vec4<f32> {
-//    let normalizedUv = input.textureCoord;
-
     let normalizedUv = fract(input.textureCoord);
-    var shadowFactor: f32 = 0.0;
+//    var shadowFactor: f32 = 1.0;
+
+//    shadowFactor = 0.0;
 //    for (var i = 0u; i < 1; i++) {
-    for (var i = 0u; i < MAX_SHADOW_CASTING_LIGHTS; i++) {
+//    for (var i = 0u; i < MAX_SHADOW_CASTING_LIGHTS; i++) {
+//        let lightNDC = lightSpacePosition.xyz / lightSpacePosition.w;
+//        let shadowCoord = 0.5 * (lightNDC.xy + vec2<f32>(1.0));
 
-        let lightSpacePosition = camera.lightProjectionView[i] *  vec4<f32>(input.fragPosition, 1.0);
-        let lightNDC = lightSpacePosition.xyz / lightSpacePosition.w;
-        let uv = 0.5 * (lightNDC.xy + vec2<f32>(1.0));
+//        let lightSpacePosition = camera.lightProjectionView[i] *  vec4<f32>(input.fragPosition, 1.0);
+//        let shadowCoord = (lightSpacePosition.xy * 0.5) + 0.5;
+//        let shadowDepth = lightSpacePosition.z * 0.5 + 0.5;
 
-        let shadowDepth = textureSampleCompare(
-            shadowMap,
-            shadowSampler,
-            uv,
-            i,
-            lightNDC.z
-        );
+//        let depthCompare = textureSampleCompare(
+//            shadowMap,
+//            shadowSampler,
+//            shadowCoord,
+//            i,
+//            shadowDepth + 0.0005
+//        );
 
-        shadowFactor += shadowDepth;
-    }
+//       shadowFactor += depthCompare;
+//    }
 
-    shadowFactor /= f32(MAX_SHADOW_CASTING_LIGHTS);
+//    var size = 1024.0; // texture size
+
 
     let uv = material.albedo_map.uv_scale * normalizedUv + material.albedo_map.uv_offset;
     let baseColor = textureSample(globalTextures, globalSampler, uv, material.albedo_map.texture_layer) * material.base_color;
@@ -163,10 +167,21 @@ fn main(input: FragmentInput) -> @location(0) vec4<f32> {
 
     var finalColor: vec3<f32> = vec3<f32>(0.0);
 
+    var size = f32(textureDimensions(shadowMap).x);
+    var shadowFactor = 0.0;
+    var oneOverSize = 1.0;
+    for (var dx = -1; dx <= 1; dx++) {
+        for (var dy = -1; dy <= 1; dy++) {
+            let offset = vec2<f32>(f32(dx) * oneOverSize, f32(dy) * oneOverSize);// * 0.002;
+            shadowFactor += textureSampleCompare(shadowMap, shadowSampler,
+             input.shadowPos.xy + offset, 0, input.shadowPos.z - 0.007);
+        }
+    }
+    shadowFactor /= 0.9;
     // --- Spot Lights ---
     for (var i = 0u; i < light.numSpotLights; i = i + 1u) {
         let spotLight = light.spotLights[i];
-        finalColor += calculateSpotlight(spotLight, input.fragPosition, normalWorld, viewDir, baseColor.rgb, roughnessSquared, metallic, F0) * shadowFactor;
+        finalColor += calculateSpotlight(spotLight, input.fragPosition, normalWorld, viewDir, baseColor.rgb, roughnessSquared, metallic, F0, shadowFactor) * shadowFactor;
     }
 
     // --- Point Lights ---
@@ -257,8 +272,10 @@ fn main(input: FragmentInput) -> @location(0) vec4<f32> {
 
 //      return light.spotLights[0].color;
 //      return baseColor;
-//      return vec4<f32>(finalColor, baseColor.a);
+//      return vec4<f32>(shadowFactor, shadowFactor, shadowFactor, baseColor.a);
       return vec4<f32>(finalColor, baseColor.a);
+//        let depthValue = textureSample(shadowMap, globalSampler, input.shadowPos.xy, 0);
+//        return vec4(depthValue, depthValue, depthValue, 1.0);
 //      return vec4<f32>(normalWorld, baseColor.a);
 }
 
@@ -271,7 +288,8 @@ fn calculateSpotlight(
     baseColor: vec3<f32>,
     roughnessSquared: f32,
     metallic: f32,
-    F0: vec3<f32>
+    F0: vec3<f32>,
+    shadowFactor: f32,
 ) -> vec3<f32> {
     // Compute the light direction
     let lightDir = normalize(spotlight.position.xyz - fragPosition);

@@ -9,7 +9,7 @@ import {
     TextureType,
     ImageWithData
 } from 'core/texture/Texture';
-import DebugUtil from "../../util/DebugUtil";
+import DebugUtil from "../../util/debug/DebugUtil";
 import { GlTextureCache } from "../WebGLGraphics";
 import GlSampler, { GlFunc } from "./GlSampler";
 
@@ -100,7 +100,7 @@ export default class GlTexture {
             return gl.RGBA32F;
         } else if (format === 'rgba8unorm-srgb') {
             return gl.SRGB8_ALPHA8
-        } else if (format === 'depth24plus') {
+        } else if (format === 'depth24plus' || format === 'depth32float') {
             return gl.DEPTH_TEST
         } else {
             throw new Error(`Unknown texture format: ${format}`)

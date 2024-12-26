@@ -23,7 +23,7 @@ import {
     VertexBufferLayout
 } from 'core/resources/gpu/GpuShaderData';
 import ResourceManager, { PipelineHash } from 'core/resources/ResourceManager';
-import DebugUtil from 'util/DebugUtil';
+import DebugUtil from '../../../util/debug/DebugUtil';
 import logger from 'util/Logger';
 import ObjectUtils from 'util/ObjectUtils';
 import glBasicFragmentShader from 'webgl/shaders/basic/basicFragmentShader.frag';
@@ -85,7 +85,7 @@ export default class ShaderManager {
     }
 
     public static INSTANCE_BUFFER_GROUP = {
-        label: 'VERTEX',
+        label: 'VERTEX-INSTANCE',
         entries: [
             VERTEX_STORAGE_BUFFER_STRUCT,
         ]
@@ -113,7 +113,7 @@ export default class ShaderManager {
     //     return this.pipelinesCache['SKY_BOX'];
     // }
 
-    public createShadowPass(layout: BindGroupLayoutId) {
+    public createShadowPass(...shaderLayoutIds: BindGroupLayoutId[]) {
         const uniqueId = ShaderTemplate.SHADOW_PASS;
 
         const properties: PipelineOptions = {
@@ -131,15 +131,14 @@ export default class ShaderManager {
             }
         };
 
-        const shaderLayoutIds = [layout];
-        const [vertexShaderSource, fragmentShaderSource] = this.getShadowPassShaders();
+        const [vertexShaderSource] = this.getShadowPassShaders();
         if (!this.pipelinesCache[uniqueId]) {
             this.pipelinesCache[uniqueId] = this.graphics.initPipeline({
                 label: 'Shadow Pass',
                 shaderLayoutIds,
 
                 options: properties,
-                fragmentShaderSource,
+                // fragmentShaderSource,
 
                 vertexShaderSource,
                 vertexShaderLayout: this.createVertexShaderLayout([
@@ -160,7 +159,6 @@ export default class ShaderManager {
                         "elementsPerVertex": 4
                     }
                 ]),
-                // vertexShaderLayout: this.createVertexShaderLayout([{ elementsPerVertex: 3, dataType: 'float32' }]),
                 vertexShaderStride: 48,
             } as ShaderProgramDescription);
         }
@@ -267,7 +265,7 @@ export default class ShaderManager {
         return ObjectUtils.mergePartial(pipelineOptions, DEFAULT_PIPELINE_OPTIONS);
     }
 
-    private getShadowPassShaders(): [string, string] {
+    private getShadowPassShaders(): [string, string?] {
         if (this.graphics instanceof WebGPUGraphics) {
             const vertexInput = `
                 struct VertexInput {
@@ -281,7 +279,6 @@ export default class ShaderManager {
             const vertexOutput = `
                 struct VertexOutput {
                     @builtin(position) position: vec4<f32>,
-                    @location(0) fragCoord: vec4<f32>,
                 }
             `;
             return [`
@@ -296,29 +293,47 @@ export default class ShaderManager {
                         modelMatrix : mat4x4<f32>,
                     };
                     
-                    @binding(0) @group(0) var<uniform> global : Global;
-                    @binding(1) @group(0) var<uniform> model : Model;
+                    @group(0) @binding(0) var<uniform> global : Global;
+                    @group(1) @binding(0) var<storage, read> modelMatrices: array<mat4x4<f32>>;
                     
                     @vertex
                     fn main(input : VertexInput) -> VertexOutput {
                         var output: VertexOutput;
-                        output.position = global.lightViewProjectionMatrix * model.modelMatrix * vec4<f32>(input.position, 1.0);
-                        output.fragCoord = vec4(input.position, 1.0); 
+                        let modelMatrix = modelMatrices[input.instanceID];
+                        output.position = global.lightViewProjectionMatrix * modelMatrix * vec4<f32>(input.position, 1.0); 
                         return output;
                     }
             `,
-                `
-                    ${vertexOutput}
+                // `
+                //     ${vertexOutput}
+                //
+                //     @fragment
+                //     fn main(input: VertexOutput) -> @location(0) vec4<f32> {
+                //         let depth = input.position.z;
+                //         return vec4<f32>(input.position.xyz, 1.0);
+                //     }
+                // `
+            ];
+        } else {
+            return [
+                `#version 300 es
 
-                    @fragment
-                    fn main(input: VertexOutput) -> @location(0) vec4<f32> {
-                        let depth = input.position.z;
-                        return vec4<f32>(input.position.xyz, 1.0);
-                    }
-            `];
+                layout(location = 0) in vec3 aVertexPosition;
+                layout(location = 1) in vec2 textureUV;
+                layout(location = 2) in vec3 aNormal;
+                layout(location = 3) in vec4 aTangent;
+                    
+                uniform mat4 lightViewProjMatrix;
+                uniform mat4 modelMatrix;
+                    
+                    
+                void main() {
+                    gl_Position = lightViewProjMatrix * modelMatrix * vec4(aVertexPosition, 1.0);
+                }`,
+                ``];
         }
 
-        throw new Error('WEBGL2 Shadow pass shaders are not yet created');
+        // throw new Error('WEBGL2 Shadow pass shaders are not yet created');
     }
 
     private getFragmentSource(shaderName: FragmentShaderName) {
@@ -451,20 +466,20 @@ export default class ShaderManager {
         throw new Error(`Template could not be determined: ${vertexShader} ${fragmentShader}`);
     }
 
-    private getShaderNames(shaderTemplate: ShaderTemplate): [VertexShaderName, FragmentShaderName] {
-        switch (shaderTemplate) {
-            case ShaderTemplate.PBR:
-                return [VertexShaderName.LIT_GEOMETRY, FragmentShaderName.PBR]
-            case ShaderTemplate.PHONG:
-                return [VertexShaderName.LIT_GEOMETRY, FragmentShaderName.PHONG_LIT]
-            case ShaderTemplate.UNLIT:
-                return [VertexShaderName.UNLIT_GEOMETRY, FragmentShaderName.UNLIT]
-            case ShaderTemplate.TERRAIN:
-                return [VertexShaderName.TERRAIN, FragmentShaderName.TERRAIN]
-            default:
-                throw new Error(`Unknown shader template: ${shaderTemplate}`);
-        }
-    }
+    // private getShaderNames(shaderTemplate: ShaderTemplate): [VertexShaderName, FragmentShaderName] {
+    //     switch (shaderTemplate) {
+    //         case ShaderTemplate.PBR:
+    //             return [VertexShaderName.LIT_GEOMETRY, FragmentShaderName.PBR]
+    //         case ShaderTemplate.PHONG:
+    //             return [VertexShaderName.LIT_GEOMETRY, FragmentShaderName.PHONG_LIT]
+    //         case ShaderTemplate.UNLIT:
+    //             return [VertexShaderName.UNLIT_GEOMETRY, FragmentShaderName.UNLIT]
+    //         case ShaderTemplate.TERRAIN:
+    //             return [VertexShaderName.TERRAIN, FragmentShaderName.TERRAIN]
+    //         default:
+    //             throw new Error(`Unknown shader template: ${shaderTemplate}`);
+    //     }
+    // }
 
     // private getShaderLayout(shader: ShaderTemplate): BindGroupLayout[] {
     //     switch (shader) {

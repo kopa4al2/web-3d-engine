@@ -1,4 +1,4 @@
-import DebugUtil from 'util/DebugUtil';
+import DebugUtil from './debug/DebugUtil';
 import { Comparable, Comparator } from 'util/JavaTypes';
 
 export default class JavaMap<K, V> extends Map<K, V> {

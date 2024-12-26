@@ -2,10 +2,11 @@ import { BindGroupLayoutId } from 'core/Graphics';
 import { Blend } from 'core/resources/gpu/Blend';
 import { BufferFormat, BufferId } from "core/resources/gpu/BufferDescription";
 import { TextureSize } from 'core/texture/Texture';
+import Globals from "../../../engine/Globals";
 
 export interface PipelineDepthAttachment {
     disabled?: boolean,
-    depthCompare: 'less' | 'greater' | 'equal',
+    depthCompare: 'less' | 'greater' | 'equal' | 'always' | 'never' | 'less-equal',
     depthWriteEnabled: boolean,
     format: 'depth24plus' | 'depth32float'
 }
@@ -41,7 +42,7 @@ export const DEFAULT_PIPELINE_OPTIONS: PipelineOptions = {
     depthAttachment: {
         depthCompare: 'less',
         depthWriteEnabled: true,
-        format: 'depth24plus'
+        format: Globals.DEFAULT_DEPTH_FN
     }
 };
 
@@ -50,7 +51,7 @@ export interface ShaderProgramDescription {
     options: PipelineOptions,
 
     shaderLayoutIds: BindGroupLayoutId[],
-    fragmentShaderSource: string,
+    fragmentShaderSource?: string,
 
     vertexShaderSource: string,
     vertexShaderLayout: VertexBufferLayout[],

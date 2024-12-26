@@ -13,8 +13,9 @@ import ResourceManager from "core/resources/ResourceManager";
 import ShaderManager from "core/resources/shader/ShaderManager";
 import TextureManager from "core/resources/TextureManager";
 import Texture from "core/texture/Texture";
+import WorkerPool from "core/worker/WorkerPool";
 import { mat4 } from 'gl-matrix';
-import DebugUtil from "../../../util/DebugUtil";
+import DebugUtil from "../../../util/debug/DebugUtil";
 import MathUtil from "../../../util/MathUtil";
 import directionalLight from 'core/light/DirectionalLight';
 import Globals from '../../../engine/Globals';
@@ -32,104 +33,8 @@ export interface GLTFSceneGraph {
     children: GLTFSceneGraph[]
 }
 
-interface WorkerStatus {
-    request?: GLTFWorkerRequest,
-    onFinish?: (result: GLTFWorkerResponse) => void,
-    isBusy: boolean,
-}
-
-class WorkerPool {
-
-    private readonly workersStatus: WeakMap<Worker, WorkerStatus>;
-    private readonly queue: WorkerStatus[] = [];
-
-    constructor(private workers: Worker[] = []) {
-        DebugUtil.addToWindowObject('WorkerPool', this);
-        this.workersStatus = new WeakMap();
-        this.workers.forEach(worker => this._addWorker(worker));
-    }
-
-    addWorker(worker: Worker) {
-        this.workers.push(worker);
-        this._addWorker(worker);
-    }
-
-    removeWorker(worker: Worker) {
-        this.workers = this.workers.filter(w => w !== worker);
-    }
-
-    removeAll() {
-        this.workers.forEach(worker => worker.terminate());
-        this.workers = [];
-    }
-
-    submit(task: GLTFWorkerRequest, onFinish?: (result: GLTFWorkerResponse) => void): Promise<GLTFWorkerResponse> {
-        return new Promise(resolve => {
-            this._enqueueTask(task, onFinish ? onFinish : resolve);
-        })
-    }
-
-    handleError(worker: Worker, error: ErrorEvent) {
-        console.error('General error in worker: ', error, worker);
-    }
-
-    handleMessageError(worker: Worker, error: MessageEvent) {
-        console.error('Message error in worker: ', error, worker);
-    }
-
-    handleMessage(worker: Worker, result: GLTFWorkerResponse) {
-        const workerState = this.workersStatus.get(worker);
-        if (!workerState) {
-            console.error('Worker has finished the job but no state is present: ', worker, workerState);
-            return;
-        }
-
-        const nextTask = this.queue.shift();
-        if (nextTask) {
-            workerState.request = nextTask.request;
-            worker.postMessage(nextTask.request);
-            if (workerState.onFinish) {
-                workerState.onFinish(result);
-            }
-            workerState.onFinish = nextTask.onFinish;
-            return;
-        }
-
-        workerState.isBusy = false;
-        workerState.request = undefined;
-
-        if (workerState.onFinish) {
-            workerState.onFinish(result);
-        }
-
-        workerState.onFinish = undefined;
-    }
-
-    private _enqueueTask(task: GLTFWorkerRequest, onFinish?: (result: GLTFWorkerResponse) => void) {
-        for (const worker of this.workers) {
-            const workerStatus = this.workersStatus.get(worker)!;
-            // for (const [worker, workerStatus] of this.workersStatus) {
-            if (!workerStatus.isBusy) {
-                workerStatus.isBusy = true;
-                worker.postMessage(task);
-                workerStatus.onFinish = onFinish;
-                return;
-            }
-        }
-
-        this.queue.push({ request: task, onFinish, isBusy: false });
-    }
-
-    private _addWorker(worker: Worker) {
-        this.workersStatus.set(worker, { isBusy: false });
-        worker.onerror = (err) => this.handleError(worker, err);
-        worker.onmessage = resp => this.handleMessage(worker, resp.data);
-        worker.onmessageerror = resp => this.handleMessageError(worker, resp);
-    }
-}
-
 export default class GLTFParser {
-    private static readonly workerPool: WorkerPool = new WorkerPool();
+    private static readonly workerPool = new WorkerPool<GLTFWorkerRequest, GLTFWorkerResponse>();
 
     constructor(public rootDir: string, public json: GLTFJson, public buffers: Map<number, ArrayBuffer>, public images: Texture[]) {
         DebugUtil.addToWindowObject('gltf', this);
@@ -163,7 +68,8 @@ export default class GLTFParser {
             const newTransform = node.matrix
                 ? Transform.fromMat4(node.matrix)
                 : defaultTransform();
-
+            
+            newTransform.label = node.name;
             if (parentTransform) {
                 newTransform.parent = parentTransform;
                 parentTransform.children.push(newTransform);
@@ -174,11 +80,13 @@ export default class GLTFParser {
                 subMesh: [],
                 transform: newTransform,
                 setBindGroup: Mesh.prototype.setBindGroup,
+                label: node.name
             };
 
             if (node.mesh) {
 
                 const mesh = this.json.meshes[node.mesh];
+                currentModel.label = mesh.name;
                 if (mesh.primitives.length > 1) {
                     console.warn('MORE than one PRIMITIVES', mesh)
                 }
@@ -278,11 +186,11 @@ export default class GLTFParser {
         }
         
         if (primitive.attributes.TANGENT === undefined) {
-            console.warn(`Geometry with name: ${name} is missing tangent. Will generate TBN Matrix on the cpu`, primitive);
+            console.warn(`Geometry with name: ${name} is missing tangent. Will generate tangents on the cpu`, primitive);
             return geometryFactory.createGeometry(
                 name,
-                VertexShaderName.LIT_GEOMETRY,
-                MathUtil.calculateTBNV({ indices, vertices, normals, texCoords } as GeometryData))
+                VertexShaderName.LIT_TANGENTS_VEC4,
+                MathUtil.calculateTangentsVec4({ indices, vertices, normals, texCoords } as GeometryData))
 
         }
         const tangents = this.parseAccessor(primitive.attributes.TANGENT);
@@ -606,7 +514,7 @@ export interface GLTFScene {
 }
 
 export interface GLTFNode {
-    name?: string,
+    name: string,
     matrix?: mat4,
     mesh?: number;
     children: number[];

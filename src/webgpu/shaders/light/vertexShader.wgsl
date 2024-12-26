@@ -2,7 +2,7 @@ const MAX_SHADOW_CASTING_LIGHTS = 2;
 
 struct Camera {
     projectionViewMatrix: mat4x4<f32>,                                    // 64 bytes
-    projectionMatrix: mat4x2<f32>,                                        // 64 bytes
+    projectionMatrix: mat4x4<f32>,                                        // 64 bytes
     viewMatrix: mat4x4<f32>,                                              // 64 bytes
     lightProjectionView: array<mat4x4<f32>, MAX_SHADOW_CASTING_LIGHTS>,   // 64 bytes
     position: vec4<f32>,                                                  // 16 bytes
@@ -31,7 +31,7 @@ struct VertexOutput {
     @location(2) textureCoord: vec2<f32>,
     @location(3) tangent: vec3<f32>,
     @location(4) bitangent: vec3<f32>,
-//    @location(5) light: array<vec4<f32>, MAX_SHADOW_CASTING_LIGHTS>,
+    @location(5) shadowPos: vec4<f32>,
 //    @interpolate(flat) @location(6) instanceID: u32,
 };
 
@@ -61,6 +61,10 @@ fn main(input: VertexInput) -> VertexOutput {
     output.tangent = tangent;
     output.normal = normal;
     output.bitangent = normalize(bitangent);
+    
+
+    let lightPos = global.lightProjectionView[0] * modelMatrix * vec4(input.position, 1.0);
+    output.shadowPos = vec4(lightPos.xy * vec2(0.5, -0.5) + vec2(0.5, 0.5), lightPos.z, 1.0);
 
     return output;
 }

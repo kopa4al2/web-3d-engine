@@ -19,7 +19,7 @@ export interface MaterialBehaviour {
 
 export default class MaterialFactory {
 
-    constructor(protected resourceManager: ResourceManager) {
+    constructor(private resourceManager: ResourceManager) {
     }
 
     public skybox() {

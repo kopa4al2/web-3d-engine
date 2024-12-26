@@ -32,13 +32,12 @@ import TerrainSystem from 'core/systems/terrain/TerrainSystem';
 import TransformSystem from 'core/systems/TransformSystem';
 import PromiseQueue from "core/utils/PromiseQueue";
 import SdiPerformance from "core/utils/SdiPerformance";
-import { glMatrix, quat, vec2, vec3, vec4 } from 'gl-matrix';
+import { glMatrix, mat4, quat, vec2, vec3, vec4 } from 'gl-matrix';
 // import { enableEntitySelect, LightControls } from 'html/Controls';
 // import { worldCoordinates } from 'html/Views';
 import { SdiColor, SdiDirection, SdiPoint3D } from './types/engine-types/EngineTypes';
-import DebugUtil from './util/DebugUtil';
+import DebugUtil from './util/debug/DebugUtil';
 import ObjectUtils from './util/ObjectUtils';
-import MaterialControl from './engine/ui/controls/MaterialControl';
 
 export default class Engine {
 
@@ -47,9 +46,9 @@ export default class Engine {
 
     private lastFrame: number = 0;
 
-    private readonly resourceManager: ResourceManager;
+    // private readonly resourceManager: ResourceManager;
     private readonly entityFactory: EntityFactory;
-    private readonly materialFactory: MaterialFactory;
+    // private readonly materialFactory: MaterialFactory;
     private readonly geometryFactory: GeometryFactory;
     private readonly modelRepository: ModelRepository;
     private readonly shaderManager: ShaderManager;
@@ -65,12 +64,12 @@ export default class Engine {
         public entityManager: EntityManager,
         public ecs: EntityComponentSystem,
         public projectionMatrix: ProjectionMatrix,
+        public resourceManager: ResourceManager,
+        public materialFactory: MaterialFactory,
         public onRenderPlugins: OnRenderPlugin[]) {
 
-        this.resourceManager = new ResourceManager(graphicsApi);
         this.entityFactory = new EntityFactory(this.entityManager);
         this.shaderManager = new ShaderManager(this.graphicsApi, this.resourceManager);
-        this.materialFactory = MaterialControl.wrapFactory(new MaterialFactory(this.resourceManager));
         this.geometryFactory = new GeometryFactory(this.resourceManager);
         this.modelRepository = new ModelRepository(this.geometryFactory, this.materialFactory, this.shaderManager, this.resourceManager);
 
@@ -138,7 +137,7 @@ export default class Engine {
         const sunLight = new DirectionalLight({
             direction: new SdiDirection(-0.13, -0.2, -0.1, 1.0),
             color: new SdiColor(1.0, 1.0, 1.0, 1.0),
-            intensity: 1.0
+            intensity: 0.0
         });
         const sunLightEntity = this.entityFactory.createEntity('Sun', sunLight);
         this.scene.addEntities(sunLightEntity);
@@ -151,28 +150,37 @@ export default class Engine {
         //     defaultTransform().translate([0, 30, 0]));
 
 
-        const spotLightTransform = defaultTransform().translate(vec3.fromValues(-5, -20, 10));
-        this.createSpotLight('SPOT_LIGHT_1', {
-                color: vec4.fromValues(0, 1, 1, 1),
-                intensity: 20,
-                innerCutoff: Math.cos(glMatrix.toRadian(60.0)),
-                outerCutoff: Math.cos(glMatrix.toRadian(90.0)),
-                quadraticAttenuation: 0.004
-            }, spotLightTransform
-        );
+        // const spotLightTransform = defaultTransform()
+        //     .translate(vec3.fromValues(3, 5, 0))
+        //     .rotateByEuler(0, 90, 45);
+        const matrix = mat4.targetTo(mat4.create(), vec3.fromValues(3, 5, 1), vec3.fromValues(0, 0, 0), vec3.fromValues(0, 1, 0));
+        const transform = new Transform(mat4.getTranslation(vec3.create(), matrix), mat4.getRotation(quat.create(), matrix), vec3.fromValues(1, 1, 1));
 
-        this.createSpotLight('SPOT_LIGHT_2', {
-            color: vec4.fromValues(1, 0, 1, 1),
-            intensity: 10,
-            innerCutoff: Math.cos(glMatrix.toRadian(30.0)),
-            outerCutoff: Math.cos(glMatrix.toRadian(40.0)),
-            quadraticAttenuation: 0.04
-        }, defaultTransform().translate(vec3.fromValues(5, 20, -10)));
+        this.loadAndAddMesh('Crate1', () => this.modelRepository.createCrate(), [-2, 1, 0])
+        // this.loadAndAddMesh('LightBulb', () => this.modelRepository.lightBulb(), [0, 1, 0])
+        this.loadAndAddMesh('Crate2', () => this.modelRepository.createCrate(), [0, 2, 0])
+        this.createSpotLight('White Spotlight', {
+                color: vec4.fromValues(1, 1, 1, 1),
+                intensity: 5,
+                innerCutoff: Math.cos(glMatrix.toRadian(20.0)),
+                outerCutoff: Math.cos(glMatrix.toRadian(20.0)),
+                linearAttenuation: 0.1,
+                quadraticAttenuation: 0.0032
+            }, transform
+        );
+        //
+        // this.createSpotLight('SPOT_LIGHT_2', {
+        //     color: vec4.fromValues(1, 0, 1, 1),
+        //     intensity: 5,
+        //     innerCutoff: Math.cos(glMatrix.toRadian(30.0)),
+        //     outerCutoff: Math.cos(glMatrix.toRadian(40.0)),
+        //     quadraticAttenuation: 0.04
+        // }, defaultTransform().translate(vec3.fromValues(0, 10, 0)));
 
         // this.createPointLight('Red', { color: PointLight.WARM_LIGHT }, defaultTransform().translate([10, 10, 0]));
 
 
-        // this.loadAndAddMesh(() => this.modelRepository.createCrate(), [10, 15, -15])
+        // this.loadAndAddMesh('crate 2', () => this.modelRepository.createCrate(), [0, -3, 0])
         // this.loadAndAddMesh(() => this.modelRepository.lightBulb(), [10, 15, -15])
 
 
@@ -188,25 +196,24 @@ export default class Engine {
 
         // this.modelRepository.lightBulb().then(meshes => {
         //     const lightTransform = defaultTransform();
-        //     meshes.modelMatrix.children.push(lightTransform);
-        //     lightTransform.parent = meshes.modelMatrix;
-        //     mat4.targetTo(lightTransform.worldTransform.mat4, lightTransform.localTransform.position, meshes.modelMatrix, vec3.fromValues(0, 1, 0));
+        //     meshes.transform.children.push(lightTransform);
+        //     lightTransform.parent = meshes.transform;
+        //     mat4.targetTo(lightTransform.worldTransform.mat4, lightTransform.localTransform.position, meshes.transform, vec3.fromValues(0, 1, 0));
         //     traverse(meshes, mesh => {
         //         if (!mesh.pipelineId) {
-        //             const entityId = this.entityFactory.createEntity(`no-transform`, mesh.modelMatrix);
+        //             const entityId = this.entityFactory.createEntity(`no-transform`, mesh.transform);
         //             this.scene.addEntity(entityId);
         //             return;
         //         }
         //         const entityId = this.entityFactory.createEntityInstance(
         //             `${ mesh.geometry.vertexBuffer.toString() }`,
-        //             mesh, mesh.modelMatrix);
+        //             mesh, mesh.transform);
         //         this.scene.addEntities(entityId);
         //     });
         //     promiseQueue
         //         .addTask(async () => this.createSpotLight('BulbLight', { color: vec4.fromValues(1.0, 0.2, 0.7, 1) }, lightTransform));
         // });
 
-        this.loadAndAddMesh(() => this.modelRepository.createCrate(), [-5, 10, 10])
         SdiPerformance.log('Begin loading Sponza Atrium');
         this.modelRepository.drawScene()
             .then(meshes => {
@@ -215,7 +222,7 @@ export default class Engine {
                 traverse(meshes, mesh => {
                     i += 1;
                     if (!mesh.pipelineId) {
-                        const entityId = this.entityFactory.createEntity(`no-mesh-${i}`, mesh.transform);
+                        const entityId = this.entityFactory.createEntity(`${mesh.label}`, mesh.transform);
                         this.scene.addEntity(entityId);
                         return;
                     }
@@ -223,7 +230,8 @@ export default class Engine {
                     //     return;
                     // }
                     const entityId = this.entityFactory.createEntityInstance(
-                        `${i}-${mesh.geometry.vertexBuffer.toString()}`,
+                        `${mesh.label}`,
+                        // `${i}-${mesh.geometry.vertexBuffer.toString()}`,
                         mesh, mesh.transform);
                     this.scene.addEntities(entityId);
                 });
@@ -303,15 +311,13 @@ export default class Engine {
 
     private createSpotLight(label: string, props: Partial<SpotLightProps>, transform: Transform = defaultTransform()) {
         const defaultProps: SpotLightProps = {
-            // position: vec4.fromValues(0, 0, 0, 1),
-            // direction: quat.create(),
             color: vec4.fromValues(1, 1, 1, 1),
             innerCutoff: Math.cos(glMatrix.toRadian(20.0)),
             outerCutoff: Math.cos(glMatrix.toRadian(30.0)),
             intensity: 5.0,
             constantAttenuation: 1.0,
             linearAttenuation: 0.09,
-            quadraticAttenuation: 0.032
+            quadraticAttenuation: 0.0032
         };
         const light = new SpotLight(ObjectUtils.mergePartial(props, defaultProps));
         this.scene.addEntities(this.entityFactory.createEntity(label, light, transform));
@@ -434,16 +440,24 @@ export default class Engine {
     }
 
     private createFreeCamera() {
+        const forward = vec3.fromValues(0, 0, -1);
+        const up = vec3.fromValues(0, 1, 0);
+        const rotation = quat.fromEuler(quat.create(), 0, 90, 10);
+        const position = vec3.fromValues(5, 3, 0);
         return new CameraComponent(
-            vec3.fromValues(52, 12, -1.5),
-            quat.fromValues(-0.07, 0.7, 0.07, 0.7),
-            0.2,
-            15.0,
-            30,
-            30,
-            30,
-            vec3.fromValues(-1, 0.2, 0),
-            vec3.fromValues(0.2, 1, 0)
+            // vec3.fromValues(52, 12, -1.5),
+            position,
+            rotation,
+            // quat.fromValues(-0.07, 0.7, 0.07, 0.7),
+            0.3,
+            15.0, // lerp factor
+            10, // max speed
+            10, // acceleration
+            30, // deceleration
+            forward,
+            up,
+            // vec3.fromValues(-1, 0.2, 0),
+            // vec3.fromValues(0.2, 1, 0)
         );
     }
 
@@ -491,15 +505,12 @@ export default class Engine {
     //     this.scene.addEntity(this.createEntity(name), mesh, transform.createModelMatrix())
     //     this.scene.addEntity(this.createEntity(`${name}-bounding_sphere`), meshBoundingBox, transform.createModelMatrix())
     // }
-    private loadAndAddMesh(meshCreator: (cache?: boolean) => Promise<Mesh>, translate: number[] = [0, 0, 0]) {
+    private loadAndAddMesh(label: string, meshCreator: (cache?: boolean) => Promise<Mesh>, translate: number[] = [0, 0, 0]) {
         meshCreator()
             .then(mesh => {
-                const transform = Transform.copyOf(mesh.transform).translate(translate);
-                const transform2 = Transform.copyOf(mesh.transform).translate([3, 40, 5]);
-                mesh.transform = transform;
                 this.scene.addEntities(
-                    this.entityFactory.createEntityInstance(`${mesh.material.label}`, mesh, transform),
-                    this.entityFactory.createEntityInstance(`${mesh.material.label}`, mesh, transform2),
+                    this.entityFactory.createEntityInstance(label, mesh, mesh.transform.translate(translate)),
+                    // this.entityFactory.createEntityInstance(label, mesh, transform2),
                     // this.entityFactory.createEntityInstance('crate', mesh, mesh.transform.scaleBy(0.05).translate([0, 0, 0])),
                     // this.entityFactory.createEntityInstance('crate', mesh, mesh.transform.scaleBy(0.1).translate([8, -41, -67])),
                     // this.entityFactory.createEntityInstance('crate', mesh, mesh.transform.scaleBy([0.16, 0.08, 0.08]).translate([15, 25, -2])),

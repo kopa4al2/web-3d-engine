@@ -7,36 +7,55 @@ import DirectionalLight from 'core/light/DirectionalLight';
 import PointLight from 'core/light/PointLight';
 import SpotLight from "core/light/SpotLight";
 import { PBRMaterialProperties } from 'core/mesh/material/MaterialProperties';
-import DebugUtil from '../../../util/DebugUtil';
+import DebugUtil from '../../../util/debug/DebugUtil';
 import UILayout from '../UILayout';
 import { checkEvery } from "../utils";
 import { LightControl } from './LightControl';
 import TransformControl from './TransformControl';
+import MeshControl from './MeshControl';
 
 interface EntityComponent {
     components: Component[],
-    pane: ContainerApi,
+    pane?: ContainerApi,
     name: EntityName,
+    isProcessed?: boolean,
+    category: 'DIR_LIGHT' | 'SPOT_LIGHT' | 'POINT_LIGHT' | 'UNCATEGORIZED'
 }
 
-type Folder = 'LIGHT' | 'ENTITY' | 'POINT_LIGHT' | 'DIRECTIONAL_LIGHT' | 'SPOT_LIGHT' | 'TRANSFORMS'
+type Folder = 'LIGHT' | 'ENTITY' | 'POINT_LIGHTS' | 'DIRECTIONAL_LIGHTS' | 'SPOT_LIGHTS' | 'TRANSFORMS' | 'MESHES'
 export default class EntityControl extends EntityManager {
 
-    private readonly rootFolder: FolderApi;
+    private readonly tempFolder: FolderApi;
     private _entities: WeakMap<EntityId, EntityComponent> = new WeakMap();
-    private readonly folders: Map<Folder, ContainerApi> = new Map();
+    private readonly folders: Map<Folder, FolderApi> = new Map();
+    private meshControl: MeshControl;
 
     constructor(private entityManager: EntityManager, layout: UILayout) {
         super();
-        this.rootFolder = layout.addFolder('Entities', false);
-        const lightsPane = layout.addFolder('Lights', false);
-        this.folders.set('LIGHT', lightsPane);
-        this.folders.set('DIRECTIONAL_LIGHT', lightsPane.addFolder({ title: 'Directional lights', expanded: true }));
-        this.folders.set('POINT_LIGHT', lightsPane.addFolder({ title: 'Point lights', expanded: true }));
-        this.folders.set('SPOT_LIGHT', lightsPane.addFolder({ title: 'Spot lights', expanded: true }));
-        this.folders.set('ENTITY', this.rootFolder);
-        this.folders.set('TRANSFORMS', this.rootFolder);
-        // this.rootFolder = layout.newPane('Entities');
+        this.tempFolder = layout.addFolder('Entities', false, true, false);
+        
+        const lightsTab = layout.getTopLevelContainer('LIGHTS');
+        this.folders.set('DIRECTIONAL_LIGHTS', lightsTab.addFolder({
+            title: 'Directional lights',
+            expanded: true,
+            hidden: true
+        }));
+        this.folders.set('SPOT_LIGHTS', lightsTab.addFolder({
+            title: 'Spot lights',
+            expanded: true,
+            hidden: true
+        }));
+        this.folders.set('POINT_LIGHTS', lightsTab.addFolder({
+            title: 'Point lights',
+            expanded: false,
+            hidden: true
+        }));
+
+        const entitiesTab = layout.getTopLevelContainer('ENTITIES');
+        const meshesFolder = entitiesTab.addFolder({ title: 'Meshes', expanded: true, hidden: true });
+        this.folders.set('MESHES', meshesFolder);
+        this.meshControl = new MeshControl(meshesFolder);
+        
         DebugUtil.addToWindowObject('entityControl', this);
     }
 
@@ -69,160 +88,69 @@ export default class EntityControl extends EntityManager {
 
     addComponents(entityId: EntityId, components: Component[]) {
         this.entityManager.addComponents(entityId, components);
-        this._addComponents(entityId, ...components);
+        this._entityAdded(entityId, components);
     }
 
-    addComponent(entityId: EntityId, component: Component) {
-        this.entityManager.addComponent(entityId, component);
-        this._addComponents(entityId, component);
-    }
+    // addComponent(entityId: EntityId, component: Component) {
+    //     this.entityManager.addComponent(entityId, component);
+    //     this._addComponents(entityId, component);
+    // }
 
     private registerEntity(title: string, entity: EntityId) {
         if (this._entities.has(entity)) {
-            console.warn(`Entity ${ entity.description } already registered`);
+            console.warn(`Entity ${entity.description} already registered`);
             return;
         }
 
-        // const pane = this.rootFolder.addFolder({ title, expanded: false });
-        // this._entities.set(entity, { components: [], pane });
-        const pane = this.rootFolder.addFolder({ title, expanded: false });
-        this._entities.set(entity, { components: [], name: title, pane });
+        const pane = this.tempFolder.addFolder({ title, expanded: false });
+        this._entities.set(entity, { components: [], name: title, pane, category: 'UNCATEGORIZED' });
     }
 
-    private _addComponents(entityId: EntityId, ...componentsToAdd: Component[]) {
-        const entityComponent = this._entities.get(entityId);
-        if (!entityComponent) {
-            console.warn(`Entity ${ entityId.description } does not exist`);
+    private _entityAdded(entityId: EntityId, components: Component[]) {
+        const entityComponent = this._entities.get(entityId)!;
+        if (entityComponent.isProcessed) {
+            console.warn(`Entity Added: ${entityId.description} is processed`);
+            console.warn(`TODO: Probably you are adding a component to an existing entity which is fine, but the controls do not support it. The new component will not be available in the menu`);
             return;
         }
 
-        const { name, components, pane } = entityComponent;
+        const { pane, name } = entityComponent;
+        entityComponent.isProcessed = true;
+        let hasTransformComponent: Transform | undefined;
+        for (const component of components) {
+            if (component.id === DirectionalLight.ID) {
+                const dirLightTab = this.folders.get('DIRECTIONAL_LIGHTS')!;
+                const folder = UILayout.moveFolder(dirLightTab, pane as FolderApi);
+                dirLightTab.hidden = false;
+                LightControl.addDirectionalLight(folder, component as DirectionalLight);
+                return;
+            } else if (component.id === SpotLight.ID) {
+                const spotLightTab = this.folders.get('SPOT_LIGHTS')!;
+                const folder = UILayout.moveFolder(spotLightTab, pane as FolderApi);
+                spotLightTab.hidden = false;
+                LightControl.addSpotLightV2(folder, components);
+                return;
+            } else if (component.id === PointLight.ID) {
+                const pointLightTab = this.folders.get('POINT_LIGHTS')!;
+                const folder = UILayout.moveFolder(pointLightTab, pane as FolderApi);
+                pointLightTab.hidden = false;
+                LightControl.addPointLightV2(folder, components);
+                return;
+            } else if (component.id === Mesh.ID) {
+                const meshesTab = this.folders.get('MESHES')!;
+                meshesTab.hidden = false;
 
-        for (const component of componentsToAdd) {
-            components.push(component);
-            switch (component.id) {
-                case Transform.ID:
-                    const transformComponent = component as Transform;
-                    if (transformComponent.parent) {
-                        this._addTransformControl(pane, transformComponent);
-                    }
-                    break;
-                case Mesh.ID:
-                    checkEvery(() => {
-                        const transform = components.find(c => c.id === Transform.ID) as Transform;
-                        if (transform) {
-                            TransformControl.create(pane, transform);
-                            return true;
-                        }
-                        return false;
-                    });
-                    this._addMeshControl(pane, component as Mesh);
-                    break;
-                case PointLight.ID:
-                    checkEvery(() => {
-                        const transform = components.find(c => c.id === Transform.ID) as Transform;
-                        if (transform) {
-                            TransformControl.createTranslate(pane, transform);
-                            return true;
-                        }
-                        return false;
-                    });
-
-                    const container = this.folders.get('POINT_LIGHT')!;
-                    this.swapContainers(pane, this.rootFolder, container);
-                    LightControl.addPointLight(pane, component as PointLight);
-                    break;
-                case DirectionalLight.ID:
-                    const dirLightContainer = this.folders.get('DIRECTIONAL_LIGHT')!;
-                    this.swapContainers(pane, this.rootFolder, dirLightContainer);
-                    LightControl.addDirectionalLight(pane, component as DirectionalLight);
-                    break;
-                case SpotLight.ID:
-                    checkEvery(() => {
-                        const transform = components.find(c => c.id === Transform.ID) as Transform;
-                        if (transform) {
-                            TransformControl.create(pane, transform);
-                            return true;
-                        }
-                        return false;
-                    });
-                    const spotLightContainer = this.folders.get('SPOT_LIGHT')!;
-                    this.swapContainers(pane, this.rootFolder, spotLightContainer);
-                    LightControl.addSpotLight(pane, component as SpotLight);
-                    break;
-                default: {
-                    // @ts-ignore
-                    // this.rootFolder.remove(pane)
-                    console.warn(`Entity ${ entityId.description } has component: ${ component.id.description } that cannot be processed`, components.pop());
-                }
+                this.meshControl.addMesh(pane as FolderApi, components);
+                return;
+            } else if (component.id === Transform.ID) {
+                hasTransformComponent = component as Transform;
             }
         }
-    }
 
-    private swapContainers(container: ContainerApi, oldParent: ContainerApi, newParent: ContainerApi) {
-        // @ts-ignore
-        oldParent.remove(container);
-        // @ts-ignore
-        newParent.add(container);
-        // setTimeout(() => newParent.add(container), 100);
-    }
-
-    private _addMeshControl(pane: ContainerApi, mesh: Mesh) {
-        if (!(mesh.material.properties instanceof PBRMaterialProperties)) {
-            console.warn(`Material: ${ mesh.material.label } will be skipped`, mesh.material);
-            return;
+        if (hasTransformComponent) {
+            this.meshControl.addLonelyTransform(pane as FolderApi, hasTransformComponent, name)
         }
 
-        const folder = pane.addFolder({ title: 'material', expanded: false });
-        // const folder = pane.addFolder({ title: mesh.material.label, expanded: false });
-        const pbrMat = mesh.material.properties as PBRMaterialProperties;
-        const color = {
-            r: pbrMat.baseColorFactor[0],
-            g: pbrMat.baseColorFactor[1],
-            b: pbrMat.baseColorFactor[2],
-            a: pbrMat.baseColorFactor[3]
-        };
-
-        folder.addBinding({ color }, 'color', { label: 'baseColor', color: { type: 'float' }, picker: 'inline' })
-            // folder.addBinding(wrapArrayAsColor(pbrMat.baseColorFactor), 'color', { label: 'baseColor', color: { type: 'float' }, picker: 'inline' })
-            .on('change', (e) => {
-                mesh.material.update<PBRMaterialProperties>(props => {
-                    props.baseColorFactor[0] = e.value.r;
-                    props.baseColorFactor[1] = e.value.g;
-                    props.baseColorFactor[2] = e.value.b;
-                    props.baseColorFactor[3] = e.value.a;
-                })
-            });
-    }
-
-    private _addTransformToParent(pane: ContainerApi, transform: Transform) {
-        const entities = this.getEntitiesHavingAll(Transform.ID);
-        const parent = entities.find(e => this.getComponent(e, Transform.ID) === transform.parent);
-        if (!parent) {
-            console.error('Transform without parent in the pool: ', transform)
-            throw new Error('Transform should have parent');
-        }
-
-        const transformParentPane = this._entities.get(parent)!.pane;
-        this.swapContainers(pane, this.rootFolder, transformParentPane);
-
-        TransformControl.create(pane, transform);
-    }
-
-    private _addTransformControl(pane: ContainerApi, transform: Transform) {
-        if (transform.parent) {
-            const entities = this.getEntitiesHavingAll(Transform.ID);
-            const parent = entities.find(e => this.getComponent(e, Transform.ID) === transform.parent);
-            if (!parent) {
-                console.error('Transform without parent in the pool: ', transform)
-                throw new Error('Transform should have parent');
-            }
-
-            const transformParentPane = this._entities.get(parent)!.pane;
-            this.swapContainers(pane, this.rootFolder, transformParentPane);
-        }
-
-
-        TransformControl.create(pane, transform);
+        entityComponent.isProcessed = false;
     }
 }

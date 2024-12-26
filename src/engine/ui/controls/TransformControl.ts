@@ -14,10 +14,6 @@ export default class TransformControl {
                 'xyzw',
                 { picker: 'inline', label: 'translate', min: -1000, max: 1000, step: 1 })
             .on('change', e => {
-                // const curr = transform.targetTransform.position;
-                // let newPosition = vec3.fromValues(e.value.x, e.value.y, e.value.z);
-                // console.log(curr, newPosition)
-                // transform.targetTransform.position = vec3.add(vec3.create(), newPosition, curr);
                 // todo: this still needs some work, and i dont know if i should invest
 
                 // const worldMovement = transform.targetTransform.position;
@@ -29,17 +25,16 @@ export default class TransformControl {
     }
 
     public static create(parent: ContainerApi, transform: Transform) {
-        return;
-        const transformFolder = parent.addFolder({ title: 'transformation', expanded: true });
-        this.createTranslate(transformFolder.addFolder({ title: 'translation', expanded: true }), transform);
+        const transformFolder = parent.addFolder({ title: 'transformation', expanded: false });
+        this.createTranslate(transformFolder.addFolder({ title: 'translation', expanded: false }), transform);
 
-        const rotationFolder = transformFolder.addFolder({ title: 'rotation', expanded: true });
+        const rotationFolder = transformFolder.addFolder({ title: 'rotation', expanded: false });
 
         rotationFolder.addBinding(wrapArrayAsXYZW(transform.targetTransform.rotation), 'xyzw', {
             view: 'rotation',
             picker: 'inline',
             label: 'rotation',
-            expanded: true,
+            expanded: false,
         });
 
         const scaleFolder = transformFolder.addFolder({ title: 'scale', expanded: false });

@@ -8,7 +8,7 @@ import { DEFAULT_PIPELINE_OPTIONS, PipelineOptions } from 'core/resources/gpu/Gp
 import ShaderManager from 'core/resources/shader/ShaderManager';
 import TextureManager from 'core/resources/TextureManager';
 import Texture from "core/texture/Texture";
-import DebugUtil from 'util/DebugUtil';
+import DebugUtil from '../../util/debug/DebugUtil';
 import logger from 'util/Logger';
 import ObjectUtils from 'util/ObjectUtils';
 import glBasicFragmentShader from 'webgl/shaders/basic/basicFragmentShader.frag';
@@ -90,6 +90,7 @@ export default class ResourceManager {
                         // mipmapFilter: 'nearest',
                         addressModeU: 'repeat',
                         addressModeV: 'repeat',
+                        addressModeW: 'repeat',
                         targetTexture: this.textureManager.getTextureArrayIdForSize(TextureManager.MAX_TEXTURE_ARRAY_SIZE),
                     }),
                     binding: 4,
@@ -127,8 +128,10 @@ export default class ResourceManager {
                         label: 'ShadowMapSampler',
                         magFilter: 'linear',
                         minFilter: 'linear',
+                        mipmapFilter: 'linear',
                         addressModeU: 'clamp-to-edge',
                         addressModeV: 'clamp-to-edge',
+                        addressModeW: 'clamp-to-edge',
                         compare: 'less',
                         targetTexture: this.textureManager.getShadowMap(),
                     }),
