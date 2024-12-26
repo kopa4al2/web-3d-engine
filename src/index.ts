@@ -15,6 +15,9 @@ import WebGPUGraphics from "webgpu/graphics/WebGPUGraphics";
 import EntityControl from './engine/ui/controls/EntityControl';
 import UILayout from "./engine/ui/UILayout";
 import FpsCounter from "./engine/ui/views/FpsCounter";
+import ResourceManager from 'core/resources/ResourceManager';
+import MaterialControl from './engine/ui/controls/MaterialControl';
+import MaterialFactory from 'core/factories/MaterialFactory';
 
 // OVERRIDE SYMBOL TO STRING FOR DEBUGGING
 Symbol.prototype.toString = function () {
@@ -301,6 +304,8 @@ async function createEngine(
 
     const fpsCounter = new FpsCounter(uiLayout);
     const entityControl = new EntityControl(entityManager, uiLayout);
+    const resourceManager = new ResourceManager(graphics);
+    const materialFactory = new MaterialControl(new MaterialFactory(resourceManager), uiLayout);
 
     const engine = new Engine(
         label,
@@ -310,9 +315,10 @@ async function createEngine(
         entityControl,
         new EntityComponentSystem(),
         projectionMatrix,
+        resourceManager,
+        materialFactory,
         [onRender, fpsCounter.tick.bind(fpsCounter)],
     );
-    // enableWireframeSwitch(properties, canvas.parent);
 
     engine.initializeScene();
 

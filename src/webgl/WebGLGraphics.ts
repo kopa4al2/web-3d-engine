@@ -22,6 +22,10 @@ const idGenerator = (() => {
     }
 })();
 
+const EMPTY_FRAGMENT_SHADER = `#version 300 es 
+                               void main() {}
+                               `;
+
 export type GlTextureCache = { glTexture: WebGLTexture, metaData: TextureDescription, activeTexture: number }
 export type GlSamplerCache = { glSampler: WebGLSampler, targetTexture?: TextureId, }
 
@@ -81,7 +85,7 @@ export default class WebGLGraphics implements Graphics {
         const shaderProgram = gl.createProgram() as WebGLProgram;
 
         gl.attachShader(shaderProgram, this.loadShader(gl.VERTEX_SHADER, shader.vertexShaderSource));
-        gl.attachShader(shaderProgram, this.loadShader(gl.FRAGMENT_SHADER, shader.fragmentShaderSource));
+        gl.attachShader(shaderProgram, this.loadShader(gl.FRAGMENT_SHADER, shader.fragmentShaderSource || EMPTY_FRAGMENT_SHADER));
         gl.linkProgram(shaderProgram);
 
         if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {

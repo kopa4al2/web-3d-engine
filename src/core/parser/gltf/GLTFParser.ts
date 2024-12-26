@@ -163,7 +163,8 @@ export default class GLTFParser {
             const newTransform = node.matrix
                 ? Transform.fromMat4(node.matrix)
                 : defaultTransform();
-
+            
+            newTransform.label = node.name;
             if (parentTransform) {
                 newTransform.parent = parentTransform;
                 parentTransform.children.push(newTransform);
@@ -174,11 +175,13 @@ export default class GLTFParser {
                 subMesh: [],
                 transform: newTransform,
                 setBindGroup: Mesh.prototype.setBindGroup,
+                label: node.name
             };
 
             if (node.mesh) {
 
                 const mesh = this.json.meshes[node.mesh];
+                currentModel.label = mesh.name;
                 if (mesh.primitives.length > 1) {
                     console.warn('MORE than one PRIMITIVES', mesh)
                 }
@@ -278,11 +281,11 @@ export default class GLTFParser {
         }
         
         if (primitive.attributes.TANGENT === undefined) {
-            console.warn(`Geometry with name: ${name} is missing tangent. Will generate TBN Matrix on the cpu`, primitive);
+            console.warn(`Geometry with name: ${name} is missing tangent. Will generate tangents on the cpu`, primitive);
             return geometryFactory.createGeometry(
                 name,
-                VertexShaderName.LIT_GEOMETRY,
-                MathUtil.calculateTBNV({ indices, vertices, normals, texCoords } as GeometryData))
+                VertexShaderName.LIT_TANGENTS_VEC4,
+                MathUtil.calculateTangentsVec4({ indices, vertices, normals, texCoords } as GeometryData))
 
         }
         const tangents = this.parseAccessor(primitive.attributes.TANGENT);
@@ -606,7 +609,7 @@ export interface GLTFScene {
 }
 
 export interface GLTFNode {
-    name?: string,
+    name: string,
     matrix?: mat4,
     mesh?: number;
     children: number[];

@@ -164,10 +164,32 @@ export default class WebGPUGraphics implements Graphics {
             label: 'vertexShader',
             code: shader.vertexShaderSource
         });
-        const fragmentShader = device.createShaderModule({
-            label: 'fragmentShader',
-            code: shader.fragmentShaderSource
-        });
+
+        let fragment: GPUFragmentState | undefined = undefined;
+        const targets: [GPUColorTargetState | null] = options.colorAttachment.disabled
+            ? [null]
+            : [
+                {
+                    // format: 'rgba16float',
+                    // format: 'rgba8unorm',
+                    // format: 'bgra8unorm',
+                    format: options.colorAttachment.format,
+                    blend: options.colorAttachment.blendMode,
+                    writeMask: options.colorAttachment.writeMask === 'ALL'
+                        ? GPUColorWrite.ALL
+                        : GPUColorWrite.RED | GPUColorWrite.GREEN | GPUColorWrite.BLUE
+                },
+            ];
+        if (shader.fragmentShaderSource) {
+            fragment = {
+                module: device.createShaderModule({
+                    label: 'fragmentShader',
+                    code: shader.fragmentShaderSource
+                }),
+                entryPoint: 'main',
+                targets,
+            };
+        }
 
         const bindGroupLayouts = shader.shaderLayoutIds.map(id => this.shaderLayouts.get(id)!)
         const layout = device.createPipelineLayout({ bindGroupLayouts, label: `pipeline-layout-${ shader.label }` });
@@ -188,20 +210,7 @@ export default class WebGPUGraphics implements Graphics {
                 depthCompare: options.depthAttachment.depthCompare,
             };
 
-        const targets: [GPUColorTargetState | null] = options.colorAttachment.disabled
-            ? [null]
-            : [
-                {
-                    // format: 'rgba16float',
-                    // format: 'rgba8unorm',
-                    // format: 'bgra8unorm',
-                    format: options.colorAttachment.format,
-                    blend: options.colorAttachment.blendMode,
-                    writeMask: options.colorAttachment.writeMask === 'ALL'
-                        ? GPUColorWrite.ALL
-                        : GPUColorWrite.RED | GPUColorWrite.GREEN | GPUColorWrite.BLUE
-                },
-            ];
+        
         this.pipelines.set(pipelineId, device.createRenderPipeline({
             label: `pipeline-${ shader.label }`,
             layout,
@@ -210,11 +219,7 @@ export default class WebGPUGraphics implements Graphics {
                 entryPoint: 'main',
                 buffers,
             },
-            fragment: {
-                module: fragmentShader,
-                entryPoint: 'main',
-                targets,
-            },
+            fragment,
             primitive: {
                 topology: (this.props.getBoolean('wireframe') || options.wireframe) ? 'line-list' : 'triangle-list',
                 frontFace: 'ccw',

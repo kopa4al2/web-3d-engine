@@ -370,6 +370,149 @@ class MathUtil {
         return bitangents;
     }
 
+    calculateTangents({ vertices, normals, texCoords, indices }: GeometryData): GeometryData {
+        const tangents = new Float32Array(vertices.length);
+
+        for (let i = 0; i < indices.length; i += 3) {
+            const i0 = indices[i];
+            const i1 = indices[i + 1];
+            const i2 = indices[i + 2];
+
+            // Positions
+            const p0 = vec3.fromValues(vertices[i0 * 3], vertices[i0 * 3 + 1], vertices[i0 * 3 + 2]);
+            const p1 = vec3.fromValues(vertices[i1 * 3], vertices[i1 * 3 + 1], vertices[i1 * 3 + 2]);
+            const p2 = vec3.fromValues(vertices[i2 * 3], vertices[i2 * 3 + 1], vertices[i2 * 3 + 2]);
+
+            // UVs
+            const uv0 = vec2.fromValues(texCoords[i0 * 2], texCoords[i0 * 2 + 1]);
+            const uv1 = vec2.fromValues(texCoords[i1 * 2], texCoords[i1 * 2 + 1]);
+            const uv2 = vec2.fromValues(texCoords[i2 * 2], texCoords[i2 * 2 + 1]);
+
+            // Edges of the triangle
+            const deltaPos1 = vec3.subtract(vec3.create(), p1, p0);
+            const deltaPos2 = vec3.subtract(vec3.create(), p2, p0);
+
+            const deltaUV1 = vec2.subtract(vec2.create(), uv1, uv0);
+            const deltaUV2 = vec2.subtract(vec2.create(), uv2, uv0);
+
+            const r = 1.0 / (deltaUV1[0] * deltaUV2[1] - deltaUV1[1] * deltaUV2[0]);
+
+            const tangent = vec3.create();
+            vec3.scale(
+                tangent,
+                vec3.subtract(
+                    vec3.create(),
+                    vec3.scale(vec3.create(), deltaPos1, deltaUV2[1]),
+                    vec3.scale(vec3.create(), deltaPos2, deltaUV1[1])
+                ),
+                r
+            );
+
+            // Accumulate tangents
+            for (const idx of [i0, i1, i2]) {
+                tangents[idx * 3] += tangent[0];
+                tangents[idx * 3 + 1] += tangent[1];
+                tangents[idx * 3 + 2] += tangent[2];
+            }
+        }
+
+        // Normalize tangents
+        for (let i = 0; i < tangents.length; i += 3) {
+            const t = vec3.fromValues(tangents[i], tangents[i + 1], tangents[i + 2]);
+            vec3.normalize(t, t);
+            tangents[i] = t[0];
+            tangents[i + 1] = t[1];
+            tangents[i + 2] = t[2];
+        }
+
+        return { vertices, normals, texCoords, indices, tangents };
+    }
+
+    calculateTangentsVec4({ vertices, normals, texCoords, indices }: GeometryData): GeometryData {
+        const tangents = new Float32Array(vertices.length * 4 / 3); // 4 components per vertex
+        const bitangents = new Float32Array(vertices.length); // Temporary storage for bitangents
+
+        for (let i = 0; i < indices.length; i += 3) {
+            const i0 = indices[i];
+            const i1 = indices[i + 1];
+            const i2 = indices[i + 2];
+
+            // Positions
+            const p0 = vec3.fromValues(vertices[i0 * 3], vertices[i0 * 3 + 1], vertices[i0 * 3 + 2]);
+            const p1 = vec3.fromValues(vertices[i1 * 3], vertices[i1 * 3 + 1], vertices[i1 * 3 + 2]);
+            const p2 = vec3.fromValues(vertices[i2 * 3], vertices[i2 * 3 + 1], vertices[i2 * 3 + 2]);
+
+            // UVs
+            const uv0 = vec2.fromValues(texCoords[i0 * 2], texCoords[i0 * 2 + 1]);
+            const uv1 = vec2.fromValues(texCoords[i1 * 2], texCoords[i1 * 2 + 1]);
+            const uv2 = vec2.fromValues(texCoords[i2 * 2], texCoords[i2 * 2 + 1]);
+
+            // Edges of the triangle
+            const deltaPos1 = vec3.subtract(vec3.create(), p1, p0);
+            const deltaPos2 = vec3.subtract(vec3.create(), p2, p0);
+
+            const deltaUV1 = vec2.subtract(vec2.create(), uv1, uv0);
+            const deltaUV2 = vec2.subtract(vec2.create(), uv2, uv0);
+
+            const r = 1.0 / (deltaUV1[0] * deltaUV2[1] - deltaUV1[1] * deltaUV2[0]);
+
+            const tangent = vec3.create();
+            const bitangent = vec3.create();
+
+            vec3.scale(
+                tangent,
+                vec3.subtract(
+                    vec3.create(),
+                    vec3.scale(vec3.create(), deltaPos1, deltaUV2[1]),
+                    vec3.scale(vec3.create(), deltaPos2, deltaUV1[1])
+                ),
+                r
+            );
+
+            vec3.scale(
+                bitangent,
+                vec3.subtract(
+                    vec3.create(),
+                    vec3.scale(vec3.create(), deltaPos2, deltaUV1[0]),
+                    vec3.scale(vec3.create(), deltaPos1, deltaUV2[0])
+                ),
+                r
+            );
+
+            // Accumulate tangents and bitangents
+            for (const idx of [i0, i1, i2]) {
+                tangents[idx * 4] += tangent[0];
+                tangents[idx * 4 + 1] += tangent[1];
+                tangents[idx * 4 + 2] += tangent[2];
+
+                bitangents[idx * 3] += bitangent[0];
+                bitangents[idx * 3 + 1] += bitangent[1];
+                bitangents[idx * 3 + 2] += bitangent[2];
+            }
+        }
+
+        // Normalize tangents and compute handedness
+        for (let i = 0; i < vertices.length / 3; i++) {
+            const t = vec3.fromValues(tangents[i * 4], tangents[i * 4 + 1], tangents[i * 4 + 2]);
+            const b = vec3.fromValues(bitangents[i * 3], bitangents[i * 3 + 1], bitangents[i * 3 + 2]);
+            const n = vec3.fromValues(normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2]);
+
+            vec3.normalize(t, t);
+
+            // Handedness (w): 1.0 or -1.0
+            const crossTB = vec3.cross(vec3.create(), t, b);
+            const handedness = vec3.dot(crossTB, n) < 0.0 ? -1.0 : 1.0;
+
+            tangents[i * 4] = t[0];
+            tangents[i * 4 + 1] = t[1];
+            tangents[i * 4 + 2] = t[2];
+            tangents[i * 4 + 3] = handedness; // Append w
+        }
+
+        return { vertices, normals, texCoords, indices, tangents };
+    }
+    
+    
     calculateTBNV({ vertices, normals, texCoords, indices }: GeometryData): GeometryData {
         const tangents = new Float32Array(vertices.length); // Tangents
         const bitangents = new Float32Array(vertices.length); // Bitangents

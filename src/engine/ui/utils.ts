@@ -59,6 +59,33 @@ export function wrapArrayAsXYZW(arr: number[] | Float32Array) {
     }
 }
 
+export function wrapArrayAsXYZ(arr: number[] | Float32Array) {
+    return {
+        xyz: {
+            set x(x: number) {
+                arr[0] = x;
+            },
+            get x() {
+                return arr[0];
+            },
+
+            set y(y: number) {
+                arr[1] = y;
+            },
+            get y() {
+                return arr[1];
+            },
+
+            set z(z: number) {
+                arr[2] = z;
+            },
+            get z() {
+                return arr[2];
+            },
+        }
+    }
+}
+
 export function wrapArrayAsXY(arr: number[] | Float32Array) {
     return {
         xy: {

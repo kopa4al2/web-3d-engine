@@ -83,6 +83,7 @@ struct FragmentInput {
     @location(2) textureCoord: vec2<f32>,
     @location(3) tangent: vec3<f32>,
     @location(4) bitangent: vec3<f32>,
+    @location(5) shadowPos: vec3<f32>,
 //    @interpolate(flat) @location(6) instanceID: u32,
 }
 
@@ -105,26 +106,38 @@ fn main(input: FragmentInput) -> @location(0) vec4<f32> {
 //    let normalizedUv = input.textureCoord;
 
     let normalizedUv = fract(input.textureCoord);
-    var shadowFactor: f32 = 0.0;
+    
+    var shadowFactor = 0.0;
+      let oneOverShadowDepthTextureSize = 1.0 / 1024.0;
+      for (var y = -1; y <= 1; y++) {
+        for (var x = -1; x <= 1; x++) {
+          let offset = vec2f(vec2(x, y)) * oneOverShadowDepthTextureSize;
+    
+          shadowFactor += textureSampleCompare(
+            shadowMap, shadowSampler,
+            input.shadowPos.xy + offset, 0, input.shadowPos.z - 0.007
+          );
+        }
+      }
+      shadowFactor /= 9.0;
+//    var shadowFactor: f32 = 0.0;
 //    for (var i = 0u; i < 1; i++) {
-    for (var i = 0u; i < MAX_SHADOW_CASTING_LIGHTS; i++) {
-
-        let lightSpacePosition = camera.lightProjectionView[i] *  vec4<f32>(input.fragPosition, 1.0);
-        let lightNDC = lightSpacePosition.xyz / lightSpacePosition.w;
-        let uv = 0.5 * (lightNDC.xy + vec2<f32>(1.0));
-
-        let shadowDepth = textureSampleCompare(
-            shadowMap,
-            shadowSampler,
-            uv,
-            i,
-            lightNDC.z
-        );
-
-        shadowFactor += shadowDepth;
-    }
-
-    shadowFactor /= f32(MAX_SHADOW_CASTING_LIGHTS);
+//    for (var i = 0u; i < MAX_SHADOW_CASTING_LIGHTS; i++) {
+//
+//        let lightSpacePosition = camera.lightProjectionView[i] *  vec4<f32>(input.fragPosition, 1.0);
+//        let lightNDC = lightSpacePosition.xyz / lightSpacePosition.w;
+//        let uv = 0.5 * (lightNDC.xy + vec2<f32>(1.0));
+//
+//        let shadowDepth = textureSampleCompare(
+//            shadowMap,
+//            shadowSampler,
+//            uv,
+//            i,
+//            lightNDC.z
+//        );
+//        shadowFactor += shadowDepth;
+//    }
+//    shadowFactor /= f32(MAX_SHADOW_CASTING_LIGHTS);
 
     let uv = material.albedo_map.uv_scale * normalizedUv + material.albedo_map.uv_offset;
     let baseColor = textureSample(globalTextures, globalSampler, uv, material.albedo_map.texture_layer) * material.base_color;

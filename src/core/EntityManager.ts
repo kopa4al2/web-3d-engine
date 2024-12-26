@@ -22,7 +22,7 @@ export default class EntityManager {
         }
     }
 
-    public addComponent(entityId: EntityId, component: Component) {
+    private addComponent(entityId: EntityId, component: Component) {
         if (!this.entities.has(entityId)) {
             throw `No entity with id: ${entityId.toString()}. First create the entity`;
         }

@@ -36,44 +36,45 @@ class DebugCanvas {
         }
     }
 
-    public static async debug(
-        graphics: Graphics,
-        texture: { id: TextureId, width: number, height: number },
-        type: TextureType = 'depth') {
-
-        if (!graphics._getTextureData) {
-            console.warn('_getTextureData is not implemented in graphics, skipping ', graphics);
-            return;
-        }
-
-        const textureData = await graphics._getTextureData(texture.id);
-
-        if (type === 'depth') {
-            return this.visualizeDepth(textureData, texture.width, texture.height);
-        } else if (type === 'normal') {
-            const blob = new Blob([textureData]);
-            const bitmap = await createImageBitmap(blob);
-            this.getContext().drawImage(bitmap, 0, 0);
-        }
-    }
+    // public static async debug(
+    //     graphics: Graphics,
+    //     texture: { id: TextureId, width: number, height: number },
+    //     type: TextureType = 'depth') {
+    //
+    //     if (!graphics._getTextureData) {
+    //         console.warn('_getTextureData is not implemented in graphics, skipping ', graphics);
+    //         return;
+    //     }
+    //
+    //     const textureData = await graphics._getTextureData(texture.id);
+    //
+    //     if (type === 'depth') {
+    //         return this.visualizeDepth(textureData, texture.width, texture.height);
+    //     } else if (type === 'normal') {
+    //         const blob = new Blob([textureData]);
+    //         const bitmap = await createImageBitmap(blob);
+    //         this.getContext().drawImage(bitmap, 0, 0);
+    //     }
+    // }
 
     public static visualizeDepth(data: Float32Array, width: number, height: number) {
         const context = this.getContext();
         const imageData = context.createImageData(width, height);
-        // let minDepth = Infinity;
-        // let maxDepth = -Infinity;
-        //
-        // for (let i = 0; i < data.length; i++) {
-        //     if (data[i] < minDepth) minDepth = data[i];
-        //     if (data[i] > maxDepth) maxDepth = data[i];
-        // }
+        let minDepth = Infinity;
+        let maxDepth = -Infinity;
+
+        for (let i = 0; i < data.length; i++) {
+            if (data[i] < minDepth) minDepth = data[i];
+            if (data[i] > maxDepth) maxDepth = data[i];
+        }
 
         function linearizeDepth(depth: number, near: number, far: number) {
             return (2.0 * near * far) / (far + near - depth * (far - near));
         }
 
-        const minDepth = 0.991; // Chosen based on observed min depth
-        const maxDepth = 1.0;
+        // console.log(`depth range: (${minDepth}, ${maxDepth})`)
+        // const minDepth = 0.991; // Chosen based on observed min depth
+        // const maxDepth = 1.0;
         for (let i = 0; i < data.length; i++) {
             const depth = data[i];
             // const normalizedDepth = linearizeDepth(depth, 0.1, 100.0);
@@ -92,8 +93,8 @@ class DebugCanvas {
 
     public static getContext() {
         if (!this.canvas) {
-            this.canvas = document.createElement('canvas');
             const canvas = document.createElement('canvas');
+            this.canvas = canvas;
             canvas.style.zIndex = '999';
             canvas.style.position = 'absolute';
             canvas.style.top = '50px';

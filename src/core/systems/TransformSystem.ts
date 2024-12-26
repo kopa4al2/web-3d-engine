@@ -17,7 +17,7 @@ export default class TransformSystem implements UpdateSystem {
         const allTransforms = this.entityManager.getComponentsWithId<Transform>(Transform.ID);
 
         for (const transform of allTransforms) {
-            if (transform.shouldMove()) {
+            if (transform.shouldMove() && true) {
                 vec3.lerp(transform.localTransform.position, transform.localTransform.position, transform.targetTransform.position, 10 * deltaTime);
                 quat.slerp(transform.localTransform.rotation, transform.localTransform.rotation, transform.targetTransform.rotation, 10 * deltaTime);
                 vec3.lerp(transform.localTransform.scale, transform.localTransform.scale, transform.targetTransform.scale, 10 * deltaTime);

@@ -31,7 +31,7 @@ struct VertexOutput {
     @location(2) textureCoord: vec2<f32>,
     @location(3) tangent: vec3<f32>,
     @location(4) bitangent: vec3<f32>,
-//    @location(5) light: array<vec4<f32>, MAX_SHADOW_CASTING_LIGHTS>,
+    @location(5) shadowPos: vec3<f32>,
 //    @interpolate(flat) @location(6) instanceID: u32,
 };
 
@@ -61,6 +61,17 @@ fn main(input: VertexInput) -> VertexOutput {
     output.tangent = tangent;
     output.normal = normal;
     output.bitangent = normalize(bitangent);
+    
+    
+    // XY is in (-1, 1) space, Z is in (0, 1) space
+    let posFromLight = global.lightProjectionView[0] * modelMatrix * vec4(input.position, 1.0);
+    
+    // Convert XY to (0, 1)
+    // Y is flipped because texture coords are Y-down.
+    output.shadowPos = posFromLight.xyz;
+//    output.shadowPos = vec3(
+//    posFromLight.xy * vec2(0.5, -0.5) + vec2(0.5),
+//    posFromLight.z);
 
     return output;
 }

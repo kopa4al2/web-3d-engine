@@ -50,7 +50,7 @@ export interface ShaderProgramDescription {
     options: PipelineOptions,
 
     shaderLayoutIds: BindGroupLayoutId[],
-    fragmentShaderSource: string,
+    fragmentShaderSource?: string,
 
     vertexShaderSource: string,
     vertexShaderLayout: VertexBufferLayout[],

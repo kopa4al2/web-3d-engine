@@ -139,7 +139,7 @@ export default class ShaderManager {
                 shaderLayoutIds,
 
                 options: properties,
-                fragmentShaderSource,
+                // fragmentShaderSource,
 
                 vertexShaderSource,
                 vertexShaderLayout: this.createVertexShaderLayout([
@@ -316,9 +316,26 @@ export default class ShaderManager {
                         return vec4<f32>(input.position.xyz, 1.0);
                     }
             `];
+        } else {
+            return [
+                `#version 300 es
+
+                layout(location = 0) in vec3 aVertexPosition;
+                layout(location = 1) in vec2 textureUV;
+                layout(location = 2) in vec3 aNormal;
+                layout(location = 3) in vec4 aTangent;
+                    
+                uniform mat4 lightViewProjMatrix;
+                uniform mat4 modelMatrix;
+                    
+                    
+                void main() {
+                    gl_Position = lightViewProjMatrix * modelMatrix * vec4(aVertexPosition, 1.0);
+                }`,
+                ``];
         }
 
-        throw new Error('WEBGL2 Shadow pass shaders are not yet created');
+        // throw new Error('WEBGL2 Shadow pass shaders are not yet created');
     }
 
     private getFragmentSource(shaderName: FragmentShaderName) {
@@ -451,20 +468,20 @@ export default class ShaderManager {
         throw new Error(`Template could not be determined: ${vertexShader} ${fragmentShader}`);
     }
 
-    private getShaderNames(shaderTemplate: ShaderTemplate): [VertexShaderName, FragmentShaderName] {
-        switch (shaderTemplate) {
-            case ShaderTemplate.PBR:
-                return [VertexShaderName.LIT_GEOMETRY, FragmentShaderName.PBR]
-            case ShaderTemplate.PHONG:
-                return [VertexShaderName.LIT_GEOMETRY, FragmentShaderName.PHONG_LIT]
-            case ShaderTemplate.UNLIT:
-                return [VertexShaderName.UNLIT_GEOMETRY, FragmentShaderName.UNLIT]
-            case ShaderTemplate.TERRAIN:
-                return [VertexShaderName.TERRAIN, FragmentShaderName.TERRAIN]
-            default:
-                throw new Error(`Unknown shader template: ${shaderTemplate}`);
-        }
-    }
+    // private getShaderNames(shaderTemplate: ShaderTemplate): [VertexShaderName, FragmentShaderName] {
+    //     switch (shaderTemplate) {
+    //         case ShaderTemplate.PBR:
+    //             return [VertexShaderName.LIT_GEOMETRY, FragmentShaderName.PBR]
+    //         case ShaderTemplate.PHONG:
+    //             return [VertexShaderName.LIT_GEOMETRY, FragmentShaderName.PHONG_LIT]
+    //         case ShaderTemplate.UNLIT:
+    //             return [VertexShaderName.UNLIT_GEOMETRY, FragmentShaderName.UNLIT]
+    //         case ShaderTemplate.TERRAIN:
+    //             return [VertexShaderName.TERRAIN, FragmentShaderName.TERRAIN]
+    //         default:
+    //             throw new Error(`Unknown shader template: ${shaderTemplate}`);
+    //     }
+    // }
 
     // private getShaderLayout(shader: ShaderTemplate): BindGroupLayout[] {
     //     switch (shader) {

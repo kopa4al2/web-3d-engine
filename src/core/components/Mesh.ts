@@ -41,6 +41,7 @@ class Mesh implements Component {
     static readonly ID: symbol = Symbol("Mesh");
     readonly id: symbol = Mesh.ID;
 
+    public label = 'N/A';
     constructor(public pipelineId: PipelineId,
                 public geometry: Geometry,
                 public material: Material,
