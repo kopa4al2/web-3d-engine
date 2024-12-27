@@ -48,7 +48,7 @@ export default class TransformControl {
 
         const scale = { scale: transform.localTransform.scale[0] };
         scaleFolder
-            .addBinding(scale, 'scale', { label: 'uniform-scale', min: 0.01, max: 20, step: 0.01 })
+            .addBinding(scale, 'scale', { label: 'uniform-scale', min: 0.01, max: 100, step: 0.01 })
             .on('change', e => {
 
                 transform.targetTransform.scale[0] = e.value;

@@ -1,7 +1,7 @@
 import Texture from "core/texture/Texture";
-import debugCanvas from "../../util/DebugCanvas";
-import DebugCanvas from "../../util/DebugCanvas";
-import DebugUtil from "../../util/DebugUtil";
+import debugCanvas from "../../util/debug/DebugCanvas";
+import DebugCanvas from "../../util/debug/DebugCanvas";
+import DebugUtil from "../../util/debug/DebugUtil";
 import MathUtil from '../../util/MathUtil';
 
 interface TextureRegion {

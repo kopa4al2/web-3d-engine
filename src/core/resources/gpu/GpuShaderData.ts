@@ -2,10 +2,11 @@ import { BindGroupLayoutId } from 'core/Graphics';
 import { Blend } from 'core/resources/gpu/Blend';
 import { BufferFormat, BufferId } from "core/resources/gpu/BufferDescription";
 import { TextureSize } from 'core/texture/Texture';
+import Globals from "../../../engine/Globals";
 
 export interface PipelineDepthAttachment {
     disabled?: boolean,
-    depthCompare: 'less' | 'greater' | 'equal',
+    depthCompare: 'less' | 'greater' | 'equal' | 'always' | 'never' | 'less-equal',
     depthWriteEnabled: boolean,
     format: 'depth24plus' | 'depth32float'
 }
@@ -17,13 +18,11 @@ export interface PipelineColorAttachment {
     format: 'bgra8unorm'
 }
 
+export type DrawType = 'triangle-strip' | 'triangle-list' | 'line-list'
 export interface PipelineOptions {
-    wireframe: boolean,
+    wireframe?: boolean,
+    drawMode: DrawType,
     cullFace: 'front' | 'back' | 'none',
-    // blendMode?: Blend,
-    // depthCompare: 'less' | 'greater' | 'equal',
-    // depthWriteEnabled: boolean,
-    // writeMask: 'ALL' | 'RGB';
     colorAttachment: PipelineColorAttachment,
     depthAttachment: PipelineDepthAttachment,
 }
@@ -31,9 +30,7 @@ export interface PipelineOptions {
 export const DEFAULT_PIPELINE_OPTIONS: PipelineOptions = {
     cullFace: 'back',
     wireframe: false,
-    // depthCompare: 'less',
-    // depthWriteEnabled: true,
-    // writeMask: 'ALL',
+    drawMode: 'triangle-list',
     colorAttachment: {
         writeMask: 'ALL',
         format: 'bgra8unorm'
@@ -41,7 +38,7 @@ export const DEFAULT_PIPELINE_OPTIONS: PipelineOptions = {
     depthAttachment: {
         depthCompare: 'less',
         depthWriteEnabled: true,
-        format: 'depth24plus'
+        format: Globals.DEFAULT_DEPTH_FORMAT
     }
 };
 
@@ -50,11 +47,12 @@ export interface ShaderProgramDescription {
     options: PipelineOptions,
 
     shaderLayoutIds: BindGroupLayoutId[],
-    fragmentShaderSource?: string,
-
+    
     vertexShaderSource: string,
     vertexShaderLayout: VertexBufferLayout[],
     vertexShaderStride: number,
+    
+    fragmentShaderSource?: string,
 }
 
 export interface IndexBuffer {

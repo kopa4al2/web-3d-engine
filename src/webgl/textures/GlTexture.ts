@@ -9,7 +9,7 @@ import {
     TextureType,
     ImageWithData
 } from 'core/texture/Texture';
-import DebugUtil from "../../util/DebugUtil";
+import DebugUtil from "../../util/debug/DebugUtil";
 import { GlTextureCache } from "../WebGLGraphics";
 import GlSampler, { GlFunc } from "./GlSampler";
 
@@ -128,6 +128,8 @@ export default class GlTexture {
         } else if (arr instanceof Uint32Array) {
             return gl.UNSIGNED_INT;
         } else if (arr instanceof Float32Array) {
+            return gl.FLOAT;
+        } else if (arr instanceof ImageBitmap) {
             return gl.FLOAT;
         } else {
             console.error('arr', arr);

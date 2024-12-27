@@ -32,4 +32,4 @@ export type ShaderStruct = ShaderType & (TextureStruct  | SamplerStruct) | Shade
 export type ShaderStructName = 'Global' | 'Material' | 'InstanceData'
     | 'TexturesArray' | 'Sampler' | 'GlobalSampler' | 'EnvCubeMap' | 'EnvSampler' | 'ShadowMap' | 'ShadowMapSampler'
     | 'Camera' | 'Time' | 'Light'
-    | 'PhongMaterial' | 'PBRMaterial'
+    | 'PhongMaterial' | 'PBRMaterial' | string

@@ -9,7 +9,7 @@ import SamplingConfig from "core/texture/SamplingConfig";
 import { SamplerId, TextureDescription, TextureId, TextureType } from "core/texture/Texture";
 import TexturePacker from "core/texture/TexturePacker";
 import { vec3 } from 'gl-matrix';
-import DebugUtil from 'util/DebugUtil';
+import DebugUtil from '../util/debug/DebugUtil';
 import { BlendModeConverter } from 'webgl/BlendModeConverter';
 import Canvas from "../Canvas";
 import GlSampler from "./textures/GlSampler";
@@ -41,7 +41,7 @@ export default class WebGLGraphics implements Graphics {
     public readonly textures: WeakMap<TextureId, GlTextureCache>;
     public readonly samplers: WeakMap<SamplerId, GlSamplerCache>;
 
-    private readonly bindGroupsByLayout: WeakMap<BindGroupLayoutId, WebGlBindGroupInfo>
+    private readonly bindGroupsByLayout: Map<BindGroupLayoutId, WebGlBindGroupInfo>
 
     public readonly pipelines: WeakMap<PipelineId, WebGlPipelineInfo>;
 
@@ -52,7 +52,7 @@ export default class WebGLGraphics implements Graphics {
         DebugUtil.addToWindowObject('glGraphics', this);
         const gl = canvas.getWebGl2Context();
 
-        this.bindGroupsByLayout = new WeakMap();
+        this.bindGroupsByLayout = new Map();
 
         this.uniformBlockIndices = {};
         this.vertexArrayObjects = new WeakMap<BufferId, WebGLVertexArrayObject>();
@@ -98,8 +98,9 @@ export default class WebGLGraphics implements Graphics {
 
         shader.shaderLayoutIds.forEach(bindGroupLayoutId => {
             if (!this.bindGroupsByLayout.has(bindGroupLayoutId)) {
-                console.error(
-                    `ERROR: Pipeline ${shader.label} references bindGroupLayout ${bindGroupLayoutId.description} which is not defined`, bindGroupLayoutId, this.bindGroupsByLayout, shader)
+                console.warn(
+                    `ERROR: Pipeline ${shader.label} references bindGroupLayout ${bindGroupLayoutId.description} which is not defined`, bindGroupLayoutId, this.bindGroupsByLayout, shader);
+                return;
             }
             gl.useProgram(shaderProgram);
             this._createBindGroups(gl, shaderProgram, this.bindGroupsByLayout.get(bindGroupLayoutId)!.bindGroup);
@@ -369,6 +370,11 @@ export default class WebGLGraphics implements Graphics {
     public _rawApi(): WebGL2RenderingContext {
         return this.glContext;
     }
+
+    _getTextureData(texture: TextureId, bufferId?: BufferId): Promise<ArrayBuffer> {
+        return Promise.resolve(new ArrayBuffer());
+    }
+
 
     public _exportTextureArray(textureId: TextureId, texturePackerOpt?: TexturePacker) {
         // @ts-ignore

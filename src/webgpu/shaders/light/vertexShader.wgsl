@@ -2,7 +2,7 @@ const MAX_SHADOW_CASTING_LIGHTS = 2;
 
 struct Camera {
     projectionViewMatrix: mat4x4<f32>,                                    // 64 bytes
-    projectionMatrix: mat4x2<f32>,                                        // 64 bytes
+    projectionMatrix: mat4x4<f32>,                                        // 64 bytes
     viewMatrix: mat4x4<f32>,                                              // 64 bytes
     lightProjectionView: array<mat4x4<f32>, MAX_SHADOW_CASTING_LIGHTS>,   // 64 bytes
     position: vec4<f32>,                                                  // 16 bytes
@@ -31,7 +31,7 @@ struct VertexOutput {
     @location(2) textureCoord: vec2<f32>,
     @location(3) tangent: vec3<f32>,
     @location(4) bitangent: vec3<f32>,
-    @location(5) shadowPos: vec3<f32>,
+//    @location(5) shadowPos: vec4<f32>,
 //    @interpolate(flat) @location(6) instanceID: u32,
 };
 
@@ -49,7 +49,7 @@ fn main(input: VertexInput) -> VertexOutput {
     output.textureCoord = input.textureCoord;
 //    output.instanceID = input.instanceID;
 
-    output.position = global.projectionViewMatrix * modelMatrix * vec4<f32>(input.position, 1);
+    output.position = global.projectionViewMatrix * modelMatrix * vec4<f32>(input.position, 1.0);
     output.pixelPosition = (modelMatrix * vec4<f32>(input.position, 1.0)).xyz;
 
     // COMPUTE TBN MATRIX
@@ -62,16 +62,10 @@ fn main(input: VertexInput) -> VertexOutput {
     output.normal = normal;
     output.bitangent = normalize(bitangent);
     
-    
-    // XY is in (-1, 1) space, Z is in (0, 1) space
-    let posFromLight = global.lightProjectionView[0] * modelMatrix * vec4(input.position, 1.0);
-    
-    // Convert XY to (0, 1)
-    // Y is flipped because texture coords are Y-down.
-    output.shadowPos = posFromLight.xyz;
-//    output.shadowPos = vec3(
-//    posFromLight.xy * vec2(0.5, -0.5) + vec2(0.5),
-//    posFromLight.z);
+
+//    let lightPos = global.lightProjectionView[0] * modelMatrix * vec4<f32>(input.position, 1.0);
+//    output.shadowPos = lightPos;
+//    output.shadowPos = vec4(lightPos.xy * vec2(0.5, -0.5) + vec2(0.5, 0.5), lightPos.z, 1.0);
 
     return output;
 }

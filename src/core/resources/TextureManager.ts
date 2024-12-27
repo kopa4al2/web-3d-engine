@@ -1,13 +1,10 @@
 import Graphics from 'core/Graphics';
 import HDRLoader from "core/loader/HDRLoader";
-import { TextureName } from 'core/loader/TextureLoader';
-import { TextureArrayIndex } from 'core/mesh/material/MaterialProperties';
-import Texture, { GlFace, TextureId, TextureSize, TextureType, TextureUsage } from 'core/texture/Texture';
+import Texture, { GlFace, TextureData, TextureId, TextureSize, TextureType, TextureUsage } from 'core/texture/Texture';
 import TexturePacker from "core/texture/TexturePacker";
-import TexturePackerOld from "core/texture/TexturePackerOld";
 import PromiseQueue from "core/utils/PromiseQueue";
 import { vec2 } from 'gl-matrix';
-import DebugUtil from "../../util/DebugUtil";
+import DebugUtil from "../../util/debug/DebugUtil";
 import Globals from '../../engine/Globals';
 
 const normalFormat = 'rgba8unorm';
@@ -36,7 +33,7 @@ export default class TextureManager {
     public static readonly MAX_TEXTURE_ARRAY_SIZE: TextureSize = { width: 2048, height: 2048 };
     public static readonly TEXTURE_ARRAY_LAYERS = 30;
     private cachedTextures: Map<string, Texture> = new Map();
-    
+
     private globalTextures: Map<string, TextureId> = new Map();
     private cubeTextures: Map<string, TextureId> = new Map();
 
@@ -46,20 +43,15 @@ export default class TextureManager {
 
     constructor(private graphics: Graphics) {
         DebugUtil.addToWindowObject('textureManager', this);
-        
-        this.shadowMapPacker = new TexturePacker(1024, 1024, Globals.MAX_SHADOW_CASTING_LIGHTS);
+
+        this.shadowMapPacker = new TexturePacker(Globals.SHADOW_PASS_TEXTURE_SIZE, Globals.SHADOW_PASS_TEXTURE_SIZE, Globals.MAX_SHADOW_CASTING_LIGHTS);
         this.texturePacker = new TexturePacker(TextureManager.MAX_TEXTURE_ARRAY_SIZE.width,
             TextureManager.MAX_TEXTURE_ARRAY_SIZE.height,
             TextureManager.TEXTURE_ARRAY_LAYERS,
             8
-            );
+        );
 
         this.promiseQueue = new PromiseQueue();
-
-
-        this.create1x1Texture(Texture.DEFAULT_ALBEDO_MAP, new Uint8ClampedArray([255, 255, 255, 255]));
-        this.create1x1Texture(Texture.DEFAULT_NORMAL_MAP, new Uint8ClampedArray([0, 255, 0, 255]));
-        this.create1x1Texture(`${ Texture.DEFAULT_METALLIC_ROUGHNESS_MAP }-0-0`, new Uint8ClampedArray([0, 0, 0, 0]));
 
         this.globalTextures.set(TextureManager.SHADOW_MAP_TEXTURE_KEY,
             graphics.createTexture({
@@ -132,9 +124,9 @@ export default class TextureManager {
 
     public getShadowMapLayer(): number {
         const packed = this.shadowMapPacker.addTexture('shadowMap', Globals.SHADOW_PASS_TEXTURE_SIZE, Globals.SHADOW_PASS_TEXTURE_SIZE);
-        console.log('shadowMapLayer', packed);
         return packed.layer;
     }
+
     // public getShadowMapLayer(): number {
     //     const packed = this.shadowMapPacker.addTexture('shadowMap', 1024, 1024);
     //     console.log('shadowMapLayer', packed);
@@ -167,40 +159,48 @@ export default class TextureManager {
         return cubeMap;
     }
 
-    public create1x1Texture(label: string, data: Uint8ClampedArray): Texture {
+    public async create1x1Texture(label: string, data: Uint8ClampedArray): Promise<Texture> {
         // public create1x1Texture(label: string, data: Uint8ClampedArray): Promise<TextureArrayIndex> {
         return this.createTextureFromValues(label, data, 1, 1);
     }
 
-    public createTextureFromValues(label: string, data: Uint8ClampedArray, imgWidth: number, imgHeight: number): Texture {
+    private async createTextureFromValues(label: string, data: Uint8ClampedArray, imgWidth: number, imgHeight: number): Promise<Texture> {
         if (this.cachedTextures.get(label)) {
-            console.warn(`Loaded texture from cache: ${ label }`)
+            console.warn(`Loaded texture from cache: ${label}`)
             return this.cachedTextures.get(label)!;
         }
 
-        const texture = this.createTexture(label, new ImageData(data, imgWidth, imgHeight))
-        // const createdTexture = this._createTextureFromValues(label, data, imgWidth, imgHeight);
-        this.cachedTextures.set(label, texture);
-        return texture;
+        const ctx = new OffscreenCanvas(imgWidth, imgHeight).getContext('2d')!;
+        ctx.fillStyle = `rgba(${data[0]}, ${data[1]}, ${data[2]}, ${data[3]})`;
+        ctx.fillRect(0, 0, imgWidth, imgHeight);
+        return ctx.canvas.convertToBlob({ type: 'image/png' })
+            .then(createImageBitmap)
+            .then(bitmap => {
+                const texture = this.createTexture(label, bitmap)
+                this.cachedTextures.set(label, texture);
+                return texture;
+            });
+        // const blob = new Blob([data.buffer], { type: 'image/png' });
+
     }
 
     public getTexture(id: string): Texture {
         if (!this.cachedTextures.has(id)) {
-            console.error(`Texture with id: ${ id } is not present`);
-            throw new Error(`Cannot get texture: ${ id } as its not present in the cache`);
+            console.error(`Texture with id: ${id} is not present`);
+            throw new Error(`Cannot get texture: ${id} as its not present in the cache`);
         }
 
         return this.cachedTextures.get(id)!;
     }
 
-    public addPreloadedToGlobalTexture(id: string, image: ImageData) {
+    public addPreloadedToGlobalTexture(id: string, image: TextureData) {
         // return this.promiseQueue.addTask(async () => this._addPreloadedToGlobalTexture(id, image));
         return this._addPreloadedToGlobalTexture(id, image);
     }
 
-    private _addPreloadedToGlobalTexture(id: string, image: ImageData) {
+    private _addPreloadedToGlobalTexture(id: string, image: TextureData) {
         if (this.cachedTextures.has(id)) {
-            console.warn(`Image with id: ${ id } is already loaded`)
+            console.warn(`Image with id: ${id} is already loaded`)
             return this.cachedTextures.get(id)!;
         }
 
@@ -210,42 +210,33 @@ export default class TextureManager {
         return texture;
     }
 
-    public async addToGlobalTexture(path: string): Promise<TextureArrayIndex> {
+    public async addToGlobalTexture(path: string): Promise<Texture> {
         return this.promiseQueue.addTask(() => this._addToGlobalTexture(path));
     }
 
-    private async _addToGlobalTexture(path: string): Promise<TextureArrayIndex> {
+    private async _addToGlobalTexture(path: string): Promise<Texture> {
         if (this.cachedTextures.has(path)) {
-            return this.cachedTextures.get(path)!.index;
+            return this.cachedTextures.get(path)!;
         }
-        // if (this.loadingTextures.has(path)) {
-        //     console.warn('Texture is already loading: ', path);
-        //     return new Promise(resolve => {
-        //         setTimeout(() => {
-        //             resolve(this._addToGlobalTexture(path));
-        //         }, 500);
-        //     });
-        // }
-        // this.loadingTextures.add(path);
 
-        const imageData = await this.loadImage(path);
+        const imageData = await this.loadImageAsBitMap(path);
+        // const imageData = await this.loadImage(path);
         if (!this.isSupportedSize(imageData.width, imageData.height)) {
             console.error('Texture is not in supported sizes. texture: ', imageData);
             throw new Error('Currently only textures that fit are supported');
         }
 
         const texture = this.createTexture(path, imageData);
-        // this.loadingTextures.delete(path);
         this.cachedTextures.set(path, texture);
 
-        return texture.index;
+        return texture;
     }
 
     public getTextureArrayIdForSize(size: TextureSize): TextureId {
         const sizeSerialized = JSON.stringify(size);
         if (!this.globalTextures.has(sizeSerialized)) {
             const textureId = this.graphics.createTexture({
-                label: `array-w-${ size.width }-h-${ size.height }-d-${ TextureManager.TEXTURE_ARRAY_LAYERS }`,
+                label: `array-w-${size.width}-h-${size.height}-d-${TextureManager.TEXTURE_ARRAY_LAYERS}`,
                 image: {
                     width: size.width, height: size.height,
                     channel: {
@@ -254,8 +245,8 @@ export default class TextureManager {
                         // dataType: 'float'
                     }
                 },
-                usage: TextureUsage.COPY_DST | TextureUsage.TEXTURE_BINDING,
-                // usage: TextureUsage.COPY_DST | TextureUsage.TEXTURE_BINDING | TextureUsage.RENDER_ATTACHMENT,
+                // usage: TextureUsage.COPY_DST | TextureUsage.TEXTURE_BINDING,
+                usage: TextureUsage.COPY_DST | TextureUsage.TEXTURE_BINDING | TextureUsage.RENDER_ATTACHMENT,
                 depth: TextureManager.TEXTURE_ARRAY_LAYERS,
                 type: TextureType.TEXTURE_ARRAY,
                 // samplingConfig: DefaultSampling
@@ -275,19 +266,25 @@ export default class TextureManager {
         return this.globalTextures.get(sizeSerialized)!;
     }
 
-    private createTexture(id: string, imageData: ImageData) {
+    private createTexture(id: string, image: TextureData): Texture {
         const textureId = this.getTextureArrayIdForSize(TextureManager.MAX_TEXTURE_ARRAY_SIZE);
-        const packed = this.texturePacker.addTexture(id, imageData.width, imageData.height);
+        const packed = this.texturePacker.addTexture(id, image.width, image.height);
 
         const {
             width, height, x, y,
             layer, uvScaleX, uvScaleY, uvOffsetX, uvOffsetY
         } = packed;
 
+        const imageData = image instanceof ImageData
+            ? image.data
+            : image instanceof ImageBitmap
+                ? image
+                : new Uint8ClampedArray(image.bytes);
+
         this.graphics.updateTexture(textureId, {
             x, y, z: layer,
             data: {
-                imageData: imageData.data,
+                imageData,
                 width, height,
                 channel: {
                     format: 'rgba8unorm',
@@ -297,20 +294,13 @@ export default class TextureManager {
         });
 
         return new Texture(
-            textureId, id, imageData,
+            textureId, id, image,
             {
                 textureLayer: layer,
                 textureUvOffset: vec2.fromValues(uvOffsetX, uvOffsetY),
                 textureUvScale: vec2.fromValues(uvScaleX, uvScaleY),
             },
             { width, height });
-    }
-
-    private async loadImageAsUint8(path: string): Promise<ArrayBufferLike> {
-        return fetch(path)
-            .then(res => res.blob())
-            .then(blob => createImageBitmap(blob))
-            .then(bitmap => this.loadFromOffScreenCanvas(bitmap).data.buffer);
     }
 
     private async loadImageAsBitMap(path: string): Promise<ImageBitmap> {

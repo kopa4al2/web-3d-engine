@@ -2,11 +2,12 @@ import { ContainerApi, TpChangeEvent } from '@tweakpane/core';
 import DirectionalLight from "core/light/DirectionalLight";
 import PointLight from "core/light/PointLight";
 import SpotLight from "core/light/SpotLight";
-import { glMatrix, quat } from "gl-matrix";
+import { glMatrix, mat4, quat, vec3 } from "gl-matrix";
 import UILayout from "../UILayout";
-import { wrapArrayAsColor, wrapArrayAsXYZW } from "../utils";
+import { wrapArrayAsColor, wrapArrayAsXYZ, wrapArrayAsXYZW } from "../utils";
 import Component from 'core/components/Component';
 import Transform from 'core/components/Transform';
+import TransformControl from "./TransformControl";
 
 export class LightControl {
 
@@ -24,22 +25,25 @@ export class LightControl {
     }
 
     static addDirectionalLight(folder: ContainerApi, light: DirectionalLight) {
-        folder.addBinding(light.direction, 'xyzw', {
+        folder.addBinding(wrapArrayAsXYZ(light.direction), 'xyz', {
             label: 'Direction',
             picker: 'inline',
-            view: 'rotation',
-            rotationMode: 'euler',
+            // view: 'rotation',
+            // rotationMode: 'euler',
+            // unit: 'deg',
             expanded: true,
-            x: { min: -1, max: 1, step: 0.01, label: 'X' },
-            y: { min: -1, max: 1, step: 0.01, label: 'Y' },
-            z: { min: -1, max: 1, step: 0.01, label: 'Z' },
+            x: { min: -1, max: 1, label: 'X', step: 0.1 },
+            y: { min: -1, max: 1, label: 'Y', step: 0.1 },
+            z: { min: -1, max: 1, label: 'Z', step: 0.1 },
         });
-        folder.addBinding(light.color, 'rgba', { label: 'color', color: { type: 'float' }, picker: 'inline' });
-        folder.addBinding(light.props, 'intensity', { label: 'Intensity', min: 0.1, max: 10.0, step: 0.1 });
+        folder.addBinding(wrapArrayAsColor(light.color), 'color', { label: 'color', color: { type: 'float' }, picker: 'inline' });
+        folder.addBinding(light, 'intensity', { label: 'Intensity', min: 0.0, max: 10.0, step: 0.1 });
     }
 
     static addPointLightV2(container: ContainerApi, components: Component[]) {
         const pointLight = components.find(c => c.id === PointLight.ID) as PointLight;
+        const transform = components.find(c => c.id === Transform.ID) as Transform;
+        TransformControl.createTranslate(container, transform);
         this.addPointLight(container, pointLight);
         // TODO: Add transform
     }
@@ -78,21 +82,31 @@ export class LightControl {
         container.addBinding(wrapArrayAsXYZW(transform.targetTransform.position), 'xyzw', {
             picker: 'inline',
             label: 'translate',
-            step: 1
+            step: 0.1
         })
         const rotation = transform.targetTransform.rotation;
+
+
+        const euler = quatToEuler(vec3.create(), transform.targetTransform.rotation);
         const params = {
-            euler: { x: rotation[0], y: rotation[1], z: rotation[2] },
+            euler: { x: euler[0], y: euler[1], z: euler[2] },
             quat: { x: rotation[0], y: rotation[1], z: rotation[2], w: rotation[3] }
         };
         container.addBinding(params, 'euler', {
             picker: 'inline',
             label: 'rotation',
-            // step: 1,
             view: 'rotation',
             rotationMode: 'euler',
-            unit: 'deg'
+            unit: 'deg',
+            x: { min: -360, max: 360, step: 1 },
+            y: { min: -360, max: 360, step: 1 },
+            z: { min: -360, max: 360, step: 1 },
         }).on('change', e => {
+            // transform.targetTransform.rotation[0] = e.value.x;
+            // transform.targetTransform.rotation[1] = e.value.y;
+            // transform.targetTransform.rotation[2] = e.value.z;
+            // transform.targetTransform.rotation[3] = e.value.w;
+            // quat.normalize(transform.targetTransform.rotation, transform.targetTransform.rotation);
             quat.fromEuler(transform.targetTransform.rotation, e.value.x, e.value.y, e.value.z);
         })
         container.addBinding(light.data, 'linearAttenuation', {
@@ -119,7 +133,10 @@ export class LightControl {
 
         container.addBinding(light.data, 'intensity', { min: 0.1, max: 50.0, step: 0.1, label: 'Intensity' });
 
-        const cutoff = { innerCutoff: 30, outerCutoff: 40 };
+        const cutoff = {
+            innerCutoff: Math.acos(light.data.innerCutoff) * (180 / Math.PI),
+            outerCutoff: Math.acos(light.data.outerCutoff) * (180 / Math.PI)
+        };
 
         function onChange(currentCutoff: 'inner' | 'outer', e: TpChangeEvent<number>) {
             if (currentCutoff === 'inner') {
@@ -190,4 +207,59 @@ export class LightControl {
     //     container.addBinding(cutoff, 'outerCutoff', { min: 5, max: 90, step: 1, label: 'Outer cutoff' })
     //         .on('change', e => onChange('outer', e));
     // }
+}
+
+function toEulerXYZ(quat: quat) {
+    const w = quat[3];
+    const x = quat[0];
+    const y = quat[1];
+    const z = quat[2];
+
+    const wx = w * x,
+        wy = w * y,
+        wz = w * z;
+    const xx = x * x,
+        xy = x * y,
+        xz = x * z;
+    const yy = y * y,
+        yz = y * z,
+        zz = z * z;
+
+    const xyz = [
+        -Math.atan2(2 * (yz - wx), 1 - 2 * (xx + yy)),
+        Math.asin(2 * (xz + wy)),
+        -Math.atan2(2 * (xy - wz), 1 - 2 * (yy + zz)),
+    ];
+    return xyz.map((x) => (x * 180) / Math.PI);
+}
+
+function quatToEuler(outEuler: vec3, quat: quat): vec3 {
+    const [x, y, z, w] = quat;
+
+    // Roll (X-axis rotation)
+    const sinr_cosp = 2 * (w * x + y * z);
+    const cosr_cosp = 1 - 2 * (x * x + y * y);
+    const roll = Math.atan2(sinr_cosp, cosr_cosp);
+
+    // Pitch (Y-axis rotation)
+    const sinp = 2 * (w * y - z * x);
+    let pitch;
+    if (Math.abs(sinp) >= 1) {
+        pitch = Math.sign(sinp) * Math.PI / 2; // Gimbal lock at 90 degrees
+    } else {
+        pitch = Math.asin(sinp);
+    }
+
+    // Yaw (Z-axis rotation)
+    const siny_cosp = 2 * (w * z + x * y);
+    const cosy_cosp = 1 - 2 * (y * y + z * z);
+    const yaw = Math.atan2(siny_cosp, cosy_cosp);
+
+    if (outEuler) {
+        outEuler[0] = roll;
+        outEuler[1] = pitch;
+        outEuler[2] = yaw;
+        return outEuler;
+    }
+    return [roll, pitch, yaw];
 }

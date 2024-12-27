@@ -5,6 +5,7 @@ import OrderComponent from "core/components/OrderComponent";
 import Transform, { ModelMatrix } from 'core/components/Transform';
 import EntityManager, { EntityId } from "core/EntityManager";
 import { PipelineId } from 'core/Graphics';
+import DirectionalLight from "core/light/DirectionalLight";
 import PointLight from 'core/light/PointLight';
 import SpotLight from "core/light/SpotLight";
 import BoundingSphere from 'core/physics/BoundingSphere';
@@ -12,7 +13,7 @@ import Frustum from 'core/physics/Frustum';
 import { Blend } from 'core/resources/gpu/Blend';
 import { mat4, vec3 } from 'gl-matrix';
 import Bitmask from 'util/BitMask';
-import DebugUtil from 'util/DebugUtil';
+import DebugUtil from '../util/debug/DebugUtil';
 import JavaMap from 'util/JavaMap';
 
 
@@ -83,13 +84,13 @@ export default class Scene {
         this.meshes.clear();
         const culled: Mesh[] = [];
         this.entities.forEach(entity => {
-            if (this.entityManager.hasAnyComponent(entity, PointLight.ID, SpotLight.ID)) {
+            if (this.entityManager.hasAnyComponent(entity, PointLight.ID, SpotLight.ID, DirectionalLight.ID)) {
                 this.lights.push(entity);
                 return;
             }
             const [transform, mesh] = this.entityManager.getComponents<[Transform, Mesh]>(entity, Transform.ID, Mesh.ID);
 
-            if (mesh) {
+            if (mesh && mesh.pipelineId) {
                 const { pipelineId, geometry } = mesh;
 
                 if (!this.frustum.isSphereWithinFrustum(geometry.getBoundingVolume(BoundingSphere), this.camera.viewMatrix())) {
@@ -107,7 +108,7 @@ export default class Scene {
                     entitiesByMesh.set(mesh, []);
                 }
 
-                entitiesByMesh.get(mesh).push([entity, transform ? transform.getWorldMatrix() : mat4.create()]);
+                entitiesByMesh.get(mesh).push([entity, transform ? transform.getMatrix() : mat4.create()]);
             }
         });
         this.flags.clearFlag(Scene.CHANGED);
@@ -138,7 +139,7 @@ export default class Scene {
                 return (order2?.order || -1) - (order1?.order || -1);
             }
 
-            if (!mesh1 || !mesh2) {
+            if (!mesh1 || !mesh2 || !mesh1.pipelineId || !mesh2.pipelineId) {
                 return -1;
             }
 

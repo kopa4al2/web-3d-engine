@@ -1,7 +1,7 @@
 import Component from "core/components/Component";
 import PropertiesManager from "core/PropertiesManager";
 import { vec3, vec4 } from "gl-matrix";
-import DebugUtil from 'util/DebugUtil';
+import DebugUtil from '../../../util/debug/DebugUtil';
 import MathUtil from "util/MathUtil";
 
 /**

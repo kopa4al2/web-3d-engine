@@ -37,6 +37,10 @@ module.exports = {
         // static: './dist', // Replace contentBase with static
         static: './assets', // Replace contentBase with static
         hot: true,
+        headers: {
+            'Cross-Origin-Opener-Policy': 'same-origin',
+            'Cross-Origin-Embedder-Policy': 'require-corp',
+        },
     },
     plugins: [
         new CopyWebpackPlugin({
