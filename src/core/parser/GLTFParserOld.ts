@@ -145,7 +145,6 @@ export default class GLTFParser {
             if (node.children) {
                 for (const childIndex of node.children) {
                     const childModel = await buildNode(this.json.nodes[childIndex], newTransform);
-                    currentModel.subMesh!.push(childModel);
                 }
             }
 

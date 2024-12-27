@@ -6,9 +6,10 @@ import { FragmentShaderName, VertexShaderName } from 'core/resources/cpu/CpuShad
 import { BufferData, BufferDescription } from 'core/resources/gpu/BufferDescription';
 import { DEFAULT_PIPELINE_OPTIONS, PipelineOptions } from 'core/resources/gpu/GpuShaderData';
 import ShaderManager from 'core/resources/shader/ShaderManager';
+import { ShaderStruct } from "core/resources/shader/ShaderStruct";
 import TextureManager from 'core/resources/TextureManager';
 import Texture from "core/texture/Texture";
-import DebugUtil from 'util/DebugUtil';
+import DebugUtil from '../../util/debug/DebugUtil';
 import logger from 'util/Logger';
 import ObjectUtils from 'util/ObjectUtils';
 import glBasicFragmentShader from 'webgl/shaders/basic/basicFragmentShader.frag';
@@ -90,6 +91,7 @@ export default class ResourceManager {
                         // mipmapFilter: 'nearest',
                         addressModeU: 'repeat',
                         addressModeV: 'repeat',
+                        addressModeW: 'repeat',
                         targetTexture: this.textureManager.getTextureArrayIdForSize(TextureManager.MAX_TEXTURE_ARRAY_SIZE),
                     }),
                     binding: 4,
@@ -127,8 +129,10 @@ export default class ResourceManager {
                         label: 'ShadowMapSampler',
                         magFilter: 'linear',
                         minFilter: 'linear',
+                        mipmapFilter: 'linear',
                         addressModeU: 'clamp-to-edge',
                         addressModeV: 'clamp-to-edge',
+                        addressModeW: 'clamp-to-edge',
                         compare: 'less',
                         targetTexture: this.textureManager.getShadowMap(),
                     }),
@@ -196,7 +200,7 @@ export default class ResourceManager {
             case VertexShaderName.TERRAIN:
                 return gpuTerrainVertexShader
             default: {
-                logger.warn(`Unknown vertex shader name: ${ shaderName }. Defaulting to basic!`);
+                logger.warn(`Unknown vertex shader name: ${shaderName}. Defaulting to basic!`);
                 return gpuBasicVertex;
             }
         }
@@ -215,7 +219,7 @@ export default class ResourceManager {
             case VertexShaderName.TERRAIN:
                 return glTerrainVertexShader
             default: {
-                logger.warn(`Unknown vertex shader name: ${ shaderName }. Defaulting to basic!`);
+                logger.warn(`Unknown vertex shader name: ${shaderName}. Defaulting to basic!`);
                 return glBasicVertexShader;
             }
         }
@@ -236,7 +240,7 @@ export default class ResourceManager {
             case FragmentShaderName.TERRAIN:
                 return gpuTerrainFragmentShader;
             default: {
-                logger.warn(`Unknown fragment shader name: ${ shaderName }. Defaulting to basic!`);
+                logger.warn(`Unknown fragment shader name: ${shaderName}. Defaulting to basic!`);
                 return gpuBasicFragment;
             }
         }
@@ -256,7 +260,7 @@ export default class ResourceManager {
             case FragmentShaderName.TERRAIN:
                 return glTerrainFragmentShader;
             default: {
-                logger.warn(`Unknown fragment shader name: ${ shaderName }. Defaulting to basic!`);
+                logger.warn(`Unknown fragment shader name: ${shaderName}. Defaulting to basic!`);
                 return glBasicFragmentShader;
             }
         }

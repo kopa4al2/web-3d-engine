@@ -66,7 +66,8 @@ export default interface Graphics {
     // ONLY FOR DEBUGGING
     _rawApi(): WebGL2RenderingContext | GPUDevice
 
-    _getTextureData?(texture: TextureId): Promise<Float32Array>
+    _getTextureData?(texture: TextureId, bufferId?: BufferId): Promise<ArrayBuffer>
+    // _getTextureData?(texture: TextureId): Promise<Float32Array>
 
     _exportTextureArray?(textureId: TextureId): void
 }
@@ -74,7 +75,7 @@ export default interface Graphics {
 
 export type RenderPassAttachment = { skip: true } | {
     skip?: false
-    textureId: TextureId,
+    textureId?: TextureId,
     textureView?: { dimension: '2d' | '2d-array', baseArrayLayer: number, aspect?: 'all' | 'stencil-only' | 'depth-only' }
 };
 export type RenderPassDepthAttachment = RenderPassAttachment;

@@ -23,7 +23,7 @@ import {
     VertexBufferLayout
 } from 'core/resources/gpu/GpuShaderData';
 import ResourceManager, { PipelineHash } from 'core/resources/ResourceManager';
-import DebugUtil from 'util/DebugUtil';
+import DebugUtil from '../../../util/debug/DebugUtil';
 import logger from 'util/Logger';
 import ObjectUtils from 'util/ObjectUtils';
 import glBasicFragmentShader from 'webgl/shaders/basic/basicFragmentShader.frag';
@@ -85,7 +85,7 @@ export default class ShaderManager {
     }
 
     public static INSTANCE_BUFFER_GROUP = {
-        label: 'VERTEX',
+        label: 'VERTEX-INSTANCE',
         entries: [
             VERTEX_STORAGE_BUFFER_STRUCT,
         ]
@@ -113,12 +113,12 @@ export default class ShaderManager {
     //     return this.pipelinesCache['SKY_BOX'];
     // }
 
-    public createShadowPass(layout: BindGroupLayoutId) {
+    public createShadowPass(...shaderLayoutIds: BindGroupLayoutId[]) {
         const uniqueId = ShaderTemplate.SHADOW_PASS;
 
         const properties: PipelineOptions = {
-            wireframe: false,
-            cullFace: 'back',
+            drawMode: 'triangle-list',
+            cullFace: 'front',
             depthAttachment: {
                 depthCompare: 'less',
                 depthWriteEnabled: true,
@@ -131,8 +131,7 @@ export default class ShaderManager {
             }
         };
 
-        const shaderLayoutIds = [layout];
-        const [vertexShaderSource, fragmentShaderSource] = this.getShadowPassShaders();
+        const [vertexShaderSource] = this.getShadowPassShaders();
         if (!this.pipelinesCache[uniqueId]) {
             this.pipelinesCache[uniqueId] = this.graphics.initPipeline({
                 label: 'Shadow Pass',
@@ -160,7 +159,6 @@ export default class ShaderManager {
                         "elementsPerVertex": 4
                     }
                 ]),
-                // vertexShaderLayout: this.createVertexShaderLayout([{ elementsPerVertex: 3, dataType: 'float32' }]),
                 vertexShaderStride: 48,
             } as ShaderProgramDescription);
         }
@@ -267,7 +265,7 @@ export default class ShaderManager {
         return ObjectUtils.mergePartial(pipelineOptions, DEFAULT_PIPELINE_OPTIONS);
     }
 
-    private getShadowPassShaders(): [string, string] {
+    private getShadowPassShaders(): [string, string?] {
         if (this.graphics instanceof WebGPUGraphics) {
             const vertexInput = `
                 struct VertexInput {
@@ -281,7 +279,6 @@ export default class ShaderManager {
             const vertexOutput = `
                 struct VertexOutput {
                     @builtin(position) position: vec4<f32>,
-                    @location(0) fragCoord: vec4<f32>,
                 }
             `;
             return [`
@@ -296,26 +293,27 @@ export default class ShaderManager {
                         modelMatrix : mat4x4<f32>,
                     };
                     
-                    @binding(0) @group(0) var<uniform> global : Global;
-                    @binding(1) @group(0) var<uniform> model : Model;
+                    @group(0) @binding(0) var<uniform> global : Global;
+                    @group(1) @binding(0) var<storage, read> modelMatrices: array<mat4x4<f32>>;
                     
                     @vertex
                     fn main(input : VertexInput) -> VertexOutput {
                         var output: VertexOutput;
-                        output.position = global.lightViewProjectionMatrix * model.modelMatrix * vec4<f32>(input.position, 1.0);
-                        output.fragCoord = vec4(input.position, 1.0); 
+                        let modelMatrix = modelMatrices[input.instanceID];
+                        output.position = global.lightViewProjectionMatrix * modelMatrix * vec4<f32>(input.position, 1.0); 
                         return output;
                     }
             `,
-                `
-                    ${vertexOutput}
-
-                    @fragment
-                    fn main(input: VertexOutput) -> @location(0) vec4<f32> {
-                        let depth = input.position.z;
-                        return vec4<f32>(input.position.xyz, 1.0);
-                    }
-            `];
+                // `
+                //     ${vertexOutput}
+                //
+                //     @fragment
+                //     fn main(input: VertexOutput) -> @location(0) vec4<f32> {
+                //         let depth = input.position.z;
+                //         return vec4<f32>(input.position.xyz, 1.0);
+                //     }
+                // `
+            ];
         } else {
             return [
                 `#version 300 es

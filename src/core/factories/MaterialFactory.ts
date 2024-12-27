@@ -11,6 +11,7 @@ import {
 import {BufferData, BufferUsage} from "core/resources/gpu/BufferDescription";
 import {PipelineOptions} from 'core/resources/gpu/GpuShaderData';
 import ResourceManager from "core/resources/ResourceManager";
+import Globals from '../../engine/Globals';
 
 export interface MaterialBehaviour {
     setBindGroup: (renderPass: RenderPass) => void,
@@ -29,9 +30,8 @@ export default class MaterialFactory {
                 cullFace: 'none',
                 depthAttachment: {
                     depthWriteEnabled: false,
-                    disabled: true,
-                    // TODO: Boilerplate
-                    format: "depth24plus",
+                    disabled: false,
+                    format: Globals.DEFAULT_DEPTH_FORMAT,
                     depthCompare: 'less'
                 }
             },

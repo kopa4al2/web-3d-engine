@@ -9,7 +9,7 @@ import {
     TextureType,
     ImageWithData
 } from 'core/texture/Texture';
-import DebugUtil from "../../util/DebugUtil";
+import DebugUtil from "../../util/debug/DebugUtil";
 import { GlTextureCache } from "../WebGLGraphics";
 import GlSampler, { GlFunc } from "./GlSampler";
 

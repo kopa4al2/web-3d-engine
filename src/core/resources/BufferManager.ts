@@ -4,9 +4,6 @@ import { BufferData, BufferId, BufferUsage } from 'core/resources/gpu/BufferDesc
 import { ShaderStructName } from 'core/resources/shader/ShaderStruct';
 
 
-/**
- * Manages global buffer (creation / caching / binding / data layout)
- */
 export default class BufferManager {
 
     public globalBuffers: Map<ShaderStructName, BufferId> = new Map();
@@ -21,8 +18,7 @@ export default class BufferManager {
 
         const spotLightBytes = 80;
         this.globalBuffers.set('Light', graphics.createBuffer({
-            // byteLength: 2048,
-            // byteLength: 464,
+            // byteLength: 720,
             byteLength: 464 + (spotLightBytes * SpotLight.MAX_SPOT_LIGHTS),
             label: 'Light',
             usage: BufferUsage.UNIFORM | BufferUsage.COPY_DST,

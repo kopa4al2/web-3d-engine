@@ -7,7 +7,7 @@ import TexturePacker from "core/texture/TexturePacker";
 import TexturePackerOld from "core/texture/TexturePackerOld";
 import PromiseQueue from "core/utils/PromiseQueue";
 import { vec2 } from 'gl-matrix';
-import DebugUtil from "../../util/DebugUtil";
+import DebugUtil from "../../util/debug/DebugUtil";
 import Globals from '../../engine/Globals';
 
 const normalFormat = 'rgba8unorm';
@@ -47,7 +47,7 @@ export default class TextureManager {
     constructor(private graphics: Graphics) {
         DebugUtil.addToWindowObject('textureManager', this);
         
-        this.shadowMapPacker = new TexturePacker(1024, 1024, Globals.MAX_SHADOW_CASTING_LIGHTS);
+        this.shadowMapPacker = new TexturePacker(Globals.SHADOW_PASS_TEXTURE_SIZE, Globals.SHADOW_PASS_TEXTURE_SIZE, Globals.MAX_SHADOW_CASTING_LIGHTS);
         this.texturePacker = new TexturePacker(TextureManager.MAX_TEXTURE_ARRAY_SIZE.width,
             TextureManager.MAX_TEXTURE_ARRAY_SIZE.height,
             TextureManager.TEXTURE_ARRAY_LAYERS,
@@ -57,7 +57,7 @@ export default class TextureManager {
         this.promiseQueue = new PromiseQueue();
 
 
-        this.create1x1Texture(Texture.DEFAULT_ALBEDO_MAP, new Uint8ClampedArray([255, 255, 255, 255]));
+        this.create1x1Texture(Texture.DEFAULT_ALBEDO_MAP, new Uint8ClampedArray([255, 0, 0, 255]));
         this.create1x1Texture(Texture.DEFAULT_NORMAL_MAP, new Uint8ClampedArray([0, 255, 0, 255]));
         this.create1x1Texture(`${ Texture.DEFAULT_METALLIC_ROUGHNESS_MAP }-0-0`, new Uint8ClampedArray([0, 0, 0, 0]));
 
@@ -132,7 +132,6 @@ export default class TextureManager {
 
     public getShadowMapLayer(): number {
         const packed = this.shadowMapPacker.addTexture('shadowMap', Globals.SHADOW_PASS_TEXTURE_SIZE, Globals.SHADOW_PASS_TEXTURE_SIZE);
-        console.log('shadowMapLayer', packed);
         return packed.layer;
     }
     // public getShadowMapLayer(): number {

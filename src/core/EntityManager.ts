@@ -27,12 +27,12 @@ export default class EntityManager {
             throw `No entity with id: ${entityId.toString()}. First create the entity`;
         }
 
-        (<Map<ComponentId, Component>> this.entities.get(entityId)).set(component.id, component);
+        (<Map<ComponentId, Component>>this.entities.get(entityId)).set(component.id, component);
 
         if (!this.components.has(component.id)) {
             this.components.set(component.id, []);
         }
-        (<EntityId[]> this.components.get(component.id)).push(entityId);
+        (<EntityId[]>this.components.get(component.id)).push(entityId);
     }
 
     public hasAnyComponent(entityId: EntityId, ...components: ComponentId[]): boolean {

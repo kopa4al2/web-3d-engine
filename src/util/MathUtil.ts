@@ -1,6 +1,6 @@
 import { GeometryData } from 'core/mesh/Geometry';
 import { mat3, mat4, vec2, vec3, vec4 } from "gl-matrix";
-import DebugUtil from 'util/DebugUtil';
+import DebugUtil from './debug/DebugUtil';
 
 // export interface Frustum extends Iterable<vec4>{
 //     left: vec4,

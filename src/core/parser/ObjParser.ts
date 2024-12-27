@@ -1,3 +1,5 @@
+import { ObjWorkerRequest, ObjWorkerResponse } from "core/parser/obj/ObjWorker";
+import WorkerPool from "core/worker/WorkerPool";
 import { vec3 } from "gl-matrix";
 
 export interface ObjFile {
@@ -30,41 +32,45 @@ export interface ObjectMaterialData {
 }
 
 class ObjParser {
-    public parseObjFile(filePath: string, mtlFilePath?: string, name: string = 'obj'): Promise<ObjFile> {
-        if (mtlFilePath) {
-            return Promise.all([
-                fetch(filePath).then(file => file.text()),
-                fetch(mtlFilePath).then(file => file.text())
-            ])
-                .then(([obj, mtl]) => {
-                    const materialData = this.parseMtl(mtl);
-                    const objFile = this.parseObjWithMtl(obj, materialData);
-                    // if (interleaved) {
-                    //     const interleaved: InterleavedMesh[] = [];
-                    //     objFile.meshes.forEach(m => interleaved.push(this.createSingleBufferData(m as ObjMesh)));
-                    //     objFile.meshes = interleaved;
-                    // }
-                    return objFile;
-                })
-                .catch(err => {
-                    throw `Error loading obj file ${filePath}. Err: ${err}`
-                });
-        }
+    constructor(private workerPool: WorkerPool<ObjWorkerRequest, ObjWorkerResponse>) {
+    }
 
-        return fetch(filePath)
-            .then(response => response.text())
-            .then(rawContent => {
-                try {
-                    const objFile = this.parseObjectGroups(rawContent);
-                    return { name, meshes: objFile };
-                } catch (err) {
-                    console.error(err);
-                    throw 'wtf';
-                }
-            })
-            .catch(err => {
-                throw `Error loading obj file ${filePath}. Err: ${err}`
-            });
+    public parseObjFile(filePath: string, mtlFilePath?: string, name: string = 'obj'): Promise<ObjFile> {
+        return this.workerPool.submit({ uri: filePath }).then(res => ({ meshes: res.objectGroups, name }));
+        // if (mtlFilePath) {
+        //     return Promise.all([
+        //         fetch(filePath).then(file => file.text()),
+        //         fetch(mtlFilePath).then(file => file.text())
+        //     ])
+        //         .then(([obj, mtl]) => {
+        //             const materialData = this.parseMtl(mtl);
+        //             const objFile = this.parseObjWithMtl(obj, materialData);
+        //             // if (interleaved) {
+        //             //     const interleaved: InterleavedMesh[] = [];
+        //             //     objFile.meshes.forEach(m => interleaved.push(this.createSingleBufferData(m as ObjMesh)));
+        //             //     objFile.meshes = interleaved;
+        //             // }
+        //             return objFile;
+        //         })
+        //         .catch(err => {
+        //             throw `Error loading obj file ${filePath}. Err: ${err}`
+        //         });
+        // }
+
+        // fetch(filePath)
+        //     .then(response => response.text())
+        //     .then(rawContent => {
+        //         try {
+        //             const objFile = this.parseObjectGroups(rawContent);
+        //             return { name, meshes: objFile };
+        //         } catch (err) {
+        //             console.error(err);
+        //             throw 'wtf';
+        //         }
+        //     })
+        //     .catch(err => {
+        //         throw `Error loading obj file ${filePath}. Err: ${err}`
+        //     });
     }
 
     private parseObjectGroups(objContent: string): ObjectGroup[] {
@@ -287,4 +293,4 @@ class ObjParser {
     }
 }
 
-export default new ObjParser();
+export default new ObjParser(new WorkerPool<ObjWorkerRequest, ObjWorkerResponse>(() => new Worker(new URL('./obj/ObjWorker.ts', import.meta.url), { name: 'Obj-Worker' }), 2));

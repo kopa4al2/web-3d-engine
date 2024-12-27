@@ -17,15 +17,16 @@ export default class TransformSystem implements UpdateSystem {
         const allTransforms = this.entityManager.getComponentsWithId<Transform>(Transform.ID);
 
         for (const transform of allTransforms) {
-            if (transform.shouldMove() && true) {
+            if (transform.shouldMove()) {
                 vec3.lerp(transform.localTransform.position, transform.localTransform.position, transform.targetTransform.position, 10 * deltaTime);
                 quat.slerp(transform.localTransform.rotation, transform.localTransform.rotation, transform.targetTransform.rotation, 10 * deltaTime);
                 vec3.lerp(transform.localTransform.scale, transform.localTransform.scale, transform.targetTransform.scale, 10 * deltaTime);
+                // this.updateMatrices(transform);
                 transform.needsCalculate = true;
-                // console.log('T Local: ', [...transform.localTransform.position], ' Target: ', [...transform.targetTransform.position])
-                // console.log('R Local: ', [...transform.localTransform.rotation], ' Target: ', [...transform.targetTransform.rotation])
             }
-
+        }
+        
+        for (const transform of allTransforms) {
             if (transform.needsCalculate) {
                 let toUpdate = transform;
                 let i = 0;
@@ -41,23 +42,6 @@ export default class TransformSystem implements UpdateSystem {
                 this.updateMatrices(toUpdate);
             }
         }
-
-        /*for (const entity of this.entityManager.scenes[0].getEntities()) {
-            if (!this.random.has(entity)) {
-                this.random.set(entity, Math.random());
-            }
-            const transformMultiplier = this.random.get(entity)!;
-            const transform = this.entityManager.getComponent<Transform>(entity, Transform.ID);
-
-            // if (transform && entity.toString().includes('dragon')  || entity.toString().includes('cube')) {
-            if (transform && !entity.toString().includes('terrain')) {
-                // transform.rotation[0] += deltaTime * 0.2;  // Rotate by 0.5 radians per second
-                // quat.rotateY(transform.rotation, transform.rotation, deltaTime * transformMultiplier);
-                // transform.rotation[1] += deltaTime * transformMultiplier;  // Rotate by 0.5 radians per second
-                // transform.rotation[1] += deltaTime * transformMultiplier;  // Rotate by 0.5 radians per second
-                // transform.rotation[2] += deltaTime * 0.5;  // Rotate by 0.5 radians per second
-            }
-        }*/
     }
 
     private updateMatrices(transform: Transform) {
@@ -68,7 +52,8 @@ export default class TransformSystem implements UpdateSystem {
             transform.localTransform.scale);
 
         if (!transform.parent) {
-            transform.worldTransform = transform.localTransform;
+            transform.copy(transform.worldTransform, transform.localTransform);
+            // transform.worldTransform = transform.localTransform;
             // transform.worldTransform.mat4 = transform.localTransform.mat4;
         } else {
             transform.multiply(transform.worldTransform, transform.parent.worldTransform, transform.localTransform)

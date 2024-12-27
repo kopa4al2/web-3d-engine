@@ -28,9 +28,9 @@ class ThrottleUtil {
         let lastRan: number | undefined;
 
         return function (...args: Parameters<T>) {
-            const now = Date.now();
+            const now = performance.now();
 
-            if (lastRan == undefined || (now - lastRan) >= limit) {
+            if (lastRan === undefined || (now - lastRan) >= limit) {
                 func(...args);
                 lastRan = now;
             } else {
@@ -38,9 +38,9 @@ class ThrottleUtil {
                     clearTimeout(lastFunc);
                 }
                 lastFunc = window.setTimeout(() => {
-                    if ((Date.now() - lastRan!) >= limit) {
+                    if ((performance.now() - lastRan!) >= limit) {
                         func(...args);
-                        lastRan = Date.now();
+                        lastRan = performance.now();
                     }
                 }, limit - (now - lastRan));
             }

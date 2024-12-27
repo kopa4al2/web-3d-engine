@@ -7,7 +7,7 @@ import { FragmentShaderName } from 'core/resources/cpu/CpuShaderData';
 import { BufferId } from 'core/resources/gpu/BufferDescription';
 import { PipelineOptions } from 'core/resources/gpu/GpuShaderData';
 import { TextureSize } from 'core/texture/Texture';
-import DebugUtil from 'util/DebugUtil';
+import DebugUtil from '../../../util/debug/DebugUtil';
 
 export interface MaterialDescriptor {
     fragmentShader: FragmentShaderName,

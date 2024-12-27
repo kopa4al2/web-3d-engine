@@ -20,15 +20,15 @@ export default class MaterialControl extends MaterialFactory {
     }
 
     pbrMaterial(label: string = 'PBRMaterial', data: MaterialProperties, overrides: Partial<PipelineOptions> = {}): Material {
-        const material = super.pbrMaterial(label, data, overrides);
         if (this.materialLabels.has(label)) {
             console.debug(`Reusing material: ${label}`);
             return this.materialLabels.get(label)!;
         } else {
+            const material = super.pbrMaterial(label, data, overrides);
             this.addMaterial(material);
             this.materialLabels.set(label, material);
+            return material;
         }
-        return material;
     }
 
     addMaterial(material: Material) {

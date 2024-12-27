@@ -9,7 +9,7 @@ import Engine, { OnRenderPlugin } from "Engine";
 import { glMatrix, mat4, quat, vec2, vec3 } from "gl-matrix";
 import { enableGpuGraphicsApiSwitch, enableSplitScreenSwitch } from "html/Controls";
 import { enableWebComponentEntitySelect } from 'html/entity-select/EntitySelect';
-import DebugUtil from 'util/DebugUtil';
+import DebugUtil from './util/debug/DebugUtil';
 import WebGLGraphics from "webgl/WebGLGraphics";
 import WebGPUGraphics from "webgpu/graphics/WebGPUGraphics";
 import EntityControl from './engine/ui/controls/EntityControl';
@@ -98,7 +98,7 @@ document.body.onload = async () => {
         glProps = webGl2Props;
         glEngine.start();
     }
-
+    SdiPerformance.log('Initialized engine');
     document.querySelector('canvas')!.focus();
 
     screenProps.subscribeToAnyPropertyChange(['splitScreen', 'gpuApi'], async props => {
@@ -163,11 +163,6 @@ document.body.onload = async () => {
             });
         }
     });
-
-
-    SdiPerformance.log('Initialized both engines')
-    // console.timeEnd(loadTimer)
-    // console.log("=============FINISHED ENGINE LOADING====================")
 };
 
 const screenProps = new PropertiesManager({
@@ -280,11 +275,15 @@ async function initWebGpu(properties: PartialProperties) {
         webGpuProps,
         'webgpu');
     canvas.addToDOM();
+    SdiPerformance.log('Added canvas to DOM')
 
     const layout = new UILayout(canvas.parent, 'WebGPU');
 
     const graphics = await WebGPUGraphics.initWebGPU(canvas, webGpuProps);
+    SdiPerformance.log('Initialized graphics')
+
     const webgpuEngine = await createEngine('WebGPU', webGpuProps, canvas, graphics, layout);
+
     return { webGpuProps, webgpuEngine };
 }
 
@@ -320,7 +319,7 @@ async function createEngine(
         [onRender, fpsCounter.tick.bind(fpsCounter)],
     );
 
-    engine.initializeScene();
+    await engine.initializeScene();
 
     return engine;
 }
