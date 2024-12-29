@@ -1,4 +1,5 @@
 import Mesh from 'core/components/Mesh';
+import Transform from "core/components/Transform";
 import EntityManager, { EntityId } from "core/EntityManager";
 import GeometryFactory from 'core/factories/GeometryFactory';
 import MaterialFactory from 'core/factories/MaterialFactory';
@@ -13,7 +14,7 @@ import ShaderManager from 'core/resources/shader/ShaderManager';
 import TextureManager from "core/resources/TextureManager";
 import Texture from "core/texture/Texture";
 import SdiPerformance from "core/utils/SdiPerformance";
-import { vec4 } from "gl-matrix";
+import { vec2, vec4 } from "gl-matrix";
 import MathUtil from 'util/MathUtil';
 
 
@@ -46,11 +47,14 @@ class ModelRepository {
     }
 
     async createSkyBox() {
-        const geometry = this.geometryFactory.createGeometry('skybox', VertexShaderName.SKY_BOX, Cube.geometry);
-        const material = this.materialFactory.skybox();
-        const pipeline = this.shaderManager.createPipeline(geometry, material);
+        return this.resourceManager.textureManager.loadCubeMap('assets/environment-map/forest-4k-png/', ['px.png', 'nx.png', 'py.png', 'ny.png', 'pz.png', 'nz.png'])
+            .then(() => {
+                const geometry = this.geometryFactory.createGeometry('skybox', VertexShaderName.SKY_BOX, Cube.geometry);
+                const material = this.materialFactory.skybox();
+                const pipeline = this.shaderManager.createPipeline(geometry, material);
 
-        return new Mesh(pipeline, geometry, material);
+                return new Mesh(pipeline, geometry, material);
+            });
     }
 
     async createCrate(cache: boolean = true): Promise<Mesh> {
@@ -70,7 +74,7 @@ class ModelRepository {
             this.resourceManager.textureManager.addToGlobalTexture('assets/advanced/crate/crate.png'),
             this.resourceManager.textureManager.addToGlobalTexture('assets/advanced/crate/crateNormal.png')]);
         const material = this.materialFactory.pbrMaterial('CrateMaterial',
-            new PBRMaterialProperties(albedo, normal, metallicRoughnessMap.index, vec4.fromValues(1, 1, 1, 1)));
+            new PBRMaterialProperties(albedo, normal, metallicRoughnessMap, vec4.fromValues(1, 1, 1, 1), vec2.fromValues(1.0, 1.0)));
 
         const vertexInstancedBuffer = this.resourceManager.createBuffer({
             label: `crate-vertex-instance`,
@@ -221,13 +225,13 @@ class ModelRepository {
         return this.models.get('lightBulb')!;
     }
 
-    async drawScene(cache: boolean = true): Promise<EntityId[]> {
+    async sponzaAtriumScene(cache: boolean = true): Promise<EntityId[]> {
         if (cache && this.models.has('sponza')) {
             return this.sceneCache.get('sponza')!;
         }
 
         console.time('[Sponza]');
-        const sponzaScene = await ModelRepository.cacheables.test(this.resourceManager.textureManager)()
+        const sponzaScene = await ModelRepository.cacheables.sponzaAtrium(this.resourceManager.textureManager)()
             .then(gltf => {
                 console.timeLog('[Sponza]', 'json and loaded textures');
                 return gltf
@@ -237,13 +241,100 @@ class ModelRepository {
         this.sceneCache.set('sponza', sponzaScene);
         return sponzaScene;
     }
+    
+    async sponzaAtriumGLB(cache: boolean = true): Promise<EntityId[]> {
+        if (cache && this.models.has('sponza')) {
+            return this.sceneCache.get('sponza')!;
+        }
+
+        console.time('[Sponza GLB]');
+        const sponzaScene = await ModelRepository.cacheables.sponzaAtriumGLB(this.resourceManager.textureManager)()
+            .then(gltf => {
+                console.timeLog('[Sponza GLB]', 'json and loaded textures');
+                return gltf
+                    .createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager, this.entityManager);
+            });
+        console.timeEnd('[Sponza GLB]');
+        this.sceneCache.set('sponza', sponzaScene);
+        return sponzaScene;
+    }
+    async monkeyHead(cache: boolean = true): Promise<EntityId[]> {
+        if (cache && this.models.has('monkeyHead')) {
+            return this.sceneCache.get('monkeyHead')!;
+        }
+
+        console.time('[test]');
+        const scene = await ModelRepository.cacheables.test(this.resourceManager.textureManager)()
+            .then(gltf => {
+                console.timeLog('[test]', 'json and loaded textures');
+                return gltf
+                    .createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager, this.entityManager);
+            });
+        console.timeEnd('[test]');
+        this.sceneCache.set('monkeyHead', scene);
+        return scene;
+    }
+    
+    
+    async test(cache: boolean = true): Promise<EntityId[]> {
+        if (cache && this.models.has('test')) {
+            return this.sceneCache.get('test')!;
+        }
+
+        console.time('[test]');
+        const scene = await ModelRepository.cacheables.porche(this.resourceManager.textureManager)()
+            .then(gltf => {
+                console.timeLog('[test]', 'json and loaded textures');
+                return gltf
+                    .createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager, this.entityManager);
+            });
+        console.timeEnd('[test]');
+        this.sceneCache.set('test', scene);
+        return scene;
+    }
+    
+    async monster(cache: boolean = true): Promise<EntityId[]> {
+        if (cache && this.models.has('Warehouse')) {
+            return this.sceneCache.get('Warehouse')!;
+        }
+        
+        console.time('[Warehouse]');
+        const scene = await ModelRepository.cacheables.monster(this.resourceManager.textureManager)()
+            .then(gltf => {
+                console.timeLog('[Warehouse]', 'json and loaded textures');
+                return gltf
+                    .createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager, this.entityManager);
+            });
+        console.timeEnd('[Warehouse]');
+        this.sceneCache.set('Warehouse', scene);
+        return scene;
+    }
+
+    async midas(transform?: Transform, cache: boolean = true): Promise<EntityId[]> {
+        if (cache && this.models.has('FinalWarsMonster')) {
+            return this.sceneCache.get('FinalWarsMonster')!;
+        }
+
+        console.time('[FinalWarsMonster]');
+        const scene = await ModelRepository.cacheables.finalWarsMonster(this.resourceManager.textureManager)()
+            .then(gltf => {
+                console.timeLog('[FinalWarsMonster]', 'json and loaded textures');
+                return gltf
+                    .createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager, this.entityManager, transform);
+            });
+        console.timeEnd('[FinalWarsMonster]');
+        this.sceneCache.set('FinalWarsMonster', scene);
+        return scene;
+    }
 
     static cacheables = {
         sponzaAtrium: (textureManager: TextureManager) => cacheablePromise(GLTFParser.parseGltf('assets/scene/sponza_atrium/gltf/', 'scene.gltf', 'scene.bin', textureManager)),
         sponzaAtriumGLB: (textureManager: TextureManager) => cacheablePromise(GLTFParser.parseGlb('assets/scene/sponza_atrium/', 'sponza_atrium_3.glb', textureManager)),
         toyCar: (textureManager: TextureManager) => cacheablePromise(GLTFParser.parseGltf('assets/scene/ToyCar/glTF/', 'ToyCar.gltf', 'ToyCar.bin', textureManager)),
         test: (textureManager: TextureManager) => cacheablePromise(GLTFParser.parseGltf('assets/scene/glTF/', 'Suzanne.gltf', 'Suzanne.bin', textureManager)),
-        // cube: () => cacheablePromise(GLTFParser.parseGltf('assets/scene/simple/cube/', 'Cube.gltf', 'Cube.bin')),
+        porche: (textureManager: TextureManager) => cacheablePromise(GLTFParser.parseGltf('assets/scene/porsche/', 'scene-2.gltf', 'scene-2.bin', textureManager)),
+        monster: (textureManager: TextureManager) => cacheablePromise(GLTFParser.parseGltf('assets/scene/monster/', 'scene.gltf', 'scene.bin', textureManager)),
+        finalWarsMonster: (textureManager: TextureManager) => cacheablePromise(GLTFParser.parseGlb('assets/scene/final_wars_monster/', 'midas.glb', textureManager)),
     }
 
     static wavefrontFiles = {

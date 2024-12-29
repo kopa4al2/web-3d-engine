@@ -4,7 +4,7 @@ import BindGroupLayout from 'core/resources/BindGroupLayout';
 import BufferManager from 'core/resources/BufferManager';
 import { FragmentShaderName, VertexShaderName } from 'core/resources/cpu/CpuShaderData';
 import { BufferData, BufferDescription } from 'core/resources/gpu/BufferDescription';
-import { DEFAULT_PIPELINE_OPTIONS, PipelineOptions } from 'core/resources/gpu/GpuShaderData';
+import { DEFAULT_PIPELINE_OPTIONS, PipelineOptions, UniformVisibility } from 'core/resources/gpu/GpuShaderData';
 import ShaderManager from 'core/resources/shader/ShaderManager';
 import { ShaderStruct } from "core/resources/shader/ShaderStruct";
 import TextureManager from 'core/resources/TextureManager';
@@ -34,6 +34,8 @@ import gpuPhongLightFragmentShader from 'webgpu/shaders/light/phongFragment.wgsl
 import gpuLightVertexShader from 'webgpu/shaders/light/vertexShader.wgsl';
 import gpuTerrainFragmentShader from 'webgpu/shaders/terrain/terrainFragmentShader.wgsl';
 import gpuTerrainVertexShader from 'webgpu/shaders/terrain/terrainVertexShader.wgsl';
+import { BindGroupHelper } from 'core/rendering/Helpers';
+import Globals from '../../engine/Globals';
 
 
 export type PipelineHash = string;
@@ -45,13 +47,34 @@ export default class ResourceManager {
     public textureManager: TextureManager;
     public bufferManager: BufferManager;
 
-    public globalBindGroup: BindGroupId;
+    public globalBindGroup!: BindGroupId;
 
     constructor(private graphics: Graphics) {
         DebugUtil.addToWindowObject('gpuResourceManager', this);
         this.textureManager = new TextureManager(graphics);
         this.bufferManager = new BufferManager(graphics);
-        this.globalBindGroup = this.createGlobalBindGroup();
+        // this.globalBindGroup = this.createGlobalBindGroup();
+    }
+
+    public async init() {
+        return await Promise.all([
+            this.textureManager.create1x1Texture(Texture.DEFAULT_ALBEDO_MAP, new Uint8ClampedArray([255, 255, 255, 255])),
+            this.textureManager.create1x1Texture(Texture.DEFAULT_NORMAL_MAP, new Uint8ClampedArray([128, 128, 255, 255])),
+            this.textureManager.create1x1Texture(Texture.DEFAULT_METALLIC_ROUGHNESS_MAP, new Uint8ClampedArray([255, 255, 255, 255])),
+        ]).then(() => {
+            this.globalBindGroup = this.createGlobalBindGroup()
+        });
+        // new BindGroupHelper(this, 'global', [
+        //     { name: 'Camera', type: 'uniform', visibility: UniformVisibility.VERTEX | UniformVisibility.FRAGMENT, byteLength: 80 },
+        //     { name: 'Light', type: 'uniform', visibility: UniformVisibility.FRAGMENT, byteLength: 464 },
+        //     { name: 'Time', type: 'uniform', visibility: UniformVisibility.VERTEX | UniformVisibility.FRAGMENT, byteLength: 16 },
+        //     { name: 'TexturesArray', type: 'texture-array', visibility: UniformVisibility.FRAGMENT, depth: TextureManager.TEXTURE_ARRAY_LAYERS },
+        //     { name: 'Sampler', type: 'sampler', visibility: UniformVisibility.FRAGMENT, samplerType: 'filtering', config:  },
+        //     { name: 'EnvCubeMap', type: 'cube-texture', visibility: UniformVisibility.FRAGMENT },
+        //     { name: 'EnvSampler', type: 'sampler', visibility: UniformVisibility.FRAGMENT },
+        //     { name: 'ShadowMap', type: 'texture-array', visibility: UniformVisibility.FRAGMENT, depth: Globals.MAX_SHADOW_CASTING_LIGHTS },
+        //     { name: 'ShadowMapSampler', type: 'sampler', visibility: UniformVisibility.FRAGMENT },
+        // ])
     }
 
     private createGlobalBindGroup() {

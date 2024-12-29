@@ -35,12 +35,13 @@ class MeshControl {
             return;
         }
 
+        this.addTransform(container, transform);
+
         this.unprocessedQueue.push({ container, transform });
-        TransformControl.create(container, transform);
         this.processHierarchies();
     }
 
-    addMesh(container: FolderApi, components: Component[]) {
+    addMesh(entity: EntityName, container: FolderApi, components: Component[]) {
         const mesh = components.find(c => c.id === Mesh.ID) as Mesh;
         const transform = components.find(c => c.id === Transform.ID) as Transform;
 
@@ -48,17 +49,26 @@ class MeshControl {
             return;
         }
 
+        this.addTransform(container, transform);
+
         this.unprocessedQueue.push({ transform, container });
         this.processHierarchies();
+    }
 
+    private addTransform(container: FolderApi, transform: Transform) {
+        const point = { xyz: { x: 0, y: 0, z: 0} };
+        container.addBinding(point, 'xyz');
+        container.addButton({ title: 'look at'}).on('click', e => {
+            transform.lookAt([point.xyz.x, point.xyz.y, point.xyz.z]);
+        })
         container.addBinding(wrapArrayAsXYZ(transform.targetTransform.position), 'xyz', {
-            picker: 'inline',
+            picker: 'popup',
             label: 'translate',
-            step: 1
+            step: 0.1
         });
         container.addBinding(wrapArrayAsXYZW(transform.targetTransform.rotation), 'xyzw', {
             view: 'rotation',
-            picker: 'inline',
+            picker: 'popup',
             label: 'rotation',
             expanded: true,
         }).on('change', e => {
@@ -66,33 +76,39 @@ class MeshControl {
         });
 
         container.addBinding(wrapArrayAsXYZW(transform.targetTransform.scale), 'xyzw', {
-            picker: 'inline',
+            picker: 'popup',
             label: 'scale',
-            min: 0.0001,
-            step: 0.01,
+            min: 0.1,
+            step: 0.1,
+        }).on('change', e => {
+
         });
 
-        const scale = { scale: transform.localTransform.scale[0] };
+        const scale = [1];
+        let last = 1;
         container
-            .addBinding(scale, 'scale', { label: 'uniform-scale', min: 0.0001, max: 100, step: 0.01 })
+            .addBinding(scale, 0, { label: 'uniform-scale', min: 0.001, max: 1000, step: 0.001 })
             .on('change', e => {
-                transform.targetTransform.scale[0] = e.value;
-                transform.targetTransform.scale[1] = e.value;
-                transform.targetTransform.scale[2] = e.value;
+                const scaleFactor = e.value >= last ? 0.01 : -0.01;
+                // const scaleFactor = e.value >= last ? e.value : -e.value;
+                last = e.value
+                transform.targetTransform.scale[0] += scaleFactor;
+                transform.targetTransform.scale[1] += scaleFactor;
+                transform.targetTransform.scale[2] += scaleFactor;
+
                 container.refresh();
             });
-
     }
 
-    private processHierarchies() {
+    private processHierarchies(repeat = 1) {
         let preventStackOverflowCounter = 0;
-
-        while (preventStackOverflowCounter++ < 100 && this.unprocessedQueue.length !== 0) {
+        const MAX_ITERATIONS = 100;
+        while (preventStackOverflowCounter++ < MAX_ITERATIONS && this.unprocessedQueue.length !== 0) {
             let { transform, container } = this.unprocessedQueue.shift()!;
-            
+
             if (!this.hierarchyMap.has(transform) && !transform.parent) {
                 container = UILayout.moveFolder(this.root, container);
-                this.hierarchyMap.set(transform, { container, transform, });    
+                this.hierarchyMap.set(transform, { container, transform, });
             } else if (transform.parent && this.hierarchyMap.has(transform.parent)) {
                 const parentContainer = this.hierarchyMap.get(transform.parent)!.container;
                 container = UILayout.moveFolder(parentContainer, container);
@@ -102,7 +118,12 @@ class MeshControl {
             }
         }
 
-        SdiPerformance.log('Added all meshes to the control menu');
+        if (this.unprocessedQueue.length > 0) {
+            setTimeout(() => this.processHierarchies(repeat + 1), repeat * 500);
+            return;
+        }
+
+        SdiPerformance.log(`Added all meshes to the control menu in ${repeat} iterations`);
     }
 }
 

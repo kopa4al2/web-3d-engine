@@ -21,11 +21,11 @@ export default class TransformSystem implements UpdateSystem {
                 vec3.lerp(transform.localTransform.position, transform.localTransform.position, transform.targetTransform.position, 10 * deltaTime);
                 quat.slerp(transform.localTransform.rotation, transform.localTransform.rotation, transform.targetTransform.rotation, 10 * deltaTime);
                 vec3.lerp(transform.localTransform.scale, transform.localTransform.scale, transform.targetTransform.scale, 10 * deltaTime);
-                // this.updateMatrices(transform);
                 transform.needsCalculate = true;
             }
         }
-        
+
+
         for (const transform of allTransforms) {
             if (transform.needsCalculate) {
                 let toUpdate = transform;
@@ -52,8 +52,8 @@ export default class TransformSystem implements UpdateSystem {
             transform.localTransform.scale);
 
         if (!transform.parent) {
-            transform.copy(transform.worldTransform, transform.localTransform);
-            // transform.worldTransform = transform.localTransform;
+            // transform.copy(transform.worldTransform, transform.localTransform);
+            transform.worldTransform = transform.localTransform;
             // transform.worldTransform.mat4 = transform.localTransform.mat4;
         } else {
             transform.multiply(transform.worldTransform, transform.parent.worldTransform, transform.localTransform)

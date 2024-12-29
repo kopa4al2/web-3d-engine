@@ -6,6 +6,8 @@ import interact from "interactjs";
 import Canvas from "../../Canvas";
 import DebugUtil from "./DebugUtil";
 import { VisualizeWorkerRequest, VisualizeWorkerResponse } from "./VisualizeWorker";
+import { vec4 } from 'gl-matrix';
+import { TextureArrayIndex } from 'core/mesh/material/MaterialProperties';
 
 export type TextureType = 'depth' | 'normal'
 
@@ -26,15 +28,14 @@ class DebugCanvas {
             console.warn('No image attached to texture: ', texture);
             return;
         }
-        const img: ImageData | ImageBitmap = texture.imageData instanceof ArrayBuffer
-            ? new ImageData(new Uint8ClampedArray(texture.imageData), texture.size.width, texture.size.height)
-            : texture.imageData as (ImageBitmap | ImageData);
 
-        ctx.clearRect(0, 0, this.canvasWidth, this.canvasHeight);
-        if (img instanceof ImageBitmap) {
-            ctx.drawImage(img, 0, 0);
+        ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        if (texture.imageData instanceof ImageBitmap) {
+            ctx.drawImage(texture.imageData, 0, 0, this.canvasWidth, this.canvasHeight);
+        } else if (texture.imageData instanceof ImageData) {
+            ctx.putImageData(texture.imageData, 0, 0);
         } else {
-            ctx.putImageData(img, 0, 0);
+            ctx.putImageData(new ImageData(new Uint8ClampedArray(texture.imageData.bytes), texture.size.width, texture.size.height), 0, 0);
         }
     }
 
@@ -66,7 +67,7 @@ class DebugCanvas {
             imageData.data[pixelIndex + 3] = 255; // Alpha
         }
 
-        createImageBitmap(imageData).then(d => {
+        createImageBitmap(imageData, { resizeWidth: width, resizeHeight: height, premultiplyAlpha: 'none' }).then(d => {
             context.clearRect(0, 0, this.canvas.width, this.canvas.height);
             context.drawImage(d, 0, 0, width, height, 0, 0, this.canvasWidth, this.canvasHeight);
         });
@@ -124,6 +125,14 @@ class DebugCanvas {
         }
 
         return this.context;
+    }
+
+    static show() {
+        this.getContext().canvas.style.display = 'block';
+    }
+    static hide() {
+        this.getContext().clearRect(0, 0, this.canvas.width, this.canvas.height);
+        this.getContext().canvas.style.display = 'none';
     }
 }
 

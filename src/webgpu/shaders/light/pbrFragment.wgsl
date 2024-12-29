@@ -46,7 +46,8 @@ struct PBRMaterial {
     @align(32) albedo_map: TextureMap,
     @align(32) normal_map: TextureMap,
     @align(32) metallic_map: TextureMap,
-    @align(32) base_color: vec4<f32>,
+    base_color: vec4<f32>,
+    metallicRoughnessFactor: vec2<f32>,
 };
 
 struct PointLight {
@@ -83,7 +84,7 @@ struct FragmentInput {
     @location(2) textureCoord: vec2<f32>,
     @location(3) tangent: vec3<f32>,
     @location(4) bitangent: vec3<f32>,
-    @location(5) shadowPos: vec4<f32>,
+//    @location(5) shadowPos: vec4<f32>,
 //    @interpolate(flat) @location(6) instanceID: u32,
 }
 
@@ -103,7 +104,9 @@ struct FragmentInput {
 
 @fragment
 fn main(input: FragmentInput) -> @location(0) vec4<f32> {
-    let normalizedUv = fract(input.textureCoord);
+    var normalizedUv = fract(input.textureCoord);
+//    normalizedUv.y = 1.0 - normalizedUv.y;
+    
     let uv = material.albedo_map.uv_scale * normalizedUv + material.albedo_map.uv_offset;
     let baseColor = textureSample(globalTextures, globalSampler, uv, material.albedo_map.texture_layer) * material.base_color;
 
@@ -115,8 +118,8 @@ fn main(input: FragmentInput) -> @location(0) vec4<f32> {
     // --- Metallic and Roughness ---
     let metallicRoughtnessUv = material.metallic_map.uv_scale * normalizedUv + material.metallic_map.uv_offset;
     let metallicRoughness = textureSample(globalTextures, globalSampler, metallicRoughtnessUv, material.metallic_map.texture_layer).rgb;
-    let metallic = metallicRoughness.b;
-    let roughness = metallicRoughness.g;
+    let metallic = metallicRoughness.b * material.metallicRoughnessFactor.x;
+    let roughness = metallicRoughness.g * material.metallicRoughnessFactor.y;
 
     // --- Normal Mapping ---
     let TBN: mat3x3<f32> = mat3x3<f32>(input.tangent, input.bitangent, input.normal);

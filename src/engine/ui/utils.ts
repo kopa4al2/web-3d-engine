@@ -102,7 +102,7 @@ export function wrapArrayAsXY(arr: number[] | Float32Array) {
             get y() {
                 return arr[1];
             },
-        }
+        },
     }
 }
 

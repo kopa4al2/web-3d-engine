@@ -15,12 +15,13 @@ import { PipelineColorAttachment, UniformVisibility } from "core/resources/gpu/G
 import ResourceManager from "core/resources/ResourceManager";
 import ShaderManager from "core/resources/shader/ShaderManager";
 import TextureManager from "core/resources/TextureManager";
-import Texture from "core/texture/Texture";
+import Texture, { TextureData } from "core/texture/Texture";
 import WorkerPool from "core/worker/WorkerPool";
-import { mat4, quat, vec3 } from 'gl-matrix';
+import { mat4, quat, vec2, vec3 } from 'gl-matrix';
 import DebugUtil from "../../../util/debug/DebugUtil";
 import JavaMap from "../../../util/JavaMap";
 import MathUtil from "../../../util/MathUtil";
+import DebugCanvas from '../../../util/debug/DebugCanvas';
 
 export interface GLTFModel {
     label?: string,
@@ -47,7 +48,8 @@ export default class GLTFParser {
                         geometryFactory: GeometryFactory,
                         materialFactory: MaterialFactory,
                         resourceManager: ResourceManager,
-                        entityManager: EntityManager): EntityId[] {
+                        entityManager: EntityManager,
+                        rootTransform?: Transform): EntityId[] {
         const textureManager: TextureManager = resourceManager.textureManager;
 
         const bgHelper = new BindGroupHelper(resourceManager, 'VERTEX-INSTANCE', [{
@@ -78,7 +80,6 @@ export default class GLTFParser {
 
                     const gltfMaterial = this.json.materials[primitive.material];
                     const matName = gltfMaterial.name || `unnamed-mat-${Math.random()}`;
-                    console.log(gltfMaterial, matName)
                     if (usedMaterials.get(matName)) {
                         const usedMesh = usedMaterials.get(matName)!
                         entityManager.addComponents(entity, [
@@ -92,28 +93,47 @@ export default class GLTFParser {
                     const metallicFactor = pbr.metallicFactor ?? 1.0;
                     const roughnessFactor = pbr.roughnessFactor ?? 1.0;
 
+                    // let normal!: Texture;
+                    
+                    if (!gltfMaterial.normalTexture) {
+                        const normalUv = this.parseAccessor(primitive.attributes.NORMAL) as Float32Array;
+                        const uv = this.parseAccessor(primitive.attributes.TEXCOORD_0) as Float32Array;
 
-                    const normal = gltfMaterial.normalTexture
-                        ? this.images[gltfMaterial.normalTexture.index]
+                        const size = 1024;
+                        MathUtil.generateNormalTextureAsImageBitmap(normalUv, uv, size, size)
+                            .then((imageBitmap) => {
+                                const name = gltfMaterial.name!;
+                                const texture = textureManager.addPreloadedToGlobalTexture(`${name}_custom_normal`, imageBitmap);
+                                console.log(`${name} normal: `, texture.index.textureLayer, [...texture.index.textureUvOffset], [...texture.index.textureUvScale]);
+                                // DebugCanvas.debugTexture(texture);
+                            });
+                    } else {
+                        // normal = this.getTextureAtIndex(gltfMaterial.normalTexture.index);
+                    }
+                    let normal = gltfMaterial.normalTexture
+                        ? this.getTextureAtIndex(gltfMaterial.normalTexture.index)
                         : textureManager.getTexture(Texture.DEFAULT_NORMAL_MAP);
                     const albedo = pbr.baseColorTexture
-                        ? this.images[pbr.baseColorTexture.index]
+                        ? this.getTextureAtIndex(pbr.baseColorTexture.index)
                         : textureManager.getTexture(Texture.DEFAULT_ALBEDO_MAP);
                     const metallicRoughness = pbr.metallicRoughnessTexture
-                        ? this.images[pbr.metallicRoughnessTexture.index]
-                        : textureManager.create1x1Texture(
-                            `${Texture.DEFAULT_METALLIC_ROUGHNESS_MAP}-${metallicFactor}-${roughnessFactor}`,
-                            new Uint8ClampedArray([255, metallicFactor * 255, roughnessFactor * 255, 255]));
+                        ? this.getTextureAtIndex(pbr.metallicRoughnessTexture.index)
+                        : textureManager.getTexture(Texture.DEFAULT_METALLIC_ROUGHNESS_MAP);
+                    const metallicRoughnessFactor = vec2.fromValues(metallicFactor, roughnessFactor);
+                        // : textureManager.create1x1Texture(
+                        //     `${Texture.DEFAULT_METALLIC_ROUGHNESS_MAP}-${metallicFactor}-${roughnessFactor}`,
+                        //     new Uint8ClampedArray([255, metallicFactor * 255, roughnessFactor * 255, 255]));
 
 
                     const blendMode = gltfMaterial.alphaMode === 'BLEND' ? BlendPresets.TRANSPARENT : undefined;
                     const pbrMaterialProperties = new PBRMaterialProperties(
-                        albedo.index, normal.index, metallicRoughness.index, new Float32Array(baseColorFactor));
+                        albedo, normal, metallicRoughness, new Float32Array(baseColorFactor), metallicRoughnessFactor);
 
                     const material = materialFactory.pbrMaterial(gltfMaterial.name,
                         pbrMaterialProperties,
                         {
                             colorAttachment: { blendMode } as PipelineColorAttachment,
+                            // cullFace: 'back'
                             cullFace: gltfMaterial.doubleSided ? 'none' : 'back'
                         });
 
@@ -145,7 +165,6 @@ export default class GLTFParser {
         const startOffset = 0;
 
         const arr: EntityId[] = [];
-        // if (!this.json.scene || this.json.scene.nodes.length === 0) {
         if (!this.json.scenes) {
             console.warn('No scenes present, creating meshes from the nodes');
             return buildNode([], this.json.nodes[startOffset]);
@@ -161,12 +180,14 @@ export default class GLTFParser {
         // }
 
         for (const sceneNode of this.json.scenes[this.json.scene].nodes) {
-            // for (const node of this.json.scenes[sceneNode].nodes) {
-            buildNode(arr, this.json.nodes[sceneNode]);
-            // }
+            buildNode(arr, this.json.nodes[sceneNode], rootTransform);
         }
 
         return arr;
+    }
+
+    private getTextureAtIndex(texture: number) {
+        return this.images[this.json.textures[texture].source];
     }
 
     private parseTransform(node: GLTFNode) {
@@ -176,6 +197,14 @@ export default class GLTFParser {
 
 
         if (node.rotation || node.scale || node.translation) {
+            if (node.scale && node.scale[0] > 10) {
+                console.warn('Large scale detected', JSON.stringify(node), node);
+                node.scale = [0.01, 0.01, 0.01];
+            }
+            if (node.translation && node.translation[0] > 100) {
+                console.warn('Large transaltion detected', JSON.stringify(node));
+                // node.translation = [0, 0, 0];
+            }
             return new Transform(
                 node.translation || vec3.fromValues(0, 0, 0),
                 node.rotation || quat.create(),
@@ -197,7 +226,6 @@ export default class GLTFParser {
             : this.parseAccessor(primitive.attributes.TEXCOORD_0);
 
         if (primitive.attributes.TANGENT === undefined) {
-            console.warn(`Geometry with name: ${name} is missing tangent. Will generate tangents on the cpu`, primitive);
             return geometryFactory.createGeometry(
                 name,
                 VertexShaderName.LIT_TANGENTS_VEC4,
@@ -357,36 +385,44 @@ export default class GLTFParser {
         this.glbWorkerPool.addWorker(new Worker(new URL('./GLBWorker.ts', import.meta.url), { name: 'GLB-Worker-2' }))
         this.glbWorkerPool.addWorker(new Worker(new URL('./GLBWorker.ts', import.meta.url), { name: 'GLB-Worker-3' }))
         this.glbWorkerPool.addWorker(new Worker(new URL('./GLBWorker.ts', import.meta.url), { name: 'GLB-Worker-4' }))
+        // this.glbWorkerPool.addWorker(new Worker(new URL('./GLBWorker.ts', import.meta.url), { name: 'GLB-Worker-5' }))
+        // this.glbWorkerPool.addWorker(new Worker(new URL('./GLBWorker.ts', import.meta.url), { name: 'GLB-Worker-6' }))
+        // this.glbWorkerPool.addWorker(new Worker(new URL('./GLBWorker.ts', import.meta.url), { name: 'GLB-Worker-7' }))
+        // this.glbWorkerPool.addWorker(new Worker(new URL('./GLBWorker.ts', import.meta.url), { name: 'GLB-Worker-8' }))
 
         console.log('GLB JSON: ', json);
+        const parseImagesPromise = json.images
+            ? this.parseImages(rootDir, json, textureManager, fileArrayBuffer, binaryChunkOffset + 8)
+            : Promise.resolve([]);
         return Promise.all([
             this.parseBuffers(rootDir, json, fileArrayBuffer, binaryChunkOffset + 8),
-            this.parseImages(rootDir, json, textureManager, fileArrayBuffer, binaryChunkOffset + 8)])
+            parseImagesPromise
+        ])
             .then(([buffers, textures]) => {
                 this.glbWorkerPool.shutdown();
                 return new GLTFParser(json, buffers, textures);
             });
     }
 
-    // public static async parseGltf(rootDir: string, gltfPath: string, binaryPath: string): Promise<GLTFParser> {
     public static async parseGltf(rootDir: string, gltfPath: string, binaryPath: string, textureManager: TextureManager): Promise<GLTFParser> {
         const [json, binary] = await Promise.all([
             fetch(rootDir + gltfPath).then(res => res.json()),
             fetch(rootDir + binaryPath).then(res => res.arrayBuffer())
         ]);
 
+        console.log('GLTF JSON: ', json);
+        
 
         this.gltfWorkerPool.addWorker(new Worker(new URL('./GLTFWorker.ts', import.meta.url), { name: 'GLTF-Worker-1' }));
         this.gltfWorkerPool.addWorker(new Worker(new URL('./GLTFWorker.ts', import.meta.url), { name: 'GLTF-Worker-2' }));
         this.gltfWorkerPool.addWorker(new Worker(new URL('./GLTFWorker.ts', import.meta.url), { name: 'GLTF-Worker-3' }));
         this.gltfWorkerPool.addWorker(new Worker(new URL('./GLTFWorker.ts', import.meta.url), { name: 'GLTF-Worker-4' }));
-        this.gltfWorkerPool.addWorker(new Worker(new URL('./GLTFWorker.ts', import.meta.url), { name: 'GLTF-Worker-5' }));
-        this.gltfWorkerPool.addWorker(new Worker(new URL('./GLTFWorker.ts', import.meta.url), { name: 'GLTF-Worker-6' }));
+        // this.gltfWorkerPool.addWorker(new Worker(new URL('./GLTFWorker.ts', import.meta.url), { name: 'GLTF-Worker-5' }));
+        // this.gltfWorkerPool.addWorker(new Worker(new URL('./GLTFWorker.ts', import.meta.url), { name: 'GLTF-Worker-6' }));
 
         const buffers = await this.parseBuffers(rootDir, json, binary);
-        const images = await this.parseImages(rootDir, json, textureManager, binary);
+        const images = json.images ? await this.parseImages(rootDir, json, textureManager, binary) : [];
 
-        console.log('GLTF JSON: ', json);
         this.gltfWorkerPool.shutdown();
         return new GLTFParser(json, buffers, images);
     }
@@ -400,26 +436,24 @@ export default class GLTFParser {
             if (image.uri) {
                 const uri = rootPath + image.uri;
                 promises.push(this.gltfWorkerPool.submit({ uri })
-                    .then(({ width, height, data }) => {
+                    .then(({ imageBitmap }) => {
                         return textureManager
-                            .addPreloadedToGlobalTexture(uri, new ImageData(new Uint8ClampedArray(data), width, height))
+                            .addPreloadedToGlobalTexture(uri, imageBitmap);
+                        // .then(({ width, height, data }) => {
+                        //     return textureManager
+                        //         .addPreloadedToGlobalTexture(uri, new ImageData(new Uint8ClampedArray(data), width, height))
                     }));
             } else if (image.bufferView !== undefined) {
                 const bufferView = json.bufferViews[image.bufferView];
                 const mimeType = image.mimeType!;
+                // const blob = new Blob([new DataView(glbBinaryData!, offset + bufferView.byteOffset!, bufferView.byteLength)], { type: mimeType});
+                // promises.push(createImageBitmap(blob).then(bitmap => textureManager.addPreloadedToGlobalTexture(bufferView.name, bitmap)));
                 const slice = glbBinaryData!.slice(offset + bufferView.byteOffset!, offset + bufferView.byteOffset! + bufferView.byteLength);
                 promises.push(
                     this.glbWorkerPool.submit(
                         { buffer: slice, mimeType }, [slice])
-                        .then(({ data, width, height }) => textureManager
-                            .addPreloadedToGlobalTexture(bufferView.name, new ImageData(new Uint8ClampedArray(data), width, height))));
-
-                // const imgBuffer = glbBinaryData!.slice(offset + bufferView.byteOffset!, offset + bufferView.byteOffset! + bufferView.byteLength);
-                // console.log(bufferView.name, imgBuffer.byteLength, offset)
-                // const imgBuffer = new DataView(glbBinaryData!, bufferView.byteOffset!, bufferView.byteLength)
-                // promises.push(this.toImageData(imgBuffer, mimeType).then(imageData => textureManager.addPreloadedToGlobalTexture(bufferView.name, imageData)));
-
-                // console.warn(`Image at idx: ${i} is expecting a bufferView: `, image, bufferView);
+                        .then(({ imageBitmap }) => textureManager
+                            .addPreloadedToGlobalTexture(bufferView.name, imageBitmap)));
             } else {
                 console.error('Image: ', image);
                 throw new Error("Unsupported texture format");
@@ -641,6 +675,29 @@ export enum GLTFSamplerFilter {
     LINEAR = 9729,
     MIP_MAP_LINEAR = 9987,
     REPEAT_WRAPPING = 10497
+}
+
+export interface GltfSkin {
+    joints: number[]; // Indices of nodes representing bones
+    inverseBindMatrices: mat4[]; // Bind pose matrices
+    skeletonRoot: number | null; // Root bone index (if available)
+}
+
+export interface AnimationChannel {
+    targetNode: number; // Node index affected by this animation
+    targetPath: 'translation' | 'rotation' | 'scale'; // Type of transformation
+    samplerIndex: number; // Index of the associated sampler
+}
+
+export interface AnimationSampler {
+    keyframes: number[]; // Array of keyframe times
+    values: (vec3[] | quat[] | vec3[]); // Corresponding transformation values
+    interpolation: 'LINEAR' | 'STEP' | 'CUBICSPLINE'; // Interpolation type
+}
+
+export interface Animation {
+    channels: AnimationChannel[];
+    samplers: AnimationSampler[];
 }
 
 

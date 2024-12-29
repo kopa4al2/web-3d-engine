@@ -10,6 +10,18 @@
     "paths": {
       "core/*": [
         "core/*"
+      ],
+      "webgl/*": [
+        "webgl/*"
+      ],
+      "webgpu/*": [
+        "webgpu/*"
+      ],
+      "engine/*": [
+        "engine/*"
+      ],
+      "utils/*": [
+        "util/*"
       ]
     },
     "rootDir": "src",
@@ -17,13 +29,17 @@
     "sourceMap": true,
     "strict": true,
     "strictPropertyInitialization": true,
-    "target": "ES2023",
+    "target": "ESNext",
+//    "target": "ES2023",
+//    "typeRoots": ["src/types"],
     "types": [
-      "@webgpu/types"
+      "@webgpu/types",
+//      "types"
     ]
   },
   "include": [
     "src/**/*",
-    "src/types/**/*"
+    "src/types/**/*",
+    "types"
   ]
 }

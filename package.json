@@ -14,6 +14,8 @@
   "license": "ISC",
   "dependencies": {
     "@0b5vr/tweakpane-plugin-rotation": "^0.2.0",
+    "@kitschpatrol/tweakpane-plugin-file-import": "^1.1.2-beta.1",
+    "@kitschpatrol/tweakpane-plugin-image": "^2.0.1-beta.4",
     "@tweakpane/plugin-camerakit": "^0.3.0",
     "@tweakpane/plugin-essentials": "^0.2.1",
     "gl-matrix": "^3.4.3",

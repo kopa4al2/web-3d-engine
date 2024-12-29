@@ -129,6 +129,8 @@ export default class GlTexture {
             return gl.UNSIGNED_INT;
         } else if (arr instanceof Float32Array) {
             return gl.FLOAT;
+        } else if (arr instanceof ImageBitmap) {
+            return gl.FLOAT;
         } else {
             console.error('arr', arr);
             throw new Error(`Typed array unknown ${arr}`);

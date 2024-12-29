@@ -30,20 +30,20 @@ export default class Transform implements Component {
                 public children: Transform[] = [],
                 private _parent?: Transform,
                 public needsCalculate: boolean = true) {
-        // this.needsCalculate = true;
-
         this.targetTransform = {
             position: vec3.copy(vec3.create(), _position),
             rotation: quat.copy(quat.create(), _rotation),
             scale: vec3.copy(vec3.create(), _scale),
             mat4: mat4.fromRotationTranslationScale(mat4.create(), _rotation, _position, _scale)
         };
+
         this.localTransform = {
             position: _position,
             rotation: _rotation,
             scale: _scale,
             mat4: mat4.fromRotationTranslationScale(mat4.create(), _rotation, _position, _scale)
         };
+
         this.worldTransform = {
             position: vec3.copy(vec3.create(), _position),
             rotation: quat.copy(quat.create(), _rotation),
@@ -81,17 +81,24 @@ export default class Transform implements Component {
         return this.worldTransform.rotation;
     }
 
+    get scale() {
+        return this.worldTransform.scale;
+    }
+
+    transformBy(other: Transform) {
+        this.multiply(this.targetTransform, other.localTransform, this.localTransform);
+    }
+
     shouldMove() {
         return !vec3.equals(this.targetTransform.position, this.localTransform.position)
             || !quat.equals(this.targetTransform.rotation, this.localTransform.rotation)
             || !vec3.equals(this.targetTransform.scale, this.localTransform.scale);
     }
 
-    get scale() {
-        return this.worldTransform.scale;
-    }
+    lookAt(target: vec3 | [number, number, number]) {
+        mat4.getScaling(this.targetTransform.scale, this.localTransform.mat4);
+        mat4.getTranslation(this.targetTransform.position, this.localTransform.mat4);
 
-    lookAt(target: vec3 | [number, number, number], animate = true) {
         const forward = vec3.sub(vec3.create(), target, this.localTransform.position);
         vec3.normalize(forward, forward);
 
@@ -99,45 +106,54 @@ export default class Transform implements Component {
         // Check if forward is parallel to up
         if (Math.abs(vec3.dot(forward, up)) > 0.99999 && Math.abs(forward[0]) < 0.99999) {
             up = vec3.fromValues(1, 0, 0);
-            console.warn('changing UP vector to the X axis', this.label);
+            console.warn('changing UP vector to the X axis', this);
         }
+
         mat4.targetTo(this.targetTransform.mat4, this.localTransform.position, target, up);
+        mat4.getRotation(this.targetTransform.rotation, this.targetTransform.mat4);
+        // mat4.fromRotationTranslationScale(this.matrix, this.rotation, this.translation, this.scale);
+
+        return this;
+        // const forward = vec3.sub(vec3.create(), target, this.localTransform.position);
+        // vec3.normalize(forward, forward);
+        //
+        // const right = vec3.create();
+        // vec3.cross(right, Transform.UP, forward);
+        // vec3.normalize(right, right);
+        //
+        // const correctedUp = vec3.create();
+        // vec3.cross(correctedUp, forward, right);
+        // vec3.normalize(correctedUp, correctedUp);
+        //
+        // // Build rotation matrix
+        // const rotation = mat4.create();
+        // mat4.set(rotation,
+        //     right[0], correctedUp[0], -forward[0], 0,
+        //     right[1], correctedUp[1], -forward[1], 0,
+        //     right[2], correctedUp[2], -forward[2], 0,
+        //     0, 0, 0, 1
+        // );
+        //
+        // // Build translation matrix
+        // const translation = mat4.create();
+        // mat4.translate(translation, translation, this.localTransform.position);
+        //
+        // // Combine translation and rotation
+        // const modelMatrix = mat4.create();
+        // this.targetTransform.mat4 = mat4.multiply(modelMatrix, translation, rotation);
+        // mat4.multiply(this.targetTransform.mat4, translation, rotation);
+        // let up = Transform.UP;
+        // // Check if forward is parallel to up
+        // if (Math.abs(vec3.dot(forward, up)) > 0.99999 && Math.abs(forward[0]) < 0.99999) {
+        //     up = vec3.fromValues(1, 0, 0);
+        //     console.warn('changing UP vector to the X axis', this.label);
+        // }
+        // mat4.targetTo(this.targetTransform.mat4, this.localTransform.position, target, up);
         mat4.getTranslation(this.targetTransform.position, this.targetTransform.mat4);
         mat4.getRotation(this.targetTransform.rotation, this.targetTransform.mat4);
         mat4.getScaling(this.targetTransform.scale, this.targetTransform.mat4);
 
-        if (!animate) {
-            this.copy(this.localTransform, this.targetTransform);
-        }
         return this;
-
-        // // const transform = Transform.fromMat4(matrix);
-        // const dot = vec3.dot(Transform.FORWARD, target);
-        // if (dot > 0.99999 || dot < -0.99999) {
-        //     quat.set(this.targetTransform.rotation, 0, 0, 0, 1);
-        //     if (!animate) {
-        //         this.needsCalculate = true;
-        //         this.copy(this.localTransform, this.targetTransform);
-        //     }
-        //     return this;
-        // }
-        //
-        // const cross = vec3.cross(vec3.create(), Transform.FORWARD, target);
-        // const v1len = vec3.length(Transform.FORWARD);
-        // const v2len = vec3.length(target);
-        //
-        // quat.set(this.targetTransform.rotation,
-        //     cross[0],
-        //     cross[1],
-        //     cross[2],
-        //     Math.sqrt(v1len * v1len) * (v2len * v2len) + dot);
-        //
-        // if (!animate) {
-        //     this.needsCalculate = true;
-        //     this.copy(this.localTransform, this.targetTransform);
-        // }
-        //
-        // return this;
     }
 
     toString(transform: Transformations) {
@@ -184,6 +200,8 @@ export default class Transform implements Component {
         this.localTransform.position[1] += value[1];
         this.localTransform.position[2] += value[2];
 
+        this.recalculateMat4(this.targetTransform);
+        this.recalculateMat4(this.localTransform);
         return this;
     }
 
@@ -200,9 +218,16 @@ export default class Transform implements Component {
             this.localTransform.scale[1] *= value[1];
             this.localTransform.scale[2] *= value[2];
         }
+
+        this.recalculateMat4(this.targetTransform);
+        this.recalculateMat4(this.localTransform);
+
         return this;
     }
 
+    private recalculateMat4(transform: Transformations) {
+        mat4.fromRotationTranslationScale(transform.mat4, transform.rotation, transform.position, transform.scale);
+    }
 
     public static copyOf(other: Transform, newTransform?: Partial<Transformations>) {
         const newPos = newTransform?.position || other.localTransform.position;
@@ -232,3 +257,106 @@ export const defaultTransform = (): Transform => new Transform(
     quat.fromValues(0, 0, 0, 1),
     vec3.fromValues(1, 1, 1),
 );
+
+
+export class TransformBuilder {
+
+    public matrix = mat4.create();
+
+    constructor(public translation = vec3.fromValues(0, 0, 0),
+                public rotation = quat.fromValues(0, 0, 0, 1),
+                public scale = vec3.fromValues(1, 1, 1),
+                public children = [],
+                public parent?: Transform
+    ) {
+        this.matrix = mat4.fromRotationTranslationScale(mat4.create(), rotation, translation, scale);
+    }
+
+    static position(pos: vec3) {
+        return new TransformBuilder(pos);
+    }
+
+    static rotation(quat: quat) {
+        return new TransformBuilder(vec3.create(), quat);
+    }
+
+    lookAt(target: vec3 | [number, number, number]) {
+        mat4.getScaling(this.scale, this.matrix);
+        mat4.getTranslation(this.translation, this.matrix);
+
+        const forward = vec3.sub(vec3.create(), target, this.translation);
+        vec3.normalize(forward, forward);
+
+        let up = Transform.UP;
+        // Check if forward is parallel to up
+        if (Math.abs(vec3.dot(forward, up)) > 0.99999 && Math.abs(forward[0]) < 0.99999) {
+            up = vec3.fromValues(1, 0, 0);
+            console.warn('changing UP vector to the X axis', this);
+        }
+
+        mat4.targetTo(this.matrix, this.translation, target, up);
+        mat4.getRotation(this.rotation, this.matrix);
+        mat4.fromRotationTranslationScale(this.matrix, this.rotation, this.translation, this.scale);
+
+        return this;
+    }
+
+    translate(value: vec3 | number[] | Float32Array): TransformBuilder {
+        // this.translation[0] += value[0];
+        // this.translation[1] += value[1];
+        // this.translation[2] += value[2];
+
+        mat4.translate(this.matrix, this.matrix, value as vec3);
+
+        return this;
+    }
+
+    scaleBy(value: vec3 | number[] | number): TransformBuilder {
+        if (typeof value === "number") {
+            mat4.scale(this.matrix, this.matrix, vec3.scale(this.scale, this.scale, value));
+        } else {
+            mat4.scale(this.matrix, this.matrix, value as vec3);
+        }
+        //     vec3.scale(this.scale, this.scale, value);
+        // } else {
+        //     this.scale[0] *= value[0];
+        //     this.scale[1] *= value[1];
+        //     this.scale[2] *= value[2];
+        // }
+
+        return this;
+    }
+
+    reorient(): TransformBuilder {
+        const right = vec3.create();
+        vec3.cross(right, Transform.FORWARD, Transform.UP);
+        vec3.normalize(right, right);
+
+        // Recompute up to ensure orthogonality
+        vec3.cross(Transform.UP, right, Transform.FORWARD);
+        vec3.normalize(Transform.UP, Transform.UP);
+
+        // Create the orientation matrix
+        const rotationMatrix = mat4.create();
+        mat4.set(
+            rotationMatrix,
+            right[0], Transform.UP[0], Transform.FORWARD[0], 0,
+            right[1], Transform.UP[1], Transform.FORWARD[1], 0,
+            right[2], Transform.UP[2], Transform.FORWARD[2], 0,
+            0, 0, 0, 1
+        );
+
+        // Combine with the existing model matrix
+        const newModelMatrix = mat4.create();
+        this.matrix = mat4.multiply(newModelMatrix, rotationMatrix, this.matrix);
+        return this;
+    }
+
+    build(): Transform {
+        return new Transform(
+            mat4.getTranslation(this.translation, this.matrix),
+            mat4.getRotation(this.rotation, this.matrix),
+            mat4.getScaling(this.scale, this.matrix),
+            this.children, this.parent);
+    }
+}

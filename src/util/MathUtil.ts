@@ -1,15 +1,7 @@
 import { GeometryData } from 'core/mesh/Geometry';
 import { mat3, mat4, vec2, vec3, vec4 } from "gl-matrix";
 import DebugUtil from './debug/DebugUtil';
-
-// export interface Frustum extends Iterable<vec4>{
-//     left: vec4,
-//     right: vec4,
-//     near: vec4,
-//     far: vec4,
-//     top: vec4,
-//     bottom: vec4
-// }
+import { TextureData } from 'core/texture/Texture';
 
 class MathUtil {
 
@@ -631,8 +623,47 @@ class MathUtil {
         return { vertices, normals, texCoords, indices, tangents: [...tangents], bitangents: [...bitangents] };
     }
 
-    fract(num: number) {
-        return num - Math.floor(num);
+    async generateNormalTextureAsImageBitmap(
+        normals: Float32Array,
+        uvs: Float32Array,
+        width: number,
+        height: number
+    ): Promise<ImageBitmap> {
+        // Create an empty RGBA canvas
+        const canvas = new OffscreenCanvas(width, height);
+        const ctx = canvas.getContext("2d")!;
+        const imageData = ctx.createImageData(width, height);
+
+        // Iterate through vertices and write normals to the texture based on UVs
+        for (let i = 0; i < uvs.length / 2; i++) {
+            const nx = normals[i * 3 + 0];
+            const ny = normals[i * 3 + 1];
+            const nz = normals[i * 3 + 2];
+
+            // Normalize the normal vector
+            const length = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+            const normalizedNormal = [nx / length, ny / length, nz / length];
+
+            // Map normal to [0, 1] range
+            const encodedNormal = normalizedNormal.map(n => (n + 1) * 0.5);
+
+            // Get UV coordinates and map them to pixel space
+            const u = Math.floor(uvs[i * 2 + 0] * (width - 1));
+            const v = Math.floor(uvs[i * 2 + 1] * (height - 1));
+
+            // Write the normal to the corresponding pixel in the ImageData
+            const index = (v * width + u) * 4; // RGBA index
+            imageData.data[index + 0] = Math.round(encodedNormal[0] * 255); // R
+            imageData.data[index + 1] = Math.round(encodedNormal[1] * 255); // G
+            imageData.data[index + 2] = Math.round(encodedNormal[2] * 255); // B
+            imageData.data[index + 3] = 255; // A (opaque)
+        }
+
+        // Draw the ImageData to the canvas
+        ctx.putImageData(imageData, 0, 0);
+
+        // Create an ImageBitmap from the canvas
+        return await createImageBitmap(canvas);
     }
 }
 

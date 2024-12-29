@@ -4,7 +4,7 @@ import EntityManager from "core/EntityManager";
 import DirectionalLight from 'core/light/DirectionalLight';
 import PointLight from 'core/light/PointLight';
 import SpotLight from "core/light/SpotLight";
-import { BindGroupHelper, ShaderUBO } from "core/rendering/Helpers";
+import { BindGroupHelper } from "core/rendering/Helpers";
 import LightRenderer from "core/rendering/LightRenderer";
 import { BufferId, BufferUsage } from "core/resources/gpu/BufferDescription";
 import { UniformVisibility } from "core/resources/gpu/GpuShaderData";
@@ -51,6 +51,7 @@ export default class Renderer implements System {
         // this.fullScreenQuads = new FullScreenQuad(graphics, resourceManager);
         this.lightsRenderer = new LightRenderer();
         this.shadowPassBindGroupHelper = new BindGroupHelper(resourceManager, 'lightViewProjMatrix', [{
+            type: 'uniform',
             name: 'ShadowMapGlobal',
             visibility: UniformVisibility.FRAGMENT | UniformVisibility.VERTEX,
             byteLength: 16 * Float32Array.BYTES_PER_ELEMENT,
@@ -121,13 +122,16 @@ export default class Renderer implements System {
         const projectionMatrix = scene.projectionMatrix;
         const lightViewProjMatrices: mat4[] = Array(Globals.MAX_SHADOW_CASTING_LIGHTS);
         const entitiesToRender = scene.getVisibleEntities();
-        this.performShadowPass(spotLights, lightViewProjMatrices, scene);
+
+        if (Globals.ENABLE_SHADOW_CASTINGS) {
+            this.performShadowPass(spotLights, lightViewProjMatrices, scene);
+        }
 
         const data = BufferUtils.mergeFloat32Arrays([
             this.projectionViewMatrix as Float32Array,
             projectionMatrix.get(),
             viewMatrix,
-            lightViewProjMatrices[0],
+            Globals.ENABLE_SHADOW_CASTINGS ? lightViewProjMatrices[0] : mat4.create(),
             new Float32Array([...camera.position, 1]),
             new Float32Array([...camera.forward, 1]),
             new Float32Array([...camera.up, 1]),

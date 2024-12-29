@@ -1,11 +1,17 @@
-import * as CamerakitPlugin from '@tweakpane/plugin-camerakit';
 import * as EssentialsPlugin from '@tweakpane/plugin-essentials';
 import * as TweakpaneRotationInputPlugin from '@0b5vr/tweakpane-plugin-rotation';
+import * as TweakpaneImagePlugin from '@kitschpatrol/tweakpane-plugin-image';
+import * as TweakpaneFileImportPlugin from '@kitschpatrol/tweakpane-plugin-file-import';
 import { Pane } from 'tweakpane';
-import interact from 'interactjs';
-import { SdiPluginBundle } from './custom/Label';
-import { BladeApi, ContainerApi, FolderApi } from '@tweakpane/core';
+import { BladeApi, ContainerApi, EventListenable, FolderApi } from '@tweakpane/core';
 
+export interface UiProperties {
+    refresh: (el?: UiBladeWrapper) => void;
+}
+
+export interface UiBladeWrapper extends UiProperties, EventListenable<any>, BladeApi<any> {
+    
+}
 export type TopLevelContainer = 'LIGHTS' | 'ENTITIES' | 'MATERIALS' | 'FPS'
 // ROTATION PLUGIN
 // https://github.com/0b5vr/tweakpane-plugin-rotation?tab=readme-ov-file
@@ -16,7 +22,7 @@ export default class UILayout {
     private readonly tabs: Record<TopLevelContainer, ContainerApi>;
 
     constructor(private parent: HTMLElement, title?: string) {
-        this._pane = this.createPane(parent, title);
+        this._pane = UILayout.createPane(parent, title);
         const fps = this.addFolder('FPS', true);
         const tabs = this.addTabs('LIGHTS', 'ENTITIES', 'MATERIALS');
         this.tabs = {
@@ -33,6 +39,15 @@ export default class UILayout {
 
     getTopLevelContainer(container: TopLevelContainer) {
         return this.tabs[container];
+    }
+    
+    public static createBladeApi(container: ContainerApi, params: Record<string, any>): UiBladeWrapper {
+        const blade = container.addBlade(params) as UiBladeWrapper;
+        if (params.refresh) {
+            blade.refresh = () => params.refresh!(blade); 
+        }
+        
+        return blade;
     }
 
     public static moveFolder(newContainer: ContainerApi, folder: FolderApi) {
@@ -59,7 +74,7 @@ export default class UILayout {
     }
 
     newPane(title: string) {
-        return this.createPane(this.parent, title);
+        return UILayout.createPane(this.parent, title);
     }
 
     addFolder(title: string, expanded?: boolean, hidden?: boolean, disabled?: boolean) {
@@ -75,15 +90,16 @@ export default class UILayout {
         return this._pane.addBlade({ title, ...params })
     }
 
-    private createPane(parent: HTMLElement, title?: string) {
+    public static createPane(parent: HTMLElement, title?: string) {
         const menu = (parent.querySelector('.menu') || parent) as HTMLElement;
         const container = document.createElement('div');
         menu.appendChild(container);
 
         const pane = new Pane({ container, title, expanded: true });
-        // pane.registerPlugin(SdiPluginBundle);
-        pane.registerPlugin(TweakpaneRotationInputPlugin);
         pane.registerPlugin(EssentialsPlugin);
+        pane.registerPlugin(TweakpaneImagePlugin);
+        pane.registerPlugin(TweakpaneFileImportPlugin);
+        pane.registerPlugin(TweakpaneRotationInputPlugin);
 
         return pane;
     }

@@ -318,8 +318,9 @@ async function createEngine(
         materialFactory,
         [onRender, fpsCounter.tick.bind(fpsCounter)],
     );
-
-    await engine.initializeScene();
+    
+    await resourceManager.init()
+        .then(engine.initializeScene.bind(engine))
 
     return engine;
 }
