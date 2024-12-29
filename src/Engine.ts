@@ -4,7 +4,7 @@ import ProjectionMatrix from 'core/components/camera/ProjectionMatrix';
 import Component from 'core/components/Component';
 import Input from 'core/components/Input';
 import Mesh from 'core/components/Mesh';
-import Transform, { defaultTransform } from 'core/components/Transform';
+import Transform, { defaultTransform, TransformBuilder } from 'core/components/Transform';
 import EntityFactory from 'core/entities/EntityFactory';
 import EntityManager, { EntityId, EntityName } from 'core/EntityManager';
 import GeometryFactory from 'core/factories/GeometryFactory';
@@ -222,11 +222,28 @@ export default class Engine {
             }, defaultTransform().translate(vec3.fromValues(0, 5, 0)).lookAt([0, 5, -1])
         );
 
+        const skeletalTransform = new TransformBuilder()
+            .reorient()
+            .translate([4, 3, 0])
+            .lookAt([4, 4, 0])
+            .build();
+
+        // const skeletalTransform = Transform.fromMat4(lookAtWithOffset(vec3.fromValues(4, 2, 2), vec3.fromValues(2, 2, 0), Transform.UP));
+
+        const e = this.entityManager.createEntity('TransformEntity')
+        this.entityManager.addComponents(e, [skeletalTransform]);
+        this.scene.addEntities(e)
         return Promise.all([
-            this.loadAndAddMesh('Crate1', () => this.modelRepository.createCrate(), [-3, 5, 1], 0.005),
+            this.addScene('Skeletal', () => this.modelRepository.midas(skeletalTransform)),
+            // this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumGLB),
+            // this.loadAndAddMesh('Crate1', this.modelRepository.createCrate, [-3, 5, 1], 0.005),
         ])
-            .then(() => this.addScene('Sponza Atrium'))
-            .then(() => this.loadAndAddMesh('Crate2', () => this.modelRepository.createCrate(), [0, 0, 0], 0.005),)
+            // .then(() => this.addScene('Skeletal', () => this.modelRepository.finalWarsMonster(skeletalTransform)))
+            // .then(() => this.addScene('Monster', this.modelRepository.monster, defaultTransform().translate([3, 3, 0]).lookAt([0, 1, 0])))
+            // .then(() => this.addScene('MonkeyHead', this.modelRepository.monkeyHead, defaultTransform().translate([-3, 3, 0])))
+            // .then(() => this.loadAndAddMesh('Crate2', this.modelRepository.createCrate, [0, 0, 0], 0.005),)
+            // .then(() => this.addScene('Porsche', this.modelRepository.test))
+            .then(() => this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumScene))
             .then(() => {
                 this.ecs.registerUpdateSystems(
                     new SceneSystem(this.entityManager),
@@ -244,13 +261,15 @@ export default class Engine {
         // worldCoordinates(this.properties, this.freeCameraComponent, this.projectionMatrix, this.input, this.canvas.parent);
     }
 
-    private async addScene(label = 'scene'): Promise<void> {
-        // SdiPerformance.log(`Begin loading ${label}`);
+    private async addScene(label = 'scene', scene: () => Promise<EntityId[]>, transform?: Transform): Promise<void> {
         console.time(`Loading ${label} took:`);
-        const entities = await this.modelRepository.drawScene();
+        const entities = await scene.bind(this.modelRepository)();
+        if (transform) {
+            const component = this.entityManager.getComponents<[Transform]>(entities[0], Transform.ID)[0];
+            component.transformBy(transform);
+        }
         this.scene.addEntities(...entities);
         console.timeEnd(`Loading ${label} took:`);
-        // SdiPerformance.log(`${label} was added to the scene`);
     }
 
     private createPointLight(label: string, props: Partial<PointLightProps>, transform?: Transform) {
@@ -464,7 +483,7 @@ export default class Engine {
     // }
     private async loadAndAddMesh(label: string, meshCreator: (cache?: boolean) => Promise<Mesh>, translate: number[] = [0, 0, 0], scaleFactor: number = 1) {
         console.time(`Loading ${label} took:`);
-        const mesh = await meshCreator();
+        const mesh = await meshCreator.bind(this.modelRepository)();
         const entity = this.entityManager.createEntity(label);
         const transform = defaultTransform().scaleBy(scaleFactor).translate(translate);
         this.entityManager.addComponents(entity, [mesh, transform]);
@@ -488,3 +507,40 @@ export type OnRenderPlugin = () => void;
 //     this.scene.addEntities(entityId);
 //     // SdiPerformance.log('Added the whole Sponza Atrium to the scene');
 // });
+
+
+function lookAtWithOffset(position: vec3, target: vec3, up: vec3): mat4 {
+    // Compute forward vector
+    const forward = vec3.create();
+    vec3.subtract(forward, target, position);
+    vec3.normalize(forward, forward);
+
+    // Compute right vector
+    const right = vec3.create();
+    vec3.cross(right, up, forward);
+    vec3.normalize(right, right);
+
+    // Compute corrected up vector
+    const correctedUp = vec3.create();
+    vec3.cross(correctedUp, forward, right);
+    vec3.normalize(correctedUp, correctedUp);
+
+    // Build rotation matrix
+    const rotation = mat4.create();
+    mat4.set(rotation,
+        right[0], correctedUp[0], -forward[0], 0,
+        right[1], correctedUp[1], -forward[1], 0,
+        right[2], correctedUp[2], -forward[2], 0,
+        0, 0, 0, 1
+    );
+
+    // Build translation matrix
+    const translation = mat4.create();
+    mat4.translate(translation, translation, position);
+
+    // Combine translation and rotation
+    const modelMatrix = mat4.create();
+    mat4.multiply(modelMatrix, translation, rotation);
+
+    return modelMatrix;
+}

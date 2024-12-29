@@ -12,7 +12,7 @@ export interface TextureSize {
     height: number,
 }
 
-export type TextureData = ImageBitmap | ImageData | ArrayBufferLike
+export type TextureData = ImageBitmap | ImageData | { width: number, height: number, bytes: ArrayBufferLike }
 
 export enum TextureType {
     TEXTURE_2D = 'TEXTURE_2D',

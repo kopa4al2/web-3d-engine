@@ -2,15 +2,6 @@ import { GeometryData } from 'core/mesh/Geometry';
 import { mat3, mat4, vec2, vec3, vec4 } from "gl-matrix";
 import DebugUtil from './debug/DebugUtil';
 
-// export interface Frustum extends Iterable<vec4>{
-//     left: vec4,
-//     right: vec4,
-//     near: vec4,
-//     far: vec4,
-//     top: vec4,
-//     bottom: vec4
-// }
-
 class MathUtil {
 
     isPowerOfTwo(n: number): boolean {
@@ -629,10 +620,6 @@ class MathUtil {
         }
 
         return { vertices, normals, texCoords, indices, tangents: [...tangents], bitangents: [...bitangents] };
-    }
-
-    fract(num: number) {
-        return num - Math.floor(num);
     }
 }
 

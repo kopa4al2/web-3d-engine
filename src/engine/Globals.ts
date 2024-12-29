@@ -1,4 +1,3 @@
-import { ImageChannelFormat } from 'core/texture/Texture';
 
 class Globals {
 
@@ -11,6 +10,8 @@ class Globals {
     MAX_SHADOW_CASTING_LIGHTS = 1;
 
     ENABLE_DEBUG_SHADOW = false;
+    
+    ENABLE_SHADOW_CASTINGS = true;
 }
 
 export default new Globals();

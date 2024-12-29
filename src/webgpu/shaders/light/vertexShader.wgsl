@@ -31,7 +31,7 @@ struct VertexOutput {
     @location(2) textureCoord: vec2<f32>,
     @location(3) tangent: vec3<f32>,
     @location(4) bitangent: vec3<f32>,
-    @location(5) shadowPos: vec4<f32>,
+//    @location(5) shadowPos: vec4<f32>,
 //    @interpolate(flat) @location(6) instanceID: u32,
 };
 
@@ -63,8 +63,8 @@ fn main(input: VertexInput) -> VertexOutput {
     output.bitangent = normalize(bitangent);
     
 
-    let lightPos = global.lightProjectionView[0] * modelMatrix * vec4<f32>(input.position, 1.0);
-    output.shadowPos = lightPos;
+//    let lightPos = global.lightProjectionView[0] * modelMatrix * vec4<f32>(input.position, 1.0);
+//    output.shadowPos = lightPos;
 //    output.shadowPos = vec4(lightPos.xy * vec2(0.5, -0.5) + vec2(0.5, 0.5), lightPos.z, 1.0);
 
     return output;

@@ -85,6 +85,13 @@ export default class EntityManager {
     public getComponent<T extends Component>(entity: EntityId, component: ComponentId): T {
         return (this.entities.get(entity) as Map<ComponentId, Component>).get(component) as T;
     }
+
+    public getAllComponentsOfEntity(entity: EntityId): Component[] {
+        if (!this.entities.has(entity)) {
+            throw new Error(`No entity with id: ${entity.description}`);
+        }
+        return [...this.entities.get(entity)!.values()];
+    }
 }
 
 

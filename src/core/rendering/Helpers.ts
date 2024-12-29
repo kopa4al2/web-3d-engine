@@ -5,6 +5,7 @@ import { UniformVisibility } from "core/resources/gpu/GpuShaderData";
 import ResourceManager from "core/resources/ResourceManager";
 import { ShaderStruct, ShaderStructName } from "core/resources/shader/ShaderStruct";
 import Bitmask from "../../util/BitMask";
+import SamplingConfig from 'core/texture/SamplingConfig';
 
 
 export type ShaderVariableType = 'vec3' | 'vec2' | 'mat4';
@@ -14,6 +15,7 @@ export interface ShaderUniformVariable {
     name: string,
 }
 
+/*
 export class ShaderUBO {
 
     private bufferId?: BufferId;
@@ -64,17 +66,37 @@ export class ShaderUBO {
     private getByteLength(struct: ShaderStructV2): number {
         return struct.byteLength;
     }
-}
+}*/
 
 export default class Helpers {
 }
 
-export interface ShaderStructV2 {
+type BaseStruct = {
     name: string,
     visibility: UniformVisibility,
-    byteLength: number,
-    type?: BindGroupEntryType,
+    type: BindGroupEntryType,
 }
+
+type TextureStruct = { type: 'texture' | 'texture-array' | 'cube-texture' } | {
+    sampleType?: | 'float' | 'unfilterable-float' | 'depth' | 'sint' | 'uint'
+}
+
+type TextureArrayStruct = { type: 'texture-array' } & { depth: number, } & BaseStruct & TextureStruct
+type CubeTextureStruct = { type: 'cube-texture' } & BaseStruct & TextureStruct
+
+type SamplerStruct = { type: 'sampler' } & {
+    samplerType?: 'filtering' | 'non-filtering' | 'comparison',
+    config: SamplingConfig
+} & BaseStruct
+type UniformStruct = { type: 'uniform' | 'storage' } & { byteLength: number } & BaseStruct
+
+export type ShaderStructV2 = UniformStruct | TextureArrayStruct | CubeTextureStruct | SamplerStruct;
+// export interface ShaderStructV2 {
+//     name: string,
+//     visibility: UniformVisibility,
+//     byteLength: number,
+//     type?: BindGroupEntryType,
+// }
 
 export class BindGroupHelper {
     // public bufferId: BufferId;
@@ -94,6 +116,9 @@ export class BindGroupHelper {
         for (let i = 0; i < structs.length; i++) {
             const struct = structs[i];
 
+            if (struct.type === 'texture-array') {
+
+            }
             const bufferId = resourceManager.createBuffer({
                 byteLength,
                 usage: BufferUsage.COPY_DST | (struct.type === 'storage' ? BufferUsage.STORAGE : BufferUsage.UNIFORM),
@@ -141,6 +166,10 @@ export class BindGroupHelper {
     }
 
     private getByteLength(struct: ShaderStructV2): number {
-        return struct.byteLength;
+        if (struct.type === 'storage' || struct.type === 'uniform') {
+            return struct.byteLength;
+        }
+
+        return 0;
     }
 }
