@@ -1,3 +1,4 @@
+import { RadioGridController } from "@tweakpane/plugin-essentials";
 import Canvas from "Canvas";
 import ProjectionMatrix from "core/components/camera/ProjectionMatrix";
 import EntityManager from "core/EntityManager";
@@ -9,6 +10,7 @@ import Engine, { OnRenderPlugin } from "Engine";
 import { glMatrix, mat4, quat, vec2, vec3 } from "gl-matrix";
 import { enableGpuGraphicsApiSwitch, enableSplitScreenSwitch } from "html/Controls";
 import { enableWebComponentEntitySelect } from 'html/entity-select/EntitySelect';
+import { Pane } from "tweakpane";
 import DebugUtil from './util/debug/DebugUtil';
 import WebGLGraphics from "webgl/WebGLGraphics";
 import WebGPUGraphics from "webgpu/graphics/WebGPUGraphics";
@@ -18,8 +20,8 @@ import FpsCounter from "./engine/ui/views/FpsCounter";
 import ResourceManager from 'core/resources/ResourceManager';
 import MaterialControl from './engine/ui/controls/MaterialControl';
 import MaterialFactory from 'core/factories/MaterialFactory';
-import './styles/theme.scss'
 import './styles/index.scss'
+import './styles/theme.scss'
 
 // OVERRIDE SYMBOL TO STRING FOR DEBUGGING
 Symbol.prototype.toString = function () {
@@ -54,9 +56,10 @@ document.body.onload = async () => {
     //     value: 'webgl2',
     // });
     // // graphicsApiBlade.on()
-    enableSplitScreenSwitch(screenProps, document.getElementById('global-controls')!);
-    enableGpuGraphicsApiSwitch(screenProps, document.getElementById('global-controls')!);
+    // enableSplitScreenSwitch(screenProps, document.getElementById('global-controls')!);
+    // enableGpuGraphicsApiSwitch(screenProps, document.getElementById('global-controls')!);
 
+    new GlobalPropertiesControl(screenProps);
     let gpuEngine: Engine | undefined,
         glEngine: Engine | undefined,
         gpuProps: PropertiesManager | undefined,
@@ -312,4 +315,72 @@ async function createEngine(
         .then(engine.initializeScene.bind(engine));
 
     return engine;
+}
+
+class GlobalPropertiesControl {
+
+    private splitScreenToggle;
+
+    constructor(private properties: PropertiesManager) {
+        const pane = UILayout.createPane(document.querySelector('.gpu-api-switch')!, 'GPU Api');
+        FpsCounter.counter = pane.addBlade({ view: 'fpsgraph', label: 'fps', rows: 2 });
+        properties.subscribeToAnyPropertyChange(['gpuApi'], props => {
+            pane.title = props.getString('gpuApi');
+        });
+
+        const isSplitScreenEnabled = properties.getBoolean('splitScreen');
+        const apis = {
+            active: properties.getString('gpuApi'),
+            available: [
+                ['Split Screen', ''],
+                ['Web gpu', 'Webgl 2']
+            ],
+            onSelect: [
+                [this.setSplitScreen.bind(this)],
+                [() => this.setGpuApi('webgpu'), () => this.setGpuApi('webgl2')]],
+        }
+
+        const radioGrid = pane.addBinding(apis, 'active', {
+            label: undefined,
+            view: 'radiogrid',
+            groupName: 'grp',
+            size: [2, 2],
+            cells: (x: number, y: number) => ({
+                title: apis.available[y][x],
+                value: apis.onSelect[y][x],
+            }),
+        }).on('change', (ev) => (ev.value as any)());
+
+        const valueController = radioGrid.controller.valueController as RadioGridController<any>;
+        const splitScreenBtn = valueController.cellControllers[0];
+        const webGpuApiBtn = valueController.cellControllers[2];
+        const webglApiBtn = valueController.cellControllers[3];
+
+        const currentApi = properties.getString('gpuApi');
+        splitScreenBtn.view.element.style.gridColumn = 'span 2';
+        splitScreenBtn.view.inputElement.checked = isSplitScreenEnabled;
+        webGpuApiBtn.view.inputElement.checked = !isSplitScreenEnabled && currentApi === 'webgpu';
+        webglApiBtn.view.inputElement.checked = !isSplitScreenEnabled && currentApi === 'webgl2';
+        valueController.cellControllers[1].viewProps.set("hidden", true);
+
+        this.splitScreenToggle = splitScreenBtn;
+    }
+
+    private setGpuApi(api: string) {
+        this.properties.updateProperty('gpuApi', api);
+        this.properties.updateProperty('splitScreen', false);
+        localStorage.setItem('gpuApi', api);
+        localStorage.removeItem('splitScreen');
+        SdiPerformance.reset();
+    }
+
+    private setSplitScreen() {
+        const oldValue = this.properties.getBoolean('splitScreen');
+        this.properties.updateProperty('splitScreen', !oldValue);
+        if (oldValue) {
+            localStorage.removeItem('splitScreen');
+        } else {
+            localStorage.setItem('splitScreen', 'true');
+        }
+    }
 }

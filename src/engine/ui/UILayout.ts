@@ -3,6 +3,7 @@ import * as TweakpaneRotationInputPlugin from '@0b5vr/tweakpane-plugin-rotation'
 import * as TweakpaneImagePlugin from '@kitschpatrol/tweakpane-plugin-image';
 import * as TweakpaneFileImportPlugin from '@kitschpatrol/tweakpane-plugin-file-import';
 import * as TextareaPlugin from '@kitschpatrol/tweakpane-plugin-textarea';
+import * as TweakpanePluginInputs from '@kitschpatrol/tweakpane-plugin-inputs';
 import { Pane } from 'tweakpane';
 import { BladeApi, ContainerApi, EventListenable, FolderApi } from '@tweakpane/core';
 import DebugUtil from "util/debug/DebugUtil";
@@ -101,6 +102,7 @@ export default class UILayout {
         menu.appendChild(container);
 
         const pane = new Pane({ container, title, expanded: true });
+        pane.registerPlugin(TweakpanePluginInputs);
         pane.registerPlugin(TweakpaneImagePlugin);
         pane.registerPlugin(EssentialsPlugin);
         pane.registerPlugin(TweakpaneFileImportPlugin);

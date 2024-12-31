@@ -3,7 +3,15 @@ import UILayout from "../UILayout";
 
 export default class FpsCounter {
 
-    private counter;
+    public static counter;
+
+    static begin() {
+        this.counter.begin();
+    }
+
+    static end() {
+        this.counter.end();
+    }
 
     constructor(layout: UILayout) {
         // this.counter = layout.getTopLevelContainer('FPS')

@@ -1,76 +1,96 @@
 @use '@tweakpane/core/lib/sass/tp';
 
-//$css-vars: (
-//        'base-bg': 'bs-bg',
-//        'base-border-radius': 'bs-br',
-//        'base-font': 'bs-ff',
-//        'base-shadow': 'bs-sh',
-//        'blade-border-radius': 'bld-br',
-//        'blade-h-padding': 'bld-hp',
-//        'blade-value-width': 'bld-vw',
-//        'button-bg': 'btn-bg',
-//        'button-bg-active': 'btn-bg-a',
-//        'button-bg-focus': 'btn-bg-f',
-//        'button-bg-hover': 'btn-bg-h',
-//        'button-fg': 'btn-fg',
-//        'container-bg': 'cnt-bg',
-//        'container-bg-active': 'cnt-bg-a',
-//        'container-bg-focus': 'cnt-bg-f',
-//        'container-bg-hover': 'cnt-bg-h',
-//        'container-fg': 'cnt-fg',
-//        'container-h-padding': 'cnt-hp',
-//        'container-unit-size': 'cnt-usz',
-//        'container-unit-spacing': 'cnt-usp',
-//        'container-v-padding': 'cnt-vp',
-//        'groove-fg': 'grv-fg',
-//        'input-bg': 'in-bg',
-//        'input-bg-active': 'in-bg-a',
-//        'input-bg-focus': 'in-bg-f',
-//        'input-bg-hover': 'in-bg-h',
-//        'input-fg': 'in-fg',
-//        'label-fg': 'lbl-fg',
-//        'monitor-bg': 'mo-bg',
-//        'monitor-fg': 'mo-fg',
-//);
+:root {
+  --gpu-api-width: 250px;
+  --top-menu-height: 50px;
+  --top-menu-width: max(min(70%, 500px), 30%);
+}
+
 .top-menu {
+  @extend %tp-theming;
   position: relative;
-  z-index: 99999;
+  margin: auto;
+  z-index: 999;
   display: flex;
-  gap: 8px;
-  width: 100%;
-  height: 70px;
+  width: var(--top-menu-width);
+  height: var(--top-menu-height);
   justify-content: center;
 
-  & .menu-item {
-    position: relative;
-    &:hover > .body {
-      transform: translateY(0);
-      transition: transform linear;
-    }
-    & .text {
-      color: var(--tp-button-foreground-color)
-    }
-    & .body {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: max-content;
-      transform: translateY(-100%);
-      transition: transform linear;
+  & .center {
+    display: flex;
+    gap: 24px;
 
+
+    & .menu-item {
+      position: relative;
+      width: calc(#{tp.cssVar('container-unit-size')} * 5);
+      height: calc(#{tp.cssVar('container-unit-size')} * 2);
+      padding: 0 tp.cssVar('blade-h-padding') 0 tp.cssVar('blade-h-padding');
+      align-items: center;
+      justify-content: center;
       display: flex;
-      flex-direction: column;
-      gap: 4px;
-      background: var(--tp-container-background-color);
+      background: tp.cssVar('button-bg');
 
-      &.expanded {
-        transform: translateY(0);
-        transition: transform linear;
+      &:hover {
+        cursor: pointer;
+        background: tp.cssVar('button-bg-hover');
+
+        & .body {
+          transform: translateY(40%);
+          transition: transform ease-out 0.25s;
+        }
+      }
+
+      & .drop-down-toggle {
+        color: tp.cssVar('button-fg');
+      }
+
+      & .body {
+        z-index: 10;
+        background: tp.cssVar('container-bg-hover');
+        box-shadow: tp.cssVar('base-shadow');
+        border-radius: tp.cssVar('base-border-radius');
+        position: absolute;
+        top: 0;
+        left: 0;
+        margin: 0;
+        padding: 0px;
+        width: 150%;
+        height: max-content;
+        transform: translateY(-100%);
+        transition: transform ease-in 0.125s;
+
+        display: flex;
+        flex-direction: column;
+
+        list-style: none;
+
+        & > li.body-item {
+          cursor: pointer;
+          text-align: center;
+          padding: calc(#{tp.cssVar('blade-h-padding')} * 2);
+          background: tp.cssVar('button-bg');
+          color: tp.cssVar('button-fg');
+
+          &:hover {
+            background: tp.cssVar('button-bg-hover');
+          }
+        }
       }
     }
   }
+
+  & .right {
+
+  }
 }
+
+.gpu-api-switch {
+  z-index: 9999;
+  position: absolute;
+  width: var(--gpu-api-width);
+}
+
 
 html, body {
   margin: 0 !important;
@@ -124,40 +144,6 @@ canvas {
   gap: 5px;
 }
 
-.tp-rotv {
-  /*font-size: 1.1rem!important;*/
-  /*--bs-bg: var(--tp-base-background-color, hsl(230, 7%, 17%));*/
-  /*--bs-br: var(--tp-base-border-radius, 6px);*/
-  /*--bs-ff: var(--tp-base-font-family, Roboto Mono, Source Code Pro, Menlo, Courier, monospace);*/
-  /*--bs-sh: var(--tp-base-shadow-color, rgba(0, 0, 0, 0.2));*/
-  /*--bld-br: var(--tp-blade-border-radius, 2px);*/
-  /*--bld-hp: var(--tp-blade-horizontal-padding, 4px);*/
-  /*--bld-vw: var(--tp-blade-value-width, 360px);*/
-  /*--btn-bg: var(--tp-button-background-color, hsl(230, 7%, 70%));*/
-  /*--btn-bg-a: var(--tp-button-background-color-active, #d6d7db);*/
-  /*--btn-bg-f: var(--tp-button-background-color-focus, #c8cad0);*/
-  /*--btn-bg-h: var(--tp-button-background-color-hover, #bbbcc4);*/
-  /*--btn-fg: var(--tp-button-foreground-color, hsl(230, 7%, 17%));*/
-  /*--cnt-bg: var(--tp-container-background-color, rgba(187, 188, 196, 0.1));*/
-  /*--cnt-bg-a: var(--tp-container-background-color-active, rgba(187, 188, 196, 0.25));*/
-  /*--cnt-bg-f: var(--tp-container-background-color-focus, rgba(187, 188, 196, 0.2));*/
-  /*--cnt-bg-h: var(--tp-container-background-color-hover, rgba(187, 188, 196, 0.15));*/
-  /*--cnt-fg: var(--tp-container-foreground-color, hsl(230, 7%, 75%));*/
-  /*--cnt-hp: var(--tp-container-horizontal-padding, 4px);*/
-  /*--cnt-vp: var(--tp-container-vertical-padding, 4px);*/
-  /*--cnt-usp: var(--tp-container-unit-spacing, 4px);*/
-  /*--cnt-usz: var(--tp-container-unit-size, 20px);*/
-  /*--in-bg: var(--tp-input-background-color, rgba(187, 188, 196, 0.1));*/
-  /*--in-bg-a: var(--tp-input-background-color-active, rgba(187, 188, 196, 0.25));*/
-  /*--in-bg-f: var(--tp-input-background-color-focus, rgba(187, 188, 196, 0.2));*/
-  /*--in-bg-h: var(--tp-input-background-color-hover, rgba(187, 188, 196, 0.15));*/
-  /*--in-fg: var(--tp-input-foreground-color, hsl(230, 7%, 75%));*/
-  /*--lbl-fg: var(--tp-label-foreground-color, rgba(187, 188, 196, 0.7));*/
-  /*--mo-bg: var(--tp-monitor-background-color, rgba(0, 0, 0, 0.2));*/
-  /*--mo-fg: var(--tp-monitor-foreground-color, rgba(187, 188, 196, 0.7));*/
-  /*--grv-fg: var(--tp-groove-foreground-color, rgba(187, 188, 196, 0.1));*/
-}
-
 .menu [class^='tp-'] {
   user-select: none;
   /*font-size: 1.2rem;*/
@@ -176,10 +162,11 @@ canvas {
   height: max-content;
 }
 
-#global-controls {
-  position: absolute;
-  z-index: 9999;
-  left: 0;
-  top: 0;
-  background: rgba(255, 255, 255, 150);
-}
+
+//#global-controls {
+//  position: absolute;
+//  z-index: 9999;
+//  left: 0;
+//  top: 0;
+//  background: rgba(255, 255, 255, 150);
+//}

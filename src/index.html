@@ -6,21 +6,30 @@
     <title>WebGlRenderEngine</title>
 </head>
 <body>
-<div id="global-controls">
 
-</div>
+<div class="gpu-api-switch"></div>
+
 <div class="top-menu">
-<!--<div class="top-menu">-->
-    <div class="menu-item">File</div>
-    <div class="menu-item">
-        <p class="text">World</p>
-        <ul class="body">
-            <li class="body-item">Materials</li>
-            <li class="body-item">Meshes</li>
-            <li class="body-item">Lights</li>
-        </ul>
+    <div class="center">
+        <div class="menu-item">
+            <a class="drop-down-toggle">File</a>
+            <ul class="body">
+                <li class="body-item">Materials</li>
+                <li class="body-item">Meshes</li>
+                <li class="body-item">Lights</li>
+            </ul>
+        </div>
+        <div class="menu-item">
+            <a class="drop-down-toggle">World</a>
+            <ul class="body">
+                <li class="body-item">Materials</li>
+                <li class="body-item">Meshes</li>
+                <li class="body-item">Lights</li>
+            </ul>
+        </div>
     </div>
 </div>
+<div class="menu vertical"></div>
 <div class="canvas-wrapper" id="webgl2-canvas">
     <div class="menu vertical"></div>
     <!--    <div class="menu horizontal"></div>-->

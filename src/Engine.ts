@@ -32,6 +32,7 @@ import TerrainSystem from 'core/systems/terrain/TerrainSystem';
 import TransformSystem from 'core/systems/TransformSystem';
 import PromiseQueue from "core/utils/PromiseQueue";
 import SdiPerformance from "core/utils/SdiPerformance";
+import FpsCounter from "engine/ui/views/FpsCounter";
 import { glMatrix, mat4, quat, vec2, vec3, vec4 } from 'gl-matrix';
 import { worldCoordinates } from "./html/Views";
 // import { enableEntitySelect, LightControls } from 'html/Controls';
@@ -97,6 +98,7 @@ export default class Engine {
 
     loop(now: number) {
         this.onRenderPlugins.forEach(plugin => plugin());
+        FpsCounter.begin();
         this.properties.flushBuffer();
         if (this.isRunning) {
             const deltaTime = (now - this.lastFrame) / 1000;
@@ -105,6 +107,7 @@ export default class Engine {
 
             this.lastFrame = now;
             this.frameRequest = requestAnimationFrame(this.loop.bind(this));
+            FpsCounter.end();
         }
     }
 
