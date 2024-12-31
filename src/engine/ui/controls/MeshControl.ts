@@ -62,21 +62,21 @@ class MeshControl {
             transform.lookAt([point.xyz.x, point.xyz.y, point.xyz.z]);
         })
         container.addBinding(wrapArrayAsXYZ(transform.targetTransform.position), 'xyz', {
-            picker: 'inline',
+            picker: 'popup',
             label: 'translate',
             step: 0.1
         });
         container.addBinding(wrapArrayAsXYZW(transform.targetTransform.rotation), 'xyzw', {
             view: 'rotation',
-            picker: 'inline',
+            picker: 'popup',
             label: 'rotation',
-            expanded: true,
+            expanded: false,
         }).on('change', e => {
             quat.normalize(transform.targetTransform.rotation, transform.targetTransform.rotation);
         });
 
         container.addBinding(wrapArrayAsXYZW(transform.targetTransform.scale), 'xyzw', {
-            picker: 'inline',
+            picker: 'popup',
             label: 'scale',
             min: 0.1,
             step: 0.1,

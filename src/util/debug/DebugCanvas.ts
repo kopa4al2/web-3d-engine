@@ -20,6 +20,9 @@ class DebugCanvas {
 
     // private static workers = new WorkerPool<VisualizeWorkerRequest, VisualizeWorkerResponse>(
     //     () => new Worker(new URL('./VisualizeWorker.ts', import.meta.url), { name: 'Canvas-Worker' }), 1);
+    public static getCurrentImageAsBase64() {
+        return this.canvas.toDataURL()
+    }
 
     public static debugTexture(texture: Texture | { imageData: TextureData, size: { width: number, height: number } }) {
         const ctx = this.getContext();

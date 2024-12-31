@@ -54,7 +54,6 @@ class ModelRepository {
                 const pipeline = this.shaderManager.createPipeline(geometry, material);
 
                 return new Mesh(pipeline, geometry, material);
-
             });
     }
 

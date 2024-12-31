@@ -6,6 +6,7 @@ import PromiseQueue from "core/utils/PromiseQueue";
 import { vec2 } from 'gl-matrix';
 import DebugUtil from "../../util/debug/DebugUtil";
 import Globals from '../../engine/Globals';
+import { TextureArrayIndex } from 'core/mesh/material/MaterialProperties';
 
 const normalFormat = 'rgba8unorm';
 const hdrImgFormat = 'rgba16float';
@@ -159,6 +160,24 @@ export default class TextureManager {
         return cubeMap;
     }
 
+    updateTexture(texture: Texture, data?: TextureData) {
+        const { x, y, layer: z, width, height } = this.texturePacker.findTexture(texture.path)!;
+        const image = data || texture.imageData;
+        const imageData = this.prepareDataForUpload(image);
+        this.graphics.updateTexture(texture.id, {
+            x, y, z,
+            data: {
+                imageData,
+                width, height,
+                channel: {
+                    format: 'rgba8unorm',
+                    dataType: 'uint8'
+                }
+            },
+        });
+
+    }
+    
     public async create1x1Texture(label: string, data: Uint8ClampedArray): Promise<Texture> {
         // public create1x1Texture(label: string, data: Uint8ClampedArray): Promise<TextureArrayIndex> {
         return this.createTextureFromValues(label, data, 1, 1);
@@ -182,6 +201,19 @@ export default class TextureManager {
             });
         // const blob = new Blob([data.buffer], { type: 'image/png' });
 
+    }
+
+    public getAllTextures(): Map<string, Texture> {
+        return this.cachedTextures;
+    }
+
+    public getTextureIndex(texture: Texture): TextureArrayIndex {
+        const { layer, uvScaleY, uvScaleX, uvOffsetY, uvOffsetX } = this.texturePacker.findTexture(texture.path)!;
+        return {
+            textureLayer: layer,
+            textureUvScale: vec2.fromValues(uvScaleX, uvScaleY),
+            textureUvOffset: vec2.fromValues(uvOffsetX, uvOffsetY)
+        };
     }
 
     public getTexture(id: string): Texture {
@@ -253,12 +285,6 @@ export default class TextureManager {
             });
             this.globalTextures.set(sizeSerialized, textureId);
             DebugUtil.addToWindowObject('globalTexture', textureId);
-            // this.textureArraysData.set(textureId, {
-            //     width: size.width,
-            //     height: size.height,
-            //     totalLayers: TextureManager.TEXTURE_ARRAY_LAYERS,
-            //     layers: []
-            // });
 
             return textureId;
         }
@@ -275,11 +301,12 @@ export default class TextureManager {
             layer, uvScaleX, uvScaleY, uvOffsetX, uvOffsetY
         } = packed;
 
-        const imageData = image instanceof ImageData
-            ? image.data
-            : image instanceof ImageBitmap
-                ? image
-                : new Uint8ClampedArray(image.bytes);
+        const imageData = this.prepareDataForUpload(image); 
+            // image instanceof ImageData
+            // ? image.data
+            // : image instanceof ImageBitmap
+            //     ? image
+            //     : new Uint8ClampedArray(image.bytes);
 
         this.graphics.updateTexture(textureId, {
             x, y, z: layer,
@@ -301,6 +328,14 @@ export default class TextureManager {
                 textureUvScale: vec2.fromValues(uvScaleX, uvScaleY),
             },
             { width, height });
+    }
+
+    private prepareDataForUpload(image: ImageBitmap | ImageData | { width: number; height: number; bytes: ArrayBufferLike }) {
+        return image instanceof ImageData
+            ? image.data
+            : image instanceof ImageBitmap
+                ? image
+                : new Uint8ClampedArray(image.bytes);
     }
 
     private async loadImageAsBitMap(path: string): Promise<ImageBitmap> {

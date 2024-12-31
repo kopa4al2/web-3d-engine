@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { ContainerApi, FolderApi } from '@tweakpane/core';
 import Component, { ComponentId } from 'core/components/Component';
 import Mesh from 'core/components/Mesh';
@@ -33,31 +34,31 @@ export default class EntityControl extends EntityManager {
         super();
         this.tempFolder = layout.addFolder('Entities', false, true, false);
 
-        const lightsTab = layout.getTopLevelContainer('LIGHTS');
-        this.folders.set('DIRECTIONAL_LIGHTS', lightsTab.addFolder({
-            title: 'Directional lights',
-            expanded: true,
-            hidden: true
-        }));
-        this.folders.set('SPOT_LIGHTS', lightsTab.addFolder({
-            title: 'Spot lights',
-            expanded: true,
-            hidden: true
-        }));
-        this.folders.set('POINT_LIGHTS', lightsTab.addFolder({
-            title: 'Point lights',
-            expanded: false,
-            hidden: true
-        }));
-
-        const entitiesTab = layout.getTopLevelContainer('ENTITIES');
-        const meshesFolder = entitiesTab.addFolder({ title: 'Meshes', expanded: true, hidden: true });
-        this.folders.set('MESHES', meshesFolder);
-        this.meshControl = new MeshControl(meshesFolder);
-
-        DebugUtil.addToWindowObject('entityControl', this);
-        // this._componentAdded = ThrottleUtil.debounce(this._componentAdded.bind(this), 300);
-        this._processEntitiesFromQueue = ThrottleUtil.debounce(this._processEntitiesFromQueue.bind(this), 300);
+        // const lightsTab = layout.getTopLevelContainer('LIGHTS');
+        // this.folders.set('DIRECTIONAL_LIGHTS', lightsTab.addFolder({
+        //     title: 'Directional lights',
+        //     expanded: true,
+        //     hidden: true
+        // }));
+        // this.folders.set('SPOT_LIGHTS', lightsTab.addFolder({
+        //     title: 'Spot lights',
+        //     expanded: true,
+        //     hidden: true
+        // }));
+        // this.folders.set('POINT_LIGHTS', lightsTab.addFolder({
+        //     title: 'Point lights',
+        //     expanded: false,
+        //     hidden: true
+        // }));
+        //
+        // const entitiesTab = layout.getTopLevelContainer('ENTITIES');
+        // const meshesFolder = entitiesTab.addFolder({ title: 'Meshes', expanded: true, hidden: true });
+        // this.folders.set('MESHES', meshesFolder);
+        // this.meshControl = new MeshControl(meshesFolder);
+        //
+        // DebugUtil.addToWindowObject('entityControl', this);
+        // // this._componentAdded = ThrottleUtil.debounce(this._componentAdded.bind(this), 300);
+        // this._processEntitiesFromQueue = ThrottleUtil.debounce(this._processEntitiesFromQueue.bind(this), 300);
     }
 
     hasAnyComponent(entityId: EntityId, ...components: ComponentId[]): boolean {
@@ -82,15 +83,15 @@ export default class EntityControl extends EntityManager {
 
     createEntity(name: EntityName): EntityId {
         const entityId = this.entityManager.createEntity(name);
-        this._registerEntity(name, entityId);
+        // this._registerEntity(name, entityId);
 
         return entityId;
     }
 
     addComponents(entityId: EntityId, components: Component[]) {
         this.entityManager.addComponents(entityId, components);
-        this.processQueue.add(entityId);
-        this._processEntitiesFromQueue();
+        // this.processQueue.add(entityId);
+        // this._processEntitiesFromQueue();
     }
 
     private _registerEntity(title: string, entity: EntityId) {

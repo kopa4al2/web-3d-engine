@@ -1,5 +1,6 @@
 const path = require('path');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
+const HtmlWebpackPlugin = require("html-webpack-plugin");
 
 
 module.exports = {
@@ -15,6 +16,7 @@ module.exports = {
             webgl: path.resolve(__dirname, './src/webgl'),
             webgpu: path.resolve(__dirname, './src/webgpu'),
             util: path.resolve(__dirname, './src/util'),
+            engine: path.resolve(__dirname, './src/engine'),
         },
         extensions: ['.ts', '.js'],
         preferRelative: true,
@@ -27,6 +29,21 @@ module.exports = {
                 exclude: /node_modules/,
             },
             {
+                test: /\.(scss)$/, // Match .scss files
+                use: [
+                    'style-loader',   // Injects CSS into the DOM (use this for development)
+                    'css-loader',     // Resolves @import and url() and converts it to JS
+                    {
+                        loader: 'sass-loader',
+                        options: {
+                            sassOptions: {
+                                quietDeps: true,  // Suppresses warnings for deprecated functions
+                            },
+                        },
+                    },
+                ],
+            },
+            {
                 test: /\.(vert|frag|wgsl)$/i,
                 use: 'raw-loader',
                 // exclude: /node_modules/,
@@ -34,8 +51,7 @@ module.exports = {
         ],
     },
     devServer: {
-        // static: './dist', // Replace contentBase with static
-        static: './assets', // Replace contentBase with static
+        static: './assets',
         hot: true,
         headers: {
             'Cross-Origin-Opener-Policy': 'same-origin',
@@ -43,13 +59,18 @@ module.exports = {
         },
     },
     plugins: [
+        new HtmlWebpackPlugin({
+            template: './src/index.html',  // Your custom HTML template
+            inject: 'body',                // Inject the scripts at the end of the body
+        }),
         new CopyWebpackPlugin({
             patterns: [
-                { from: 'src/index.html', to: 'index.html' },
-                { from: 'assets', to: 'assets' },
-                // { from: 'src', to: 'src' },
-                // { from: 'html-resources', to: 'html-resources' },
+                // { from: 'src/index.html', to: 'index.html' },
+                { from: 'assets', to: 'assets', filter: (path) => !path.includes('-hdr') },
             ],
+            options: {
+                concurrency: 2
+            }
         }),
     ]
 };

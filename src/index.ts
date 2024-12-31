@@ -18,6 +18,8 @@ import FpsCounter from "./engine/ui/views/FpsCounter";
 import ResourceManager from 'core/resources/ResourceManager';
 import MaterialControl from './engine/ui/controls/MaterialControl';
 import MaterialFactory from 'core/factories/MaterialFactory';
+import './styles/theme.scss'
+import './styles/index.scss'
 
 // OVERRIDE SYMBOL TO STRING FOR DEBUGGING
 Symbol.prototype.toString = function () {
@@ -28,11 +30,10 @@ DebugUtil.addToWindowObject('vec3', vec3);
 DebugUtil.addToWindowObject('mat4', mat4);
 DebugUtil.addToWindowObject('glMatrix', glMatrix);
 
-enableWebComponentEntitySelect();
+// enableWebComponentEntitySelect();
 
 SdiPerformance.begin();
-// const loadTimer = 'LOAD_TIMER';
-// console.time(loadTimer);
+
 const onRender: OnRenderPlugin = () => {
     screenProps.flushBuffer()
 };
@@ -40,7 +41,6 @@ const onRender: OnRenderPlugin = () => {
 
 document.body.onload = async () => {
     SdiPerformance.log('DOM loaded');
-    // console.timeLog(loadTimer, 'DOM loaded');
 
     // const globalUI = new UILayout('GLOBAL', document.getElementById('global-controls')!);
     // const graphicsApiBlade = globalUI.pane.addBlade({
@@ -98,8 +98,6 @@ document.body.onload = async () => {
         glProps = webGl2Props;
         glEngine.start();
     }
-    SdiPerformance.log('Initialized engine');
-    document.querySelector('canvas')!.focus();
 
     screenProps.subscribeToAnyPropertyChange(['splitScreen', 'gpuApi'], async props => {
         const isSplitScreen = props.getBoolean('splitScreen');
@@ -163,6 +161,10 @@ document.body.onload = async () => {
             });
         }
     });
+
+
+    // document.querySelector('canvas')!.focus();
+    SdiPerformance.log('Initialized engine');
 };
 
 const screenProps = new PropertiesManager({
@@ -187,11 +189,6 @@ const screenProps = new PropertiesManager({
         leftOffset: 0,
         topOffset: 0,
         hide: false,
-    },
-    light: {
-        sourceX: 0,
-        sourceY: 0,
-        sourceZ: 0,
     }
 }, {}, 'Screen');
 
@@ -222,11 +219,6 @@ async function initWebGlEngine(properties: PartialProperties) {
             leftOffset: window.innerWidth / 2,
             topOffset: 0,
             hide: false
-        },
-        light: {
-            sourceX: 0,
-            sourceY: 0,
-            sourceZ: 0
         }
     }, 'webgl2');
 
@@ -258,16 +250,11 @@ async function initWebGpu(properties: PartialProperties) {
         gpuApi: 'webgpu',
         window: {
             width: properties['window.width'] as number || window.innerWidth / 2,
-            height: window.innerHeight,
+            height: window.innerHeight - 80,
             leftOffset: 0,
             topOffset: 0,
             hide: false,
         },
-        light: {
-            sourceX: 0,
-            sourceY: 0,
-            sourceZ: 0
-        }
     }, 'webgpu');
 
 
@@ -277,11 +264,13 @@ async function initWebGpu(properties: PartialProperties) {
     canvas.addToDOM();
     SdiPerformance.log('Added canvas to DOM')
 
+    // const layout = new UILayout(canvas.parent, 'WebGPU');
     const layout = new UILayout(canvas.parent, 'WebGPU');
 
     const graphics = await WebGPUGraphics.initWebGPU(canvas, webGpuProps);
     SdiPerformance.log('Initialized graphics')
 
+    // @ts-ignore
     const webgpuEngine = await createEngine('WebGPU', webGpuProps, canvas, graphics, layout);
 
     return { webGpuProps, webgpuEngine };
@@ -318,9 +307,9 @@ async function createEngine(
         materialFactory,
         [onRender, fpsCounter.tick.bind(fpsCounter)],
     );
-    
+
     await resourceManager.init()
-        .then(engine.initializeScene.bind(engine))
+        .then(engine.initializeScene.bind(engine));
 
     return engine;
 }

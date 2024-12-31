@@ -272,6 +272,14 @@ export class TransformBuilder {
         this.matrix = mat4.fromRotationTranslationScale(mat4.create(), rotation, translation, scale);
     }
 
+    static position(pos: vec3) {
+        return new TransformBuilder(pos);
+    }
+
+    static rotation(quat: quat) {
+        return new TransformBuilder(vec3.create(), quat);
+    }
+
     lookAt(target: vec3 | [number, number, number]) {
         mat4.getScaling(this.scale, this.matrix);
         mat4.getTranslation(this.translation, this.matrix);

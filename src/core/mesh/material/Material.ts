@@ -32,7 +32,7 @@ export default class Material {
     update<T extends MaterialProperties>(mutator: (t: T) => void) {
         mutator(this.properties as T);
         this.hasChanged = true;
-        console.warn('Material updated')
+        // console.warn('Material updated')
     }
 
     public setBindGroups(graphics: Graphics, renderPass: RenderPass) {

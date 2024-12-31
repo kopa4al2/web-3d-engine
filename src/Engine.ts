@@ -189,8 +189,8 @@ export default class Engine {
         // });
 
         const sunLight = new DirectionalLight({
-            direction: vec4.fromValues(0.0, -1.0, 1.0, 0.0),
-            color: new SdiColor(1.0, 1.0, 1.0, 1.0),
+            direction: vec4.fromValues(-1.0, -0.7, 0.1, 0.0),
+            color: new SdiColor(1.0, 1.0, 0.85, 1.0),
             intensity: 1.0
         });
 
@@ -211,21 +211,31 @@ export default class Engine {
         //     },
         //     defaultTransform().translate([-5, 1, 0]));
 
-
-        this.createSpotLight('Orange Spotlight', {
-                color: vec4.fromValues(1, 0.6, 0, 1),
-                intensity: 2.0,
-                innerCutoff: Math.cos(glMatrix.toRadian(30.0)),
-                outerCutoff: Math.cos(glMatrix.toRadian(40.0)),
+        //
+        // this.createSpotLight('Orange Spotlight', {
+        //         color: vec4.fromValues(1, 0.6, 0, 1),
+        //         intensity: 2.0,
+        //         innerCutoff: Math.cos(glMatrix.toRadian(30.0)),
+        //         outerCutoff: Math.cos(glMatrix.toRadian(40.0)),
+        //         linearAttenuation: 0.1,
+        //         quadraticAttenuation: 0.0032
+        //     }, TransformBuilder.position(vec3.fromValues(0, 5, 0)).lookAt([0, 5, -1]).build());
+        
+        this.createSpotLight('White', {
+                color: vec4.fromValues(0.7, 0.85, 1.0, 1),
+                intensity: 2.5,
+                innerCutoff: Math.cos(glMatrix.toRadian(25.0)),
+                outerCutoff: Math.cos(glMatrix.toRadian(25.0)),
                 linearAttenuation: 0.1,
                 quadraticAttenuation: 0.0032
-            }, defaultTransform().translate(vec3.fromValues(0, 5, 0)).lookAt([0, 5, -1])
-        );
+            }, TransformBuilder.position(vec3.fromValues(3, 3, -1)).lookAt([0, 0, 0]).build());
 
+        // defaultTransform().translate(vec3.fromValues(0, 5, 0)).lookAt([0, 5, -1])
         const skeletalTransform = new TransformBuilder()
             .reorient()
-            .translate([4, 3, 0])
+            .translate([4, 2, 0])
             .lookAt([4, 4, 0])
+            .scaleBy(0.5)
             .build();
 
         // const skeletalTransform = Transform.fromMat4(lookAtWithOffset(vec3.fromValues(4, 2, 2), vec3.fromValues(2, 2, 0), Transform.UP));
@@ -236,14 +246,14 @@ export default class Engine {
         return Promise.all([
             this.addScene('Skeletal', () => this.modelRepository.midas(skeletalTransform)),
             // this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumGLB),
-            // this.loadAndAddMesh('Crate1', this.modelRepository.createCrate, [-3, 5, 1], 0.005),
+            this.loadAndAddMesh('Crate1', this.modelRepository.createCrate, [-2, 2, 0], 0.005),
         ])
             // .then(() => this.addScene('Skeletal', () => this.modelRepository.finalWarsMonster(skeletalTransform)))
             // .then(() => this.addScene('Monster', this.modelRepository.monster, defaultTransform().translate([3, 3, 0]).lookAt([0, 1, 0])))
             // .then(() => this.addScene('MonkeyHead', this.modelRepository.monkeyHead, defaultTransform().translate([-3, 3, 0])))
             // .then(() => this.loadAndAddMesh('Crate2', this.modelRepository.createCrate, [0, 0, 0], 0.005),)
             // .then(() => this.addScene('Porsche', this.modelRepository.test))
-            .then(() => this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumScene))
+            // .then(() => this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumScene))
             .then(() => {
                 this.ecs.registerUpdateSystems(
                     new SceneSystem(this.entityManager),

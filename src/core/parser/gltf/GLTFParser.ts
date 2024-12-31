@@ -15,12 +15,13 @@ import { PipelineColorAttachment, UniformVisibility } from "core/resources/gpu/G
 import ResourceManager from "core/resources/ResourceManager";
 import ShaderManager from "core/resources/shader/ShaderManager";
 import TextureManager from "core/resources/TextureManager";
-import Texture from "core/texture/Texture";
+import Texture, { TextureData } from "core/texture/Texture";
 import WorkerPool from "core/worker/WorkerPool";
 import { mat4, quat, vec2, vec3 } from 'gl-matrix';
 import DebugUtil from "../../../util/debug/DebugUtil";
 import JavaMap from "../../../util/JavaMap";
 import MathUtil from "../../../util/MathUtil";
+import DebugCanvas from '../../../util/debug/DebugCanvas';
 
 export interface GLTFModel {
     label?: string,
@@ -92,7 +93,24 @@ export default class GLTFParser {
                     const metallicFactor = pbr.metallicFactor ?? 1.0;
                     const roughnessFactor = pbr.roughnessFactor ?? 1.0;
 
-                    const normal = gltfMaterial.normalTexture
+                    // let normal!: Texture;
+                    
+                    if (!gltfMaterial.normalTexture) {
+                        // const normalUv = this.parseAccessor(primitive.attributes.NORMAL) as Float32Array;
+                        // const uv = this.parseAccessor(primitive.attributes.TEXCOORD_0) as Float32Array;
+
+                        // const size = 1024;
+                        // MathUtil.generateNormalTextureAsImageBitmap(normalUv, uv, size, size)
+                        //     .then((imageBitmap) => {
+                        //         const name = gltfMaterial.name!;
+                        //         const texture = textureManager.addPreloadedToGlobalTexture(`${name}_custom_normal`, imageBitmap);
+                                // console.log(`${name} normal: `, texture.index.textureLayer, [...texture.index.textureUvOffset], [...texture.index.textureUvScale]);
+                                // DebugCanvas.debugTexture(texture);
+                            // });
+                    } else {
+                        // normal = this.getTextureAtIndex(gltfMaterial.normalTexture.index);
+                    }
+                    let normal = gltfMaterial.normalTexture
                         ? this.getTextureAtIndex(gltfMaterial.normalTexture.index)
                         : textureManager.getTexture(Texture.DEFAULT_NORMAL_MAP);
                     const albedo = pbr.baseColorTexture
@@ -115,6 +133,7 @@ export default class GLTFParser {
                         pbrMaterialProperties,
                         {
                             colorAttachment: { blendMode } as PipelineColorAttachment,
+                            // cullFace: 'back'
                             cullFace: gltfMaterial.doubleSided ? 'none' : 'back'
                         });
 
@@ -179,11 +198,11 @@ export default class GLTFParser {
 
         if (node.rotation || node.scale || node.translation) {
             if (node.scale && node.scale[0] > 10) {
-                console.warn('Large scale detected', JSON.stringify(node), node);
+                // console.warn('Large scale detected', JSON.stringify(node), node);
                 node.scale = [0.01, 0.01, 0.01];
             }
             if (node.translation && node.translation[0] > 100) {
-                console.warn('Large transaltion detected', JSON.stringify(node));
+                // console.warn('Large transaltion detected', JSON.stringify(node));
                 // node.translation = [0, 0, 0];
             }
             return new Transform(

@@ -1,14 +1,19 @@
-import * as CamerakitPlugin from '@tweakpane/plugin-camerakit';
 import * as EssentialsPlugin from '@tweakpane/plugin-essentials';
 import * as TweakpaneRotationInputPlugin from '@0b5vr/tweakpane-plugin-rotation';
+import * as TweakpaneImagePlugin from '@kitschpatrol/tweakpane-plugin-image';
+import * as TweakpaneFileImportPlugin from '@kitschpatrol/tweakpane-plugin-file-import';
+import * as TextareaPlugin from '@kitschpatrol/tweakpane-plugin-textarea';
 import { Pane } from 'tweakpane';
-import interact from 'interactjs';
-import { SdiPluginBundle } from './custom/Label';
-import { BladeApi, ContainerApi, FolderApi } from '@tweakpane/core';
+import { BladeApi, ContainerApi, EventListenable, FolderApi } from '@tweakpane/core';
+import DebugUtil from "util/debug/DebugUtil";
+
+export interface UiProperties {
+    refresh: (el?: UiBladeWrapper<BladeApi>) => void;
+}
+
+export type UiBladeWrapper<T extends BladeApi<any>> =  UiProperties & EventListenable<any> & T;
 
 export type TopLevelContainer = 'LIGHTS' | 'ENTITIES' | 'MATERIALS' | 'FPS'
-// ROTATION PLUGIN
-// https://github.com/0b5vr/tweakpane-plugin-rotation?tab=readme-ov-file
 export default class UILayout {
 
     private readonly _pane: Pane;
@@ -16,7 +21,8 @@ export default class UILayout {
     private readonly tabs: Record<TopLevelContainer, ContainerApi>;
 
     constructor(private parent: HTMLElement, title?: string) {
-        this._pane = this.createPane(parent, title);
+        DebugUtil.addToWindowObject('uilayout', this);
+        this._pane = UILayout.createPane(parent, title);
         const fps = this.addFolder('FPS', true);
         const tabs = this.addTabs('LIGHTS', 'ENTITIES', 'MATERIALS');
         this.tabs = {
@@ -33,6 +39,15 @@ export default class UILayout {
 
     getTopLevelContainer(container: TopLevelContainer) {
         return this.tabs[container];
+    }
+    
+    public static createBladeApi<T extends BladeApi>(container: ContainerApi, params: Record<string, any>): UiBladeWrapper<T> {
+        const blade = container.addBlade(params) as UiBladeWrapper<T>;
+        if (params.refresh) {
+            blade.refresh = () => params.refresh!(blade); 
+        }
+        
+        return blade;
     }
 
     public static moveFolder(newContainer: ContainerApi, folder: FolderApi) {
@@ -59,7 +74,7 @@ export default class UILayout {
     }
 
     newPane(title: string) {
-        return this.createPane(this.parent, title);
+        return UILayout.createPane(this.parent, title);
     }
 
     addFolder(title: string, expanded?: boolean, hidden?: boolean, disabled?: boolean) {
@@ -75,15 +90,22 @@ export default class UILayout {
         return this._pane.addBlade({ title, ...params })
     }
 
-    private createPane(parent: HTMLElement, title?: string) {
+    // https://github.com/donmccurdy/tweakpane-plugin-thumbnail-list
+    // https://github.com/0b5vr/tweakpane-plugin-profiler
+    // https://github.com/tallneil/tweakpane-plugin-inputs
+    // https://github.com/shoedler/tweakpane-plugin-waveform?tab=readme-ov-file
+    // https://github.com/pangenerator/tweakpane-textarea-plugin
+    public static createPane(parent: HTMLElement, title?: string) {
         const menu = (parent.querySelector('.menu') || parent) as HTMLElement;
         const container = document.createElement('div');
         menu.appendChild(container);
 
         const pane = new Pane({ container, title, expanded: true });
-        // pane.registerPlugin(SdiPluginBundle);
-        pane.registerPlugin(TweakpaneRotationInputPlugin);
+        pane.registerPlugin(TweakpaneImagePlugin);
         pane.registerPlugin(EssentialsPlugin);
+        pane.registerPlugin(TweakpaneFileImportPlugin);
+        pane.registerPlugin(TweakpaneRotationInputPlugin);
+        pane.registerPlugin(TextareaPlugin);
 
         return pane;
     }

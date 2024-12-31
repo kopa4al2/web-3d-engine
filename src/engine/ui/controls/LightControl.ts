@@ -79,6 +79,12 @@ export class LightControl {
         const light = components.find(c => c.id === SpotLight.ID) as SpotLight;
         const transform = components.find(c => c.id === Transform.ID) as Transform;
 
+        const point = { xyz: { x: 0, y: 0, z: 0} };
+        container.addBinding(point, 'xyz');
+        container.addButton({ title: 'look at'}).on('click', e => {
+            transform.lookAt([point.xyz.x, point.xyz.y, point.xyz.z]);
+        });
+        
         container.addBinding(wrapArrayAsXYZW(transform.targetTransform.position), 'xyzw', {
             picker: 'inline',
             label: 'translate',

@@ -163,7 +163,7 @@ export type Property =
     PrimitiveProperty |
     ObjectProperty;
 
-type ObjectProperty = 'window' | 'light' | 'input'
+type ObjectProperty = 'window' | 'input'
 type PrimitiveProperty = 'fieldOfView' |
     'zNear' |
     'zFar' |
@@ -172,11 +172,10 @@ type PrimitiveProperty = 'fieldOfView' |
     'wireframe';
 
 // Property names of the nested objects
-type SubProperty = WindowProperty | LightProperty | InputProperty;
+type SubProperty = WindowProperty | InputProperty;
 type WindowProperty =
     'width' | 'height' | 'leftOffset' | 'topOffset' | 'hide';
-type LightProperty =
-    'sourceX' | 'sourceY' | 'sourceZ';
+
 type InputProperty = `deltaWheel` | 'mouseDelta' | 'mousePos' | 'inputFlags' | InputType
 type AbsoluteProperty = `${ObjectProperty}.${SubProperty}`;
 
@@ -193,12 +192,6 @@ export interface WindowProperties extends NestedProperty, Record<WindowProperty,
     hide: boolean,
 }
 
-export interface LightProperties extends NestedProperty, Record<LightProperty, PropertyValue> {
-    sourceX: number,
-    sourceY: number,
-    sourceZ: number,
-}
-
 export type PropertyValue = PrimitivePropertyValue | PropertyValueObject;
 type PrimitivePropertyValue = string | number | boolean;
-type PropertyValueObject = WindowProperties | LightProperties | InputState;
+type PropertyValueObject = WindowProperties | InputState;

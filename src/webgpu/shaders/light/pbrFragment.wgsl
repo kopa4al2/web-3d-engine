@@ -106,7 +106,7 @@ struct FragmentInput {
 fn main(input: FragmentInput) -> @location(0) vec4<f32> {
     var normalizedUv = fract(input.textureCoord);
 //    normalizedUv.y = 1.0 - normalizedUv.y;
-//    let uv = vec2<f32>(0.0, 0.0) + material.albedo_map.uv_offset;
+    
     let uv = material.albedo_map.uv_scale * normalizedUv + material.albedo_map.uv_offset;
     let baseColor = textureSample(globalTextures, globalSampler, uv, material.albedo_map.texture_layer) * material.base_color;
 

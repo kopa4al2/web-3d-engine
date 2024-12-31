@@ -25,6 +25,8 @@ interface TextureArrayLayer {
     freeRegions: TextureRegion[],
 }
 
+export type TextureLookup = { layer: number, } & Partial<PackedTexture>;
+
 export default class TexturePacker {
     public readonly layers: TextureArrayLayer[];
 
@@ -69,6 +71,18 @@ export default class TexturePacker {
         this.addLayer();
         const newLayerIndex = this.layers.length - 1;
         return this.tryFitTexture(this.layers[newLayerIndex], newLayerIndex, label, width, height)!;
+    }
+    
+    findTexture(label: string): PackedTexture | undefined {
+        for (const layer of this.layers) {
+            for (const occupiedRegion of layer.occupiedRegions) {
+                if (occupiedRegion.label === label) {
+                    return occupiedRegion
+                }
+            }
+        }
+        
+        console.error(`Texture ${label} not found!`);
     }
 
     private tryFitTexture(layer: TextureArrayLayer, layerIndex: number,
