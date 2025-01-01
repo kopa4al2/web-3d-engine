@@ -7,6 +7,7 @@ import PropertiesManager, { PartialProperties, Property, PropertyValue } from "c
 import EntityComponentSystem from "core/systems/EntityComponentSystem";
 import SdiPerformance from "core/utils/SdiPerformance";
 import Engine, { OnRenderPlugin } from "Engine";
+import { TopMenu } from "engine/ui/menus/TopMenu";
 import { glMatrix, mat4, quat, vec2, vec3 } from "gl-matrix";
 import { enableGpuGraphicsApiSwitch, enableSplitScreenSwitch } from "html/Controls";
 import { enableWebComponentEntitySelect } from 'html/entity-select/EntitySelect';
@@ -14,11 +15,11 @@ import { Pane } from "tweakpane";
 import DebugUtil from './util/debug/DebugUtil';
 import WebGLGraphics from "webgl/WebGLGraphics";
 import WebGPUGraphics from "webgpu/graphics/WebGPUGraphics";
-import EntityControl from './engine/ui/controls/EntityControl';
+import EntityTweakPane from 'engine/ui/controls/EntityTweakPane';
 import UILayout from "./engine/ui/UILayout";
 import FpsCounter from "./engine/ui/views/FpsCounter";
 import ResourceManager from 'core/resources/ResourceManager';
-import MaterialControl from './engine/ui/controls/MaterialControl';
+import MaterialTweakPane from 'engine/ui/controls/MaterialTweakPane';
 import MaterialFactory from 'core/factories/MaterialFactory';
 import './styles/index.scss'
 import './styles/theme.scss'
@@ -43,21 +44,6 @@ const onRender: OnRenderPlugin = () => {
 
 document.body.onload = async () => {
     SdiPerformance.log('DOM loaded');
-
-    // const globalUI = new UILayout('GLOBAL', document.getElementById('global-controls')!);
-    // const graphicsApiBlade = globalUI.pane.addBlade({
-    //     view: 'list',
-    //     label: 'Graphics API',
-    //     options: [
-    //         {text: 'WebGL2', value: 'webgl2'},
-    //         {text: 'WebGPU', value: 'webgpu'},
-    //         {text: 'Split screen', value: 'split-screen'},
-    //     ],
-    //     value: 'webgl2',
-    // });
-    // // graphicsApiBlade.on()
-    // enableSplitScreenSwitch(screenProps, document.getElementById('global-controls')!);
-    // enableGpuGraphicsApiSwitch(screenProps, document.getElementById('global-controls')!);
 
     new GlobalPropertiesControl(screenProps);
     let gpuEngine: Engine | undefined,
@@ -229,7 +215,7 @@ async function initWebGlEngine(properties: PartialProperties) {
         webGl2Props,
         'webgl2');
     canvas.addToDOM();
-    const layout = new UILayout(canvas.parent, 'WebGL');
+    const layout = new UILayout(canvas.parent);
 
     const graphics = new WebGLGraphics(canvas, webGl2Props);
     const webGlEngine = await createEngine('WebGl', webGl2Props, canvas, graphics, layout);
@@ -267,8 +253,7 @@ async function initWebGpu(properties: PartialProperties) {
     canvas.addToDOM();
     SdiPerformance.log('Added canvas to DOM')
 
-    // const layout = new UILayout(canvas.parent, 'WebGPU');
-    const layout = new UILayout(canvas.parent, 'WebGPU');
+    const layout = new UILayout(canvas.parent);
 
     const graphics = await WebGPUGraphics.initWebGPU(canvas, webGpuProps);
     SdiPerformance.log('Initialized graphics')
@@ -294,9 +279,10 @@ async function createEngine(
     const projectionMatrix = new ProjectionMatrix(properties);
 
     const fpsCounter = new FpsCounter(uiLayout);
-    const entityControl = new EntityControl(entityManager, uiLayout);
+    const entityControl = new EntityTweakPane(entityManager, uiLayout);
     const resourceManager = new ResourceManager(graphics);
-    const materialFactory = new MaterialControl(new MaterialFactory(resourceManager), uiLayout);
+    const materialFactory = new MaterialTweakPane(new MaterialFactory(resourceManager), uiLayout);
+    const topMenu = new TopMenu(materialFactory, entityControl);
 
     const engine = new Engine(
         label,

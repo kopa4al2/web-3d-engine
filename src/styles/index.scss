@@ -6,6 +6,10 @@
   --top-menu-width: max(min(70%, 500px), 30%);
 }
 
+body {
+  overflow: hidden;
+}
+
 .top-menu {
   @extend %tp-theming;
   position: relative;

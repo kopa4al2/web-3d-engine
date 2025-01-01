@@ -4,7 +4,7 @@ import * as TweakpaneImagePlugin from '@kitschpatrol/tweakpane-plugin-image';
 import * as TweakpaneFileImportPlugin from '@kitschpatrol/tweakpane-plugin-file-import';
 import * as TextareaPlugin from '@kitschpatrol/tweakpane-plugin-textarea';
 import * as TweakpanePluginInputs from '@kitschpatrol/tweakpane-plugin-inputs';
-import { Pane } from 'tweakpane';
+import { Pane, TabPageApi } from 'tweakpane';
 import { BladeApi, ContainerApi, EventListenable, FolderApi } from '@tweakpane/core';
 import DebugUtil from "util/debug/DebugUtil";
 
@@ -14,32 +14,47 @@ export interface UiProperties {
 
 export type UiBladeWrapper<T extends BladeApi<any>> =  UiProperties & EventListenable<any> & T;
 
-export type TopLevelContainer = 'LIGHTS' | 'ENTITIES' | 'MATERIALS' | 'FPS'
+export type TopLevelContainer = 'LIGHTS' | 'ENTITIES' | 'MATERIALS'
 export default class UILayout {
 
     private readonly _pane: Pane;
 
-    private readonly tabs: Record<TopLevelContainer, ContainerApi>;
+    // private readonly tabs: Record<TopLevelContainer, TabPageApi>;
+    private readonly tabs: Map<TopLevelContainer, TabPageApi>;
+    private selectedTab?: TabPageApi;
 
     constructor(private parent: HTMLElement, title?: string) {
         DebugUtil.addToWindowObject('uilayout', this);
         this._pane = UILayout.createPane(parent, title);
-        const fps = this.addFolder('FPS', true);
-        const tabs = this.addTabs('LIGHTS', 'ENTITIES', 'MATERIALS');
-        this.tabs = {
-            'LIGHTS': tabs.pages[0],
-            'ENTITIES': tabs.pages[1],
-            'MATERIALS': tabs.pages[2],
-            'FPS': fps,
-        }
+        this.tabs = new Map();
+        // const tabs = this.addTabs('LIGHTS', 'ENTITIES', 'MATERIALS');
+        // this.tabs = {
+        //     'LIGHTS': tabs.pages[0],
+        //     'ENTITIES': tabs.pages[1],
+        //     'MATERIALS': tabs.pages[2],
+        // }
     }
 
     get pane() {
         return this._pane;
     }
 
-    getTopLevelContainer(container: TopLevelContainer) {
-        return this.tabs[container];
+    setActive(container: TopLevelContainer) {
+        this.tabs.get(container)!.selected = true;
+    }
+
+    createTab(container: TopLevelContainer) {
+        if (!this.tabs.has(container)) {
+            this._pane.addTab({ pages: [{ title: container }], index: 1 });
+            const tab = this.addTabs(container);
+            this.tabs.set(container, tab.pages[0]);
+            tab.on('select', (e) => {
+                console.log('Select TAB', e);
+            });
+
+        }
+
+        return this.tabs.get(container)!;
     }
     
     public static createBladeApi<T extends BladeApi>(container: ContainerApi, params: Record<string, any>): UiBladeWrapper<T> {

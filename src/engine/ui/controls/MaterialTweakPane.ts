@@ -12,36 +12,38 @@ import DebugCanvas from '../../../util/debug/DebugCanvas';
 import UILayout, { UiBladeWrapper } from '../UILayout';
 import { wrapArrayAsColor } from '../utils';
 
-export default class MaterialControl extends MaterialFactory {
+export default class MaterialTweakPane extends MaterialFactory {
 
-    private readonly materialPane;
+    private materialPane?;
+    private hideBtn?: ButtonApi;
+    private allTextures?;
 
-    private readonly materialLabels = new Map<string, Material>();
-    private readonly hideBtn: ButtonApi;
-    private allTextures;
+    private added = new WeakSet<Material>();
 
-    constructor(matFactory: MaterialFactory, layout: UILayout) {
-        // @ts-ignore
+    constructor(matFactory: MaterialFactory, private layout: UILayout) {
         super(matFactory.resourceManager);
-
-        this.materialPane = layout.getTopLevelContainer('MATERIALS');
-        this.hideBtn = this.materialPane.addButton({ title: 'hide', hidden: true }).on('click', () => {
-            DebugCanvas.hide();
-            this.hideBtn.hidden = true;
-        });
-        this.allTextures = this.resourceManager.textureManager.getAllTextures()
-
+        this.materialLabels = matFactory.materialLabels;
     }
 
-    pbrMaterial(label: string = 'PBRMaterial', data: MaterialProperties, overrides: Partial<PipelineOptions> = {}): Material {
-        if (this.materialLabels.has(label)) {
-            console.debug(`Reusing material: ${label}`);
-            return this.materialLabels.get(label)!;
-        } else {
-            const material = super.pbrMaterial(label, data, overrides);
-            // this.addMaterial(material);
-            this.materialLabels.set(label, material);
-            return material;
+    showMaterials() {
+        if (!this.materialPane) {
+            this.materialPane = this.layout.createTab('MATERIALS');
+            this.hideBtn = this.materialPane.addButton({ title: 'hide', hidden: true })
+                .on('click', () => {
+                        DebugCanvas.hide();
+                        this.hideBtn.hidden = true;
+                    });
+        }
+
+        this.layout.setActive("MATERIALS");
+        this.allTextures = this.resourceManager.textureManager.getAllTextures();
+        for (const material of this.materialLabels.values()) {
+            if (!this.added.has(material)) {
+                this.addMaterial(material);
+            } else {
+                // refresh
+                this.tex
+            }
         }
     }
 
@@ -272,6 +274,7 @@ class PBRMaterialControl {
     private readonly albedoTexture;
     private readonly normalTexture;
     private readonly metallicRoughnessTexture;
+
     constructor(private name: string,
                 private container: FolderApi,
                 private properties: PBRMaterialProperties,

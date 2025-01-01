@@ -17,7 +17,7 @@ import TransformControl from './TransformControl';
 // type HierarchyData = { container: FolderApi, children: Transform[] };
 type HierarchicalTransform = { container: FolderApi, transform: Transform };
 
-class MeshControl {
+class MeshTweakPane {
 
     private hierarchyMap = new Map<Transform, HierarchicalTransform>
     private unprocessedQueue: HierarchicalTransform[] = [];
@@ -29,33 +29,27 @@ class MeshControl {
         DebugUtil.addToWindowObject('meshControl', this);
     }
 
-    addLonelyTransform(container: FolderApi, transform: Transform, name: EntityName) {
-        if (this.hierarchyMap.has(transform)) {
-            console.warn('Transform was already added', transform, name);
-            return;
-        }
+    loadMeshes() {
 
+    }
+    //
+    // addLonelyTransform(container: FolderApi, transform: Transform, name: EntityName) {
+    //     if (this.hierarchyMap.has(transform)) {
+    //         console.warn('Transform was already added', transform, name);
+    //         return;
+    //     }
+    //
+    //     this.addTransform(container, transform);
+    //
+    //     this.unprocessedQueue.push({ container, transform });
+    //     this.processHierarchies();
+    // }
+
+    static addMeshV2(container: FolderApi, mesh: Mesh, transform: Transform) {
         this.addTransform(container, transform);
-
-        this.unprocessedQueue.push({ container, transform });
-        this.processHierarchies();
     }
 
-    addMesh(entity: EntityName, container: FolderApi, components: Component[]) {
-        const mesh = components.find(c => c.id === Mesh.ID) as Mesh;
-        const transform = components.find(c => c.id === Transform.ID) as Transform;
-
-        if (!transform) {
-            return;
-        }
-
-        this.addTransform(container, transform);
-
-        this.unprocessedQueue.push({ transform, container });
-        this.processHierarchies();
-    }
-
-    private addTransform(container: FolderApi, transform: Transform) {
+    private static addTransform(container: FolderApi, transform: Transform) {
         const point = { xyz: { x: 0, y: 0, z: 0} };
         container.addBinding(point, 'xyz');
         container.addButton({ title: 'look at'}).on('click', e => {
@@ -127,4 +121,4 @@ class MeshControl {
     }
 }
 
-export default MeshControl;
+export default MeshTweakPane;

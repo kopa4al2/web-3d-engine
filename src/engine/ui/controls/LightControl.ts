@@ -40,9 +40,7 @@ export class LightControl {
         folder.addBinding(light, 'intensity', { label: 'Intensity', min: 0.0, max: 10.0, step: 0.1 });
     }
 
-    static addPointLightV2(container: ContainerApi, components: Component[]) {
-        const pointLight = components.find(c => c.id === PointLight.ID) as PointLight;
-        const transform = components.find(c => c.id === Transform.ID) as Transform;
+    static addPointLightV2(container: ContainerApi, pointLight: PointLight, transform: Transform) {
         TransformControl.createTranslate(container, transform);
         this.addPointLight(container, pointLight);
         // TODO: Add transform
@@ -75,10 +73,7 @@ export class LightControl {
         container.addBinding(light.data, 'intensity', { min: 0.1, max: 50.0, step: 0.1, label: 'Intensity' });
     }
 
-    static addSpotLightV2(container: ContainerApi, components: Component[]) {
-        const light = components.find(c => c.id === SpotLight.ID) as SpotLight;
-        const transform = components.find(c => c.id === Transform.ID) as Transform;
-
+    static addSpotLightV2(container: ContainerApi, spotLight: SpotLight, transform: Transform) {
         const point = { xyz: { x: 0, y: 0, z: 0} };
         container.addBinding(point, 'xyz');
         container.addButton({ title: 'look at'}).on('click', e => {
@@ -115,7 +110,7 @@ export class LightControl {
             // quat.normalize(transform.targetTransform.rotation, transform.targetTransform.rotation);
             quat.fromEuler(transform.targetTransform.rotation, e.value.x, e.value.y, e.value.z);
         })
-        container.addBinding(light.data, 'linearAttenuation', {
+        container.addBinding(spotLight.data, 'linearAttenuation', {
             label: 'Linear Attenuation',
             min: 0.0,
             max: 1.0,
@@ -123,7 +118,7 @@ export class LightControl {
             format: val => val.toFixed(2),
         });
 
-        container.addBinding(light.data, 'quadraticAttenuation', {
+        container.addBinding(spotLight.data, 'quadraticAttenuation', {
             label: 'Quad Attenuation',
             min: 0.001,
             max: 0.1,
@@ -131,26 +126,26 @@ export class LightControl {
             format: val => (Number(val.toFixed(4))),
         });
 
-        container.addBinding(wrapArrayAsColor(light.color), 'color', {
+        container.addBinding(wrapArrayAsColor(spotLight.color), 'color', {
             color: { type: 'float' },
             label: 'color',
             picker: 'inline'
         });
 
-        container.addBinding(light.data, 'intensity', { min: 0.1, max: 50.0, step: 0.1, label: 'Intensity' });
+        container.addBinding(spotLight.data, 'intensity', { min: 0.1, max: 50.0, step: 0.1, label: 'Intensity' });
 
         const cutoff = {
-            innerCutoff: Math.acos(light.data.innerCutoff) * (180 / Math.PI),
-            outerCutoff: Math.acos(light.data.outerCutoff) * (180 / Math.PI)
+            innerCutoff: Math.acos(spotLight.data.innerCutoff) * (180 / Math.PI),
+            outerCutoff: Math.acos(spotLight.data.outerCutoff) * (180 / Math.PI)
         };
 
         function onChange(currentCutoff: 'inner' | 'outer', e: TpChangeEvent<number>) {
             if (currentCutoff === 'inner') {
-                light.data.innerCutoff = Math.cos(glMatrix.toRadian(e.value))
+                spotLight.data.innerCutoff = Math.cos(glMatrix.toRadian(e.value))
             }
 
             if (currentCutoff === 'outer') {
-                light.data.outerCutoff = Math.cos(glMatrix.toRadian(e.value))
+                spotLight.data.outerCutoff = Math.cos(glMatrix.toRadian(e.value))
             }
 
             if (cutoff.outerCutoff < cutoff.innerCutoff) {
