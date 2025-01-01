@@ -9,44 +9,49 @@ import TextureManager from 'core/resources/TextureManager';
 import Texture, { Image } from 'core/texture/Texture';
 import { ListBladeApi } from "tweakpane/dist/types/blade/list/api/list";
 import DebugCanvas from '../../../util/debug/DebugCanvas';
-import UILayout, { UiBladeWrapper } from '../UILayout';
+import RightMenu, { UiBladeWrapper } from 'engine/ui/menus/RightMenu';
 import { wrapArrayAsColor } from '../utils';
+import { TabPageApi } from 'tweakpane';
 
-export default class MaterialControl extends MaterialFactory {
+export default class MaterialTweakPane extends MaterialFactory {
 
-    private readonly materialPane;
+    private materialPane?: TabPageApi;
+    private hideBtn?: ButtonApi;
+    private allTextures?: Map<string, Texture>;
 
-    private readonly materialLabels = new Map<string, Material>();
-    private readonly hideBtn: ButtonApi;
-    private allTextures;
+    private added = new WeakSet<Material>();
 
-    constructor(matFactory: MaterialFactory, layout: UILayout) {
+    constructor(matFactory: MaterialFactory, private layout: RightMenu) {
         // @ts-ignore
         super(matFactory.resourceManager);
-
-        this.materialPane = layout.getTopLevelContainer('MATERIALS');
-        this.hideBtn = this.materialPane.addButton({ title: 'hide', hidden: true }).on('click', () => {
-            DebugCanvas.hide();
-            this.hideBtn.hidden = true;
-        });
-        this.allTextures = this.resourceManager.textureManager.getAllTextures()
-
+        // this.materialLabels = matFactory.materialLabels;
     }
 
-    pbrMaterial(label: string = 'PBRMaterial', data: MaterialProperties, overrides: Partial<PipelineOptions> = {}): Material {
-        if (this.materialLabels.has(label)) {
-            console.debug(`Reusing material: ${label}`);
-            return this.materialLabels.get(label)!;
-        } else {
-            const material = super.pbrMaterial(label, data, overrides);
-            // this.addMaterial(material);
-            this.materialLabels.set(label, material);
-            return material;
+    showMaterials() {
+        if (!this.materialPane) {
+            this.materialPane = this.layout.createTab('MATERIALS');
+            this.hideBtn = this.materialPane.addButton({ title: 'hide', hidden: true })
+                .on('click', () => {
+                        DebugCanvas.hide();
+                        this.hideBtn!.hidden = true;
+                    });
+        }
+
+        this.layout.setActive("MATERIALS");
+        this.allTextures = this.resourceManager.textureManager.getAllTextures();
+        for (const material of this.materialLabels.values()) {
+            if (!this.added.has(material)) {
+                this.addMaterial(material);
+                this.added.add(material);
+            } else {
+                // refresh
+                // this.tex
+            }
         }
     }
 
     addMaterial(material: Material) {
-        const folder = this.materialPane.addFolder({ title: material.label, expanded: false });
+        const folder = this.materialPane!.addFolder({ title: material.label, expanded: false });
         const pbrProps = material.properties as PBRMaterialProperties;
 
         this.forceUpdateOnChange(folder.addBinding(wrapArrayAsColor(pbrProps.baseColorFactor), 'color', {
@@ -136,7 +141,7 @@ export default class MaterialControl extends MaterialFactory {
                 }],
             ]
         }
-        const buttonGrid = UILayout.createBladeApi<ButtonGridApi>(folder, {
+        const buttonGrid = RightMenu.createBladeApi<ButtonGridApi>(folder, {
             view: 'buttongrid',
             size: [buttons.text.length, buttons.text[0].length],
             cells: (x: number, y: number) => ({
@@ -246,7 +251,7 @@ Scale: [X:${texture.index.textureUvScale[0]},Y:${texture.index.textureUvScale[1]
     }
 
     private createTexturePicker(folder: ContainerApi, selected: Texture, label = 'textures') {
-        const texturePicker = UILayout.createBladeApi<ListBladeApi<Texture>>(folder, {
+        const texturePicker = RightMenu.createBladeApi<ListBladeApi<Texture>>(folder, {
             view: 'list',
             label,
             options: [...this.allTextures.values()].map(tex => ({ text: tex.path, value: tex })),
@@ -272,6 +277,7 @@ class PBRMaterialControl {
     private readonly albedoTexture;
     private readonly normalTexture;
     private readonly metallicRoughnessTexture;
+
     constructor(private name: string,
                 private container: FolderApi,
                 private properties: PBRMaterialProperties,
@@ -367,7 +373,7 @@ class PBRMaterialControl {
                 }],
             ]
         }
-        const buttonGrid = UILayout.createBladeApi<ButtonGridApi>(folder, {
+        const buttonGrid = RightMenu.createBladeApi<ButtonGridApi>(folder, {
             view: 'buttongrid',
             size: [buttons.text.length, buttons.text[0].length],
             cells: (x: number, y: number) => ({
@@ -477,7 +483,7 @@ Scale: [X:${texture.index.textureUvScale[0]},Y:${texture.index.textureUvScale[1]
     }
 
     private createTexturePicker(folder: ContainerApi, selected: Texture, label = 'textures') {
-        const texturePicker = UILayout.createBladeApi<ListBladeApi<Texture>>(folder, {
+        const texturePicker = RightMenu.createBladeApi<ListBladeApi<Texture>>(folder, {
             view: 'list',
             label,
             options: [...this.allTextures.values()].map(tex => ({ text: tex.path, value: tex })),

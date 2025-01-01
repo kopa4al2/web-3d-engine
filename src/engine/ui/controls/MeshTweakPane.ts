@@ -1,23 +1,17 @@
-import { ContainerApi, FolderApi, TpChangeEvent } from '@tweakpane/core';
-import DirectionalLight from "core/light/DirectionalLight";
-import PointLight from "core/light/PointLight";
-import SpotLight from "core/light/SpotLight";
+import { ContainerApi, FolderApi } from '@tweakpane/core';
 import SdiPerformance from "core/utils/SdiPerformance";
-import { glMatrix, quat } from "gl-matrix";
-import UILayout from "../UILayout";
-import { wrapArrayAsColor, wrapArrayAsXYZ, wrapArrayAsXYZW } from "../utils";
-import Component from 'core/components/Component';
+import { quat } from "gl-matrix";
+import { wrapArrayAsXYZ, wrapArrayAsXYZW } from "../utils";
 import Transform from 'core/components/Transform';
 import Mesh from 'core/components/Mesh';
 import DebugUtil from '../../../util/debug/DebugUtil';
 import ThrottleUtil from '../../../util/ThrottleUtil';
-import { EntityName } from 'core/EntityManager';
-import TransformControl from './TransformControl';
+import RightMenu from 'engine/ui/menus/RightMenu';
 
 // type HierarchyData = { container: FolderApi, children: Transform[] };
 type HierarchicalTransform = { container: FolderApi, transform: Transform };
 
-class MeshControl {
+class MeshTweakPane {
 
     private hierarchyMap = new Map<Transform, HierarchicalTransform>
     private unprocessedQueue: HierarchicalTransform[] = [];
@@ -29,33 +23,27 @@ class MeshControl {
         DebugUtil.addToWindowObject('meshControl', this);
     }
 
-    addLonelyTransform(container: FolderApi, transform: Transform, name: EntityName) {
-        if (this.hierarchyMap.has(transform)) {
-            console.warn('Transform was already added', transform, name);
-            return;
-        }
+    loadMeshes() {
 
+    }
+    //
+    // addLonelyTransform(container: FolderApi, transform: Transform, name: EntityName) {
+    //     if (this.hierarchyMap.has(transform)) {
+    //         console.warn('Transform was already added', transform, name);
+    //         return;
+    //     }
+    //
+    //     this.addTransform(container, transform);
+    //
+    //     this.unprocessedQueue.push({ container, transform });
+    //     this.processHierarchies();
+    // }
+
+    static addMeshV2(container: FolderApi, mesh: Mesh, transform: Transform) {
         this.addTransform(container, transform);
-
-        this.unprocessedQueue.push({ container, transform });
-        this.processHierarchies();
     }
 
-    addMesh(entity: EntityName, container: FolderApi, components: Component[]) {
-        const mesh = components.find(c => c.id === Mesh.ID) as Mesh;
-        const transform = components.find(c => c.id === Transform.ID) as Transform;
-
-        if (!transform) {
-            return;
-        }
-
-        this.addTransform(container, transform);
-
-        this.unprocessedQueue.push({ transform, container });
-        this.processHierarchies();
-    }
-
-    private addTransform(container: FolderApi, transform: Transform) {
+    private static addTransform(container: FolderApi, transform: Transform) {
         const point = { xyz: { x: 0, y: 0, z: 0} };
         container.addBinding(point, 'xyz');
         container.addButton({ title: 'look at'}).on('click', e => {
@@ -107,11 +95,11 @@ class MeshControl {
             let { transform, container } = this.unprocessedQueue.shift()!;
 
             if (!this.hierarchyMap.has(transform) && !transform.parent) {
-                container = UILayout.moveFolder(this.root, container);
+                container = RightMenu.moveFolder(this.root, container);
                 this.hierarchyMap.set(transform, { container, transform, });
             } else if (transform.parent && this.hierarchyMap.has(transform.parent)) {
                 const parentContainer = this.hierarchyMap.get(transform.parent)!.container;
-                container = UILayout.moveFolder(parentContainer, container);
+                container = RightMenu.moveFolder(parentContainer, container);
                 this.hierarchyMap.set(transform, { container, transform, });
             } else {
                 this.unprocessedQueue.push({ transform, container });
@@ -127,4 +115,4 @@ class MeshControl {
     }
 }
 
-export default MeshControl;
+export default MeshTweakPane;

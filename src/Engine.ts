@@ -256,7 +256,7 @@ export default class Engine {
             // .then(() => this.addScene('MonkeyHead', this.modelRepository.monkeyHead, defaultTransform().translate([-3, 3, 0])))
             // .then(() => this.loadAndAddMesh('Crate2', this.modelRepository.createCrate, [0, 0, 0], 0.005),)
             // .then(() => this.addScene('Porsche', this.modelRepository.test))
-            // .then(() => this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumScene))
+            .then(() => this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumScene))
             .then(() => {
                 this.ecs.registerUpdateSystems(
                     new SceneSystem(this.entityManager),

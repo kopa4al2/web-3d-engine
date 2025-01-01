@@ -1,27 +1,125 @@
-import { ContainerApi, TpChangeEvent } from '@tweakpane/core';
+import { ContainerApi, FolderApi, TpChangeEvent } from '@tweakpane/core';
 import DirectionalLight from "core/light/DirectionalLight";
 import PointLight from "core/light/PointLight";
 import SpotLight from "core/light/SpotLight";
 import { glMatrix, mat4, quat, vec3 } from "gl-matrix";
-import UILayout from "../UILayout";
 import { wrapArrayAsColor, wrapArrayAsXYZ, wrapArrayAsXYZW } from "../utils";
 import Component from 'core/components/Component';
 import Transform from 'core/components/Transform';
 import TransformControl from "./TransformControl";
+import RightMenu from 'engine/ui/menus/RightMenu';
+import { TabApi, TabPageApi } from 'tweakpane';
+import RotationWidget from 'engine/ui/widgets/RotationWidget';
 
 export class LightControl {
 
-    private readonly dirLightsTab;
-    private readonly pointLightsTab;
+    private rootTab?: TabPageApi;
 
-    constructor(layout: UILayout) {
-        // const tabs = layout.addTabs('Directional lights', 'Point lights');
-        // this.dirLightsTab = tabs.pages[0];
-        // this.pointLightsTab = tabs.pages[1];
-        // this.dirLightsTab = layout.addFolder('Dir');
-        // this.pointLightsTab = layout.addFolder('Point');
-        this.dirLightsTab = layout.newPane('Directional lights');
-        this.pointLightsTab = layout.newPane('Point lights');
+    private dirLightsTab?: FolderApi;
+    private pointLightsTab?: FolderApi;
+    private spotLightsTab?: FolderApi;
+
+    constructor(private layout: RightMenu) {
+    }
+
+    addDirectionalLight(entity: string, light: DirectionalLight) {
+        if (!this.rootTab) {
+            this.rootTab = this.layout.createTab('LIGHTS');
+        }
+
+        if (!this.dirLightsTab) {
+            this.dirLightsTab = this.rootTab.addFolder({ title: 'Directional' });
+        }
+
+        const folder = this.dirLightsTab.addFolder({ title: entity });
+        folder.addBinding(wrapArrayAsXYZ(light.direction), 'xyz', {
+            label: 'Direction vector',
+            expanded: true,
+            x: { min: -1, max: 1, label: 'X', step: 0.1 },
+            y: { min: -1, max: 1, label: 'Y', step: 0.1 },
+            z: { min: -1, max: 1, label: 'Z', step: 0.1 },
+        });
+        folder.addBinding(wrapArrayAsColor(light.color), 'color', {
+            label: 'color',
+            color: { type: 'float' },
+            picker: 'inline'
+        });
+        folder.addBinding(light, 'intensity', { label: 'Intensity', min: 0.0, max: 10.0, step: 0.1 });
+    }
+
+    addSpotlight(entity: string, spotLight: SpotLight, transform: Transform) {
+        if (!this.rootTab) {
+            this.rootTab = this.layout.createTab('LIGHTS');
+        }
+
+        if (!this.spotLightsTab) {
+            this.spotLightsTab = this.rootTab.addFolder({ title: 'Spotlight' });
+        }
+        const container = this.spotLightsTab.addFolder({ title: entity });
+
+        // const point = { xyz: { x: 0, y: 0, z: 0 } };
+        // container.addBinding(point, 'xyz');
+        // container.addButton({ title: 'look at' }).on('click', e => {
+        //     transform.lookAt([point.xyz.x, point.xyz.y, point.xyz.z]);
+        // });
+
+        container.addBinding(
+            wrapArrayAsXYZ(transform.targetTransform.position),
+            'xyz',
+            { picker: 'inline', label: 'translate', step: 0.1 });
+
+        const rotation = transform.targetTransform.rotation;
+        const rotationWidget = new RotationWidget(transform.targetTransform, 'euler', 'deg');
+        rotationWidget.attach(container);
+        container.addBinding(spotLight.data, 'linearAttenuation',
+            {
+                label: 'Linear Attenuation',
+                min: 0.00,
+                max: 1.00,
+                // step: 0.01,
+                format: val => val.toFixed(2),
+            });
+
+        container.addBinding(spotLight.data, 'quadraticAttenuation', {
+            label: 'Quad Attenuation',
+            min: 0.001,
+            max: 0.1,
+            step: 0.001,
+            format: val => (Number(val.toFixed(4))),
+        });
+
+        container.addBinding(wrapArrayAsColor(spotLight.color), 'color', {
+            color: { type: 'float' },
+            label: 'color',
+            picker: 'inline'
+        });
+
+        container.addBinding(spotLight.data, 'intensity', { min: 0.1, max: 50.0, step: 0.1, label: 'Intensity' });
+
+        const cutoff = {
+            innerCutoff: Math.acos(spotLight.data.innerCutoff) * (180 / Math.PI),
+            outerCutoff: Math.acos(spotLight.data.outerCutoff) * (180 / Math.PI)
+        };
+
+        function onChange(currentCutoff: 'inner' | 'outer', e: TpChangeEvent<number>) {
+            if (currentCutoff === 'inner') {
+                spotLight.data.innerCutoff = Math.cos(glMatrix.toRadian(e.value))
+            }
+
+            if (currentCutoff === 'outer') {
+                spotLight.data.outerCutoff = Math.cos(glMatrix.toRadian(e.value))
+            }
+
+            if (cutoff.outerCutoff < cutoff.innerCutoff) {
+                cutoff.outerCutoff = cutoff.innerCutoff;
+                container.refresh();
+            }
+        }
+
+        container.addBinding(cutoff, 'innerCutoff', { min: 5, max: 60, step: 1, label: 'Inner cutoff' })
+            .on('change', e => onChange('inner', e));
+        container.addBinding(cutoff, 'outerCutoff', { min: 5, max: 90, step: 1, label: 'Outer cutoff' })
+            .on('change', e => onChange('outer', e));
     }
 
     static addDirectionalLight(folder: ContainerApi, light: DirectionalLight) {
@@ -36,13 +134,15 @@ export class LightControl {
             y: { min: -1, max: 1, label: 'Y', step: 0.1 },
             z: { min: -1, max: 1, label: 'Z', step: 0.1 },
         });
-        folder.addBinding(wrapArrayAsColor(light.color), 'color', { label: 'color', color: { type: 'float' }, picker: 'inline' });
+        folder.addBinding(wrapArrayAsColor(light.color), 'color', {
+            label: 'color',
+            color: { type: 'float' },
+            picker: 'inline'
+        });
         folder.addBinding(light, 'intensity', { label: 'Intensity', min: 0.0, max: 10.0, step: 0.1 });
     }
 
-    static addPointLightV2(container: ContainerApi, components: Component[]) {
-        const pointLight = components.find(c => c.id === PointLight.ID) as PointLight;
-        const transform = components.find(c => c.id === Transform.ID) as Transform;
+    static addPointLightV2(container: ContainerApi, pointLight: PointLight, transform: Transform) {
         TransformControl.createTranslate(container, transform);
         this.addPointLight(container, pointLight);
         // TODO: Add transform
@@ -75,16 +175,13 @@ export class LightControl {
         container.addBinding(light.data, 'intensity', { min: 0.1, max: 50.0, step: 0.1, label: 'Intensity' });
     }
 
-    static addSpotLightV2(container: ContainerApi, components: Component[]) {
-        const light = components.find(c => c.id === SpotLight.ID) as SpotLight;
-        const transform = components.find(c => c.id === Transform.ID) as Transform;
-
-        const point = { xyz: { x: 0, y: 0, z: 0} };
+    static addSpotLightV2(container: ContainerApi, spotLight: SpotLight, transform: Transform) {
+        const point = { xyz: { x: 0, y: 0, z: 0 } };
         container.addBinding(point, 'xyz');
-        container.addButton({ title: 'look at'}).on('click', e => {
+        container.addButton({ title: 'look at' }).on('click', e => {
             transform.lookAt([point.xyz.x, point.xyz.y, point.xyz.z]);
         });
-        
+
         container.addBinding(wrapArrayAsXYZW(transform.targetTransform.position), 'xyzw', {
             picker: 'inline',
             label: 'translate',
@@ -115,7 +212,7 @@ export class LightControl {
             // quat.normalize(transform.targetTransform.rotation, transform.targetTransform.rotation);
             quat.fromEuler(transform.targetTransform.rotation, e.value.x, e.value.y, e.value.z);
         })
-        container.addBinding(light.data, 'linearAttenuation', {
+        container.addBinding(spotLight.data, 'linearAttenuation', {
             label: 'Linear Attenuation',
             min: 0.0,
             max: 1.0,
@@ -123,7 +220,7 @@ export class LightControl {
             format: val => val.toFixed(2),
         });
 
-        container.addBinding(light.data, 'quadraticAttenuation', {
+        container.addBinding(spotLight.data, 'quadraticAttenuation', {
             label: 'Quad Attenuation',
             min: 0.001,
             max: 0.1,
@@ -131,26 +228,26 @@ export class LightControl {
             format: val => (Number(val.toFixed(4))),
         });
 
-        container.addBinding(wrapArrayAsColor(light.color), 'color', {
+        container.addBinding(wrapArrayAsColor(spotLight.color), 'color', {
             color: { type: 'float' },
             label: 'color',
             picker: 'inline'
         });
 
-        container.addBinding(light.data, 'intensity', { min: 0.1, max: 50.0, step: 0.1, label: 'Intensity' });
+        container.addBinding(spotLight.data, 'intensity', { min: 0.1, max: 50.0, step: 0.1, label: 'Intensity' });
 
         const cutoff = {
-            innerCutoff: Math.acos(light.data.innerCutoff) * (180 / Math.PI),
-            outerCutoff: Math.acos(light.data.outerCutoff) * (180 / Math.PI)
+            innerCutoff: Math.acos(spotLight.data.innerCutoff) * (180 / Math.PI),
+            outerCutoff: Math.acos(spotLight.data.outerCutoff) * (180 / Math.PI)
         };
 
         function onChange(currentCutoff: 'inner' | 'outer', e: TpChangeEvent<number>) {
             if (currentCutoff === 'inner') {
-                light.data.innerCutoff = Math.cos(glMatrix.toRadian(e.value))
+                spotLight.data.innerCutoff = Math.cos(glMatrix.toRadian(e.value))
             }
 
             if (currentCutoff === 'outer') {
-                light.data.outerCutoff = Math.cos(glMatrix.toRadian(e.value))
+                spotLight.data.outerCutoff = Math.cos(glMatrix.toRadian(e.value))
             }
 
             if (cutoff.outerCutoff < cutoff.innerCutoff) {
@@ -165,54 +262,6 @@ export class LightControl {
             .on('change', e => onChange('outer', e));
 
     }
-
-    // static addSpotLight(container: ContainerApi, light: SpotLight) {
-    //     container.addBinding(light.data, 'linearAttenuation', {
-    //         label: 'Linear Attenuation',
-    //         min: 0.0,
-    //         max: 1.0,
-    //         step: 0.01,
-    //         format: val => val.toFixed(2),
-    //     });
-    //
-    //     container.addBinding(light.data, 'quadraticAttenuation', {
-    //         label: 'Quad Attenuation',
-    //         min: 0.001,
-    //         max: 0.1,
-    //         step: 0.001,
-    //         format: val => (Number(val.toFixed(4))),
-    //     });
-    //
-    //     container.addBinding(wrapArrayAsColor(light.color), 'color', {
-    //         color: { type: 'float' },
-    //         label: 'color',
-    //         picker: 'inline'
-    //     });
-    //
-    //     container.addBinding(light.data, 'intensity', { min: 0.1, max: 50.0, step: 0.1, label: 'Intensity' });
-    //
-    //     const cutoff = { innerCutoff: 30, outerCutoff: 40 };
-    //
-    //     function onChange(currentCutoff: 'inner' | 'outer', e: TpChangeEvent<number>) {
-    //         if (currentCutoff === 'inner') {
-    //             light.data.innerCutoff = Math.cos(glMatrix.toRadian(e.value))
-    //         }
-    //
-    //         if (currentCutoff === 'outer') {
-    //             light.data.outerCutoff = Math.cos(glMatrix.toRadian(e.value))
-    //         }
-    //
-    //         if (cutoff.outerCutoff < cutoff.innerCutoff) {
-    //             cutoff.outerCutoff = cutoff.innerCutoff;
-    //             container.refresh();
-    //         }
-    //     }
-    //
-    //     container.addBinding(cutoff, 'innerCutoff', { min: 5, max: 60, step: 1, label: 'Inner cutoff' })
-    //         .on('change', e => onChange('inner', e));
-    //     container.addBinding(cutoff, 'outerCutoff', { min: 5, max: 90, step: 1, label: 'Outer cutoff' })
-    //         .on('change', e => onChange('outer', e));
-    // }
 }
 
 function toEulerXYZ(quat: quat) {

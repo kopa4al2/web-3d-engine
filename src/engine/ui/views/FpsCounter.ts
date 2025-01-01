@@ -1,5 +1,5 @@
 // @ts-nocheck
-import UILayout from "../UILayout";
+import RightMenu from "../RightMenu";
 
 export default class FpsCounter {
 
@@ -13,7 +13,7 @@ export default class FpsCounter {
         this.counter.end();
     }
 
-    constructor(layout: UILayout) {
+    constructor(layout: RightMenu) {
         // this.counter = layout.getTopLevelContainer('FPS')
         //     .addBlade({ view: 'fpsgraph', label: 'fps', rows: 1 })
     }

@@ -637,7 +637,7 @@ export interface GLTFBufferView {
 }
 
 export interface GLTFMaterial {
-    name?: string;
+    name: string;
     alphaMode?: 'MASK' | 'BLEND',
     alphaCutoff?: number,
     doubleSided?: boolean,

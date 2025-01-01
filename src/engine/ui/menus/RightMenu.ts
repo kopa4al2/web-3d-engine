@@ -4,50 +4,60 @@ import * as TweakpaneImagePlugin from '@kitschpatrol/tweakpane-plugin-image';
 import * as TweakpaneFileImportPlugin from '@kitschpatrol/tweakpane-plugin-file-import';
 import * as TextareaPlugin from '@kitschpatrol/tweakpane-plugin-textarea';
 import * as TweakpanePluginInputs from '@kitschpatrol/tweakpane-plugin-inputs';
-import { Pane } from 'tweakpane';
+import { Pane, TabApi, TabPageApi } from 'tweakpane';
 import { BladeApi, ContainerApi, EventListenable, FolderApi } from '@tweakpane/core';
 import DebugUtil from "util/debug/DebugUtil";
+import { LightControl } from 'engine/ui/controls/LightControl';
 
 export interface UiProperties {
     refresh: (el?: UiBladeWrapper<BladeApi>) => void;
 }
 
-export type UiBladeWrapper<T extends BladeApi<any>> =  UiProperties & EventListenable<any> & T;
+export type UiBladeWrapper<T extends BladeApi<any>> = UiProperties & EventListenable<any> & T;
 
-export type TopLevelContainer = 'LIGHTS' | 'ENTITIES' | 'MATERIALS' | 'FPS'
-export default class UILayout {
+export type TopLevelContainer = 'LIGHTS' | 'ENTITIES' | 'MATERIALS'
+export default class RightMenu {
 
     private readonly _pane: Pane;
 
-    private readonly tabs: Record<TopLevelContainer, ContainerApi>;
+    // private readonly tabs: Record<TopLevelContainer, TabPageApi>;
+    private readonly tabs: Map<TopLevelContainer, TabPageApi>;
+    private readonly tab: TabApi;
+    activeTab?: TopLevelContainer;
 
-    constructor(private parent: HTMLElement, title?: string) {
+    constructor(private parent: HTMLElement) {
         DebugUtil.addToWindowObject('uilayout', this);
-        this._pane = UILayout.createPane(parent, title);
-        const fps = this.addFolder('FPS', true);
-        const tabs = this.addTabs('LIGHTS', 'ENTITIES', 'MATERIALS');
-        this.tabs = {
-            'LIGHTS': tabs.pages[0],
-            'ENTITIES': tabs.pages[1],
-            'MATERIALS': tabs.pages[2],
-            'FPS': fps,
-        }
+        this._pane = RightMenu.createPane(parent);
+        this.tabs = new Map();
+        this.tab = this._pane.addTab({ pages: [{ title: 'NOOP' }] });
+        this.tab.pages[0].dispose();
     }
+    
+    
 
     get pane() {
         return this._pane;
     }
 
-    getTopLevelContainer(container: TopLevelContainer) {
-        return this.tabs[container];
+    setActive(container: TopLevelContainer) {
+        this.tabs.get(container)!.selected = true;
+        this.activeTab = container;
     }
-    
+
+    createTab(container: TopLevelContainer) {
+        if (!this.tabs.has(container)) {
+            this.tabs.set(container, this.tab.addPage({ title: container }));
+        }
+
+        return this.tabs.get(container)!;
+    }
+
     public static createBladeApi<T extends BladeApi>(container: ContainerApi, params: Record<string, any>): UiBladeWrapper<T> {
         const blade = container.addBlade(params) as UiBladeWrapper<T>;
         if (params.refresh) {
-            blade.refresh = () => params.refresh!(blade); 
+            blade.refresh = () => params.refresh!(blade);
         }
-        
+
         return blade;
     }
 
@@ -60,14 +70,7 @@ export default class UILayout {
         });
 
         folder.children.forEach(child => {
-            // console.log('has child', child)
-            // const controller = child.controller;
-            // console.log(controller);
-            // const state = child.exportState();
-            // const clone = new BladeApi(child.controller);
-            // clone.importState(state);
             newFolder.add(child);
-            // newFolder.add(clone);
         });
         folder.dispose();
 
@@ -75,7 +78,7 @@ export default class UILayout {
     }
 
     newPane(title: string) {
-        return UILayout.createPane(this.parent, title);
+        return RightMenu.createPane(this.parent, title);
     }
 
     addFolder(title: string, expanded?: boolean, hidden?: boolean, disabled?: boolean) {

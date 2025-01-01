@@ -7,11 +7,15 @@ export type EntityName = string;
 export default class EntityManager {
 
     public scenes: Scene[] = [];
-    private entities: Map<EntityId, Map<ComponentId, Component>> = new Map();
-    private components: Map<ComponentId, EntityId[]> = new Map();
+    protected entities: Map<EntityId, Map<ComponentId, Component>> = new Map();
+    protected components: Map<ComponentId, EntityId[]> = new Map();
+    
+    get _entities(): Map<EntityId, Map<ComponentId, Component>> {
+        return this.entities;
+    }
 
     public createEntity(name: EntityName): EntityId {
-        const entityId = Symbol(name + '-entity');
+        const entityId = Symbol(name);
         this.entities.set(entityId, new Map());
         return entityId;
     }
