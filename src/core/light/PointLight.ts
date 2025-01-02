@@ -1,12 +1,13 @@
 import Component, { ComponentId } from 'core/components/Component';
 import { DefaultCacheable } from 'core/components/Cacheable';
+import { vec4 } from "gl-matrix";
 import { ColorLike, SdiColor, SdiPoint3D } from "../../types/engine-types/EngineTypes";
 
 export interface PointLightProps {
     position: SdiPoint3D;
     // position: [number, number, number, number];
-    color: SdiColor;
-    // color: [number, number, number, number];
+    // color: SdiColor;
+    color: vec4;
     intensity: number;
     constantAttenuation: number;
     linearAttenuation: number;
@@ -16,12 +17,6 @@ export interface PointLightProps {
 class PointLight extends DefaultCacheable<PointLightProps> implements Component {
     public static readonly ID = Symbol('PointLight');
     public static readonly MAX_POINT_LIGHTS = 4;
-
-    public static readonly WHITE_LIGHT: SdiColor = new SdiColor([1.0, 1.0, 1.0, 1.0]);
-    public static readonly WARM_LIGHT: SdiColor = new SdiColor([1.0, 0.85, 0.7, 1.0]);
-    public static readonly COOL_LIGHT: SdiColor = new SdiColor([0.7, 0.85, 1.0, 1.0]);
-    public static readonly MOON_LIGHT: SdiColor = new SdiColor(0.6, 0.6, 0.9, 1.0);
-    // public static readonly NO_LIGHT = [0.0, 0.0, 0.0, 1.0];
 
     id: ComponentId = PointLight.ID;
 

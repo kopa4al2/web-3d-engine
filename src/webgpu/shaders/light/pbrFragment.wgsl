@@ -257,6 +257,7 @@ fn main(input: FragmentInput) -> @location(0) vec4<f32> {
     
   
 
+//      return baseColor;
       return vec4<f32>(finalColor, baseColor.a);
 //      return vec4<f32>(normalWorld, baseColor.a);
 }

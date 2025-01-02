@@ -1,18 +1,13 @@
-import { ContainerApi, FolderApi, TpChangeEvent } from '@tweakpane/core';
-import DirectionalLight from "core/light/DirectionalLight";
-import PointLight from "core/light/PointLight";
-import SpotLight from "core/light/SpotLight";
+import { ContainerApi, FolderApi } from '@tweakpane/core';
 import SdiPerformance from "core/utils/SdiPerformance";
-import { glMatrix, quat } from "gl-matrix";
-import UILayout from "../UILayout";
-import { wrapArrayAsColor, wrapArrayAsXYZ, wrapArrayAsXYZW } from "../utils";
-import Component from 'core/components/Component';
+import TransformWidget from "engine/ui/widgets/TransformWidget";
+import { quat } from "gl-matrix";
+import { wrapArrayAsXYZ, wrapArrayAsXYZW } from "../utils";
 import Transform from 'core/components/Transform';
 import Mesh from 'core/components/Mesh';
 import DebugUtil from '../../../util/debug/DebugUtil';
 import ThrottleUtil from '../../../util/ThrottleUtil';
-import { EntityName } from 'core/EntityManager';
-import TransformControl from './TransformControl';
+import RightMenu from 'engine/ui/menus/RightMenu';
 
 // type HierarchyData = { container: FolderApi, children: Transform[] };
 type HierarchicalTransform = { container: FolderApi, transform: Transform };
@@ -22,17 +17,51 @@ class MeshTweakPane {
     private hierarchyMap = new Map<Transform, HierarchicalTransform>
     private unprocessedQueue: HierarchicalTransform[] = [];
 
-    // private unprocessedQueue = new Set<HierarchicalTransform>();
+    private added = new WeakSet<Mesh>();
 
-    constructor(private root: ContainerApi) {
-        this.processHierarchies = ThrottleUtil.debounce(this.processHierarchies.bind(this), 500);
+    private addedEntities = new Map<string, FolderApi>();
+    private root?: ContainerApi;
+
+    private filter = { value: '' };
+
+    constructor(private menu: RightMenu) {
+        // this.processHierarchies = ThrottleUtil.debounce(this.processHierarchies.bind(this), 500);
         DebugUtil.addToWindowObject('meshControl', this);
     }
 
-    loadMeshes() {
+    addMesh(entity: string, mesh: Mesh, transform: Transform) {
+        if (this.addedEntities.has(entity)) {
+            return;
+        }
 
+        const folder = this.getRoot().addFolder({ title: entity });
+        const transformWidget = new TransformWidget(transform);
+        transformWidget.attach(folder);
+
+        this.addedEntities.set(entity, folder);
     }
-    //
+
+    private getRoot() {
+        if (!this.root) {
+            this.root = this.menu.createTab('ENTITIES');
+            const filterInput = this.root.addBinding(this.filter, 'value', {
+                label: 'Filter entities'
+            });
+
+            filterInput.controller.view.valueElement.addEventListener('input', e => {
+                // @ts-ignore
+                const val: string = e.target.value;
+
+                for (const [entity, folder] of this.addedEntities) {
+                    folder.hidden = val !== '' && !entity.toLowerCase().includes(val.toLowerCase());
+                }
+            });
+        }
+
+        return this.root;
+    }
+
+//
     // addLonelyTransform(container: FolderApi, transform: Transform, name: EntityName) {
     //     if (this.hierarchyMap.has(transform)) {
     //         console.warn('Transform was already added', transform, name);
@@ -50,9 +79,9 @@ class MeshTweakPane {
     }
 
     private static addTransform(container: FolderApi, transform: Transform) {
-        const point = { xyz: { x: 0, y: 0, z: 0} };
+        const point = { xyz: { x: 0, y: 0, z: 0 } };
         container.addBinding(point, 'xyz');
-        container.addButton({ title: 'look at'}).on('click', e => {
+        container.addButton({ title: 'look at' }).on('click', e => {
             transform.lookAt([point.xyz.x, point.xyz.y, point.xyz.z]);
         })
         container.addBinding(wrapArrayAsXYZ(transform.targetTransform.position), 'xyz', {
@@ -101,11 +130,11 @@ class MeshTweakPane {
             let { transform, container } = this.unprocessedQueue.shift()!;
 
             if (!this.hierarchyMap.has(transform) && !transform.parent) {
-                container = UILayout.moveFolder(this.root, container);
+                container = RightMenu.moveFolder(this.root!, container);
                 this.hierarchyMap.set(transform, { container, transform, });
             } else if (transform.parent && this.hierarchyMap.has(transform.parent)) {
                 const parentContainer = this.hierarchyMap.get(transform.parent)!.container;
-                container = UILayout.moveFolder(parentContainer, container);
+                container = RightMenu.moveFolder(parentContainer, container);
                 this.hierarchyMap.set(transform, { container, transform, });
             } else {
                 this.unprocessedQueue.push({ transform, container });

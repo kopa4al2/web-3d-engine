@@ -56,7 +56,7 @@ export default class LightRenderer {
             const { x, y, z } = pointLight.position.xyz;
             const position = vec4.transformMat4(vec4.create(), vec4.fromValues(x, y, z, 1.0), transform.getMatrix());
             this.pointLightsView.set(
-                [...position, ...pointLight.color.toArray(), pointLight.intensity, pointLight.constantAttenuation, pointLight.linearAttenuation, pointLight.quadraticAttenuation],
+                [...position, ...pointLight.color, pointLight.intensity, pointLight.constantAttenuation, pointLight.linearAttenuation, pointLight.quadraticAttenuation],
                 this.elementsPerPointLight * i);
         }
 

@@ -140,7 +140,7 @@ export default class Engine {
         //     quadraticAttenuation: 0.04
         // }, defaultTransform().translate(vec3.fromValues(0, 10, 0)).lookAt([0, 0, 10]));
 
-        // this.createPointLight('Red', { color: PointLight.WARM_LIGHT }, defaultTransform().translate([10, 10, 0]));
+        this.createPointLight('Red', { color: vec4.fromValues(0.21, 0.01, 1.0, 0.0) }, defaultTransform().translate([10, 10, 0]));
 
 
         // this.loadAndAddMesh('crate 2', () => this.modelRepository.createCrate(), [0, -3, 0])
@@ -248,6 +248,7 @@ export default class Engine {
         this.scene.addEntities(e)
         return Promise.all([
             this.addScene('Skeletal', () => this.modelRepository.midas(skeletalTransform)),
+            // this.addScene('Skeletal', () => this.modelRepository.newyork()),
             // this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumGLB),
             this.loadAndAddMesh('Crate1', this.modelRepository.createCrate, [-2, 2, 0], 0.005),
         ])
@@ -256,7 +257,7 @@ export default class Engine {
             // .then(() => this.addScene('MonkeyHead', this.modelRepository.monkeyHead, defaultTransform().translate([-3, 3, 0])))
             // .then(() => this.loadAndAddMesh('Crate2', this.modelRepository.createCrate, [0, 0, 0], 0.005),)
             // .then(() => this.addScene('Porsche', this.modelRepository.test))
-            // .then(() => this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumScene))
+            .then(() => this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumScene))
             .then(() => {
                 this.ecs.registerUpdateSystems(
                     new SceneSystem(this.entityManager),
@@ -288,7 +289,7 @@ export default class Engine {
     private createPointLight(label: string, props: Partial<PointLightProps>, transform?: Transform) {
         const defaultProps = {
             position: new SdiPoint3D(0, 0, 0),
-            color: new SdiColor([1.0, 0.0, 1.0, 1.0]),
+            color: vec4.fromValues(1.0, 0.0, 1.0, 1.0),
             intensity: 2.5,
             constantAttenuation: 1.0,
             linearAttenuation: 0.1,

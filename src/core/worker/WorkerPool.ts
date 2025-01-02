@@ -51,11 +51,11 @@ export default class WorkerPool<WorkerRequest,WorkerResponse> {
     }
 
     handleError(worker: Worker, error: ErrorEvent) {
-        console.error('General error in worker: ', error, worker);
+        console.error('General error in workers: ', error, worker);
     }
 
     handleMessageError(worker: Worker, error: MessageEvent) {
-        console.error('Message error in worker: ', error, worker);
+        console.error('Message error in workers: ', error, worker);
     }
 
     handleMessage(worker: Worker, result: WorkerResponse) {

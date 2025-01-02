@@ -9,20 +9,22 @@ import TextureManager from 'core/resources/TextureManager';
 import Texture, { Image } from 'core/texture/Texture';
 import { ListBladeApi } from "tweakpane/dist/types/blade/list/api/list";
 import DebugCanvas from '../../../util/debug/DebugCanvas';
-import UILayout, { UiBladeWrapper } from '../UILayout';
+import RightMenu, { UiBladeWrapper } from 'engine/ui/menus/RightMenu';
 import { wrapArrayAsColor } from '../utils';
+import { TabPageApi } from 'tweakpane';
 
 export default class MaterialTweakPane extends MaterialFactory {
 
-    private materialPane?;
+    private materialPane?: TabPageApi;
     private hideBtn?: ButtonApi;
-    private allTextures?;
+    private allTextures?: Map<string, Texture>;
 
     private added = new WeakSet<Material>();
 
-    constructor(matFactory: MaterialFactory, private layout: UILayout) {
+    constructor(matFactory: MaterialFactory, private layout: RightMenu) {
+        // @ts-ignore
         super(matFactory.resourceManager);
-        this.materialLabels = matFactory.materialLabels;
+        // this.materialLabels = matFactory.materialLabels;
     }
 
     showMaterials() {
@@ -31,7 +33,7 @@ export default class MaterialTweakPane extends MaterialFactory {
             this.hideBtn = this.materialPane.addButton({ title: 'hide', hidden: true })
                 .on('click', () => {
                         DebugCanvas.hide();
-                        this.hideBtn.hidden = true;
+                        this.hideBtn!.hidden = true;
                     });
         }
 
@@ -40,15 +42,16 @@ export default class MaterialTweakPane extends MaterialFactory {
         for (const material of this.materialLabels.values()) {
             if (!this.added.has(material)) {
                 this.addMaterial(material);
+                this.added.add(material);
             } else {
                 // refresh
-                this.tex
+                // this.tex
             }
         }
     }
 
     addMaterial(material: Material) {
-        const folder = this.materialPane.addFolder({ title: material.label, expanded: false });
+        const folder = this.materialPane!.addFolder({ title: material.label, expanded: false });
         const pbrProps = material.properties as PBRMaterialProperties;
 
         this.forceUpdateOnChange(folder.addBinding(wrapArrayAsColor(pbrProps.baseColorFactor), 'color', {
@@ -138,7 +141,7 @@ export default class MaterialTweakPane extends MaterialFactory {
                 }],
             ]
         }
-        const buttonGrid = UILayout.createBladeApi<ButtonGridApi>(folder, {
+        const buttonGrid = RightMenu.createBladeApi<ButtonGridApi>(folder, {
             view: 'buttongrid',
             size: [buttons.text.length, buttons.text[0].length],
             cells: (x: number, y: number) => ({
@@ -248,7 +251,7 @@ Scale: [X:${texture.index.textureUvScale[0]},Y:${texture.index.textureUvScale[1]
     }
 
     private createTexturePicker(folder: ContainerApi, selected: Texture, label = 'textures') {
-        const texturePicker = UILayout.createBladeApi<ListBladeApi<Texture>>(folder, {
+        const texturePicker = RightMenu.createBladeApi<ListBladeApi<Texture>>(folder, {
             view: 'list',
             label,
             options: [...this.allTextures.values()].map(tex => ({ text: tex.path, value: tex })),
@@ -370,7 +373,7 @@ class PBRMaterialControl {
                 }],
             ]
         }
-        const buttonGrid = UILayout.createBladeApi<ButtonGridApi>(folder, {
+        const buttonGrid = RightMenu.createBladeApi<ButtonGridApi>(folder, {
             view: 'buttongrid',
             size: [buttons.text.length, buttons.text[0].length],
             cells: (x: number, y: number) => ({
@@ -480,7 +483,7 @@ Scale: [X:${texture.index.textureUvScale[0]},Y:${texture.index.textureUvScale[1]
     }
 
     private createTexturePicker(folder: ContainerApi, selected: Texture, label = 'textures') {
-        const texturePicker = UILayout.createBladeApi<ListBladeApi<Texture>>(folder, {
+        const texturePicker = RightMenu.createBladeApi<ListBladeApi<Texture>>(folder, {
             view: 'list',
             label,
             options: [...this.allTextures.values()].map(tex => ({ text: tex.path, value: tex })),

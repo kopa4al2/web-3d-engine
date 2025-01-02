@@ -16,7 +16,7 @@ import DebugUtil from './util/debug/DebugUtil';
 import WebGLGraphics from "webgl/WebGLGraphics";
 import WebGPUGraphics from "webgpu/graphics/WebGPUGraphics";
 import EntityTweakPane from 'engine/ui/controls/EntityTweakPane';
-import UILayout from "./engine/ui/UILayout";
+import RightMenu from "engine/ui/menus/RightMenu";
 import FpsCounter from "./engine/ui/views/FpsCounter";
 import ResourceManager from 'core/resources/ResourceManager';
 import MaterialTweakPane from 'engine/ui/controls/MaterialTweakPane';
@@ -215,7 +215,7 @@ async function initWebGlEngine(properties: PartialProperties) {
         webGl2Props,
         'webgl2');
     canvas.addToDOM();
-    const layout = new UILayout(canvas.parent);
+    const layout = new RightMenu(canvas.parent);
 
     const graphics = new WebGLGraphics(canvas, webGl2Props);
     const webGlEngine = await createEngine('WebGl', webGl2Props, canvas, graphics, layout);
@@ -253,12 +253,11 @@ async function initWebGpu(properties: PartialProperties) {
     canvas.addToDOM();
     SdiPerformance.log('Added canvas to DOM')
 
-    const layout = new UILayout(canvas.parent);
+    const layout = new RightMenu(canvas.parent);
 
     const graphics = await WebGPUGraphics.initWebGPU(canvas, webGpuProps);
     SdiPerformance.log('Initialized graphics')
 
-    // @ts-ignore
     const webgpuEngine = await createEngine('WebGPU', webGpuProps, canvas, graphics, layout);
 
     return { webGpuProps, webgpuEngine };
@@ -273,7 +272,7 @@ async function createEngine(
     properties: PropertiesManager,
     canvas: Canvas,
     graphics: Graphics,
-    uiLayout: UILayout): Promise<Engine> {
+    uiLayout: RightMenu): Promise<Engine> {
 
     const entityManager = new EntityManager();
     const projectionMatrix = new ProjectionMatrix(properties);
@@ -282,7 +281,7 @@ async function createEngine(
     const entityControl = new EntityTweakPane(entityManager, uiLayout);
     const resourceManager = new ResourceManager(graphics);
     const materialFactory = new MaterialTweakPane(new MaterialFactory(resourceManager), uiLayout);
-    const topMenu = new TopMenu(materialFactory, entityControl);
+    const topMenu = new TopMenu(materialFactory, entityControl, entityManager, uiLayout);
 
     const engine = new Engine(
         label,
@@ -305,10 +304,8 @@ async function createEngine(
 
 class GlobalPropertiesControl {
 
-    private splitScreenToggle;
-
     constructor(private properties: PropertiesManager) {
-        const pane = UILayout.createPane(document.querySelector('.gpu-api-switch')!, 'GPU Api');
+        const pane = RightMenu.createPane(document.querySelector('.gpu-api-switch')!, 'GPU Api');
         FpsCounter.counter = pane.addBlade({ view: 'fpsgraph', label: 'fps', rows: 2 });
         properties.subscribeToAnyPropertyChange(['gpuApi'], props => {
             pane.title = props.getString('gpuApi');
@@ -348,8 +345,6 @@ class GlobalPropertiesControl {
         webGpuApiBtn.view.inputElement.checked = !isSplitScreenEnabled && currentApi === 'webgpu';
         webglApiBtn.view.inputElement.checked = !isSplitScreenEnabled && currentApi === 'webgl2';
         valueController.cellControllers[1].viewProps.set("hidden", true);
-
-        this.splitScreenToggle = splitScreenBtn;
     }
 
     private setGpuApi(api: string) {
