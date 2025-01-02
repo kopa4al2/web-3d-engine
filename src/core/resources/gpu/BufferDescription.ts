@@ -18,6 +18,7 @@ export enum BufferFormat {
 }
 
 export enum BufferUsage {
+    MAP_READ = 1,
     VERTEX = 32,
     INDEX = 16,
     COPY_DST = 8,

@@ -28,10 +28,11 @@ import {
     TextureType
 } from "core/texture/Texture";
 import { vec3 } from 'gl-matrix';
-import DebugUtil from 'util/DebugUtil';
+import DebugUtil from '../../util/debug/DebugUtil';
 import { NamedLogger } from "util/Logger";
 import WebGPUContext from "webgpu/graphics/WebGPUContext";
 import WebGPUDevice from "webgpu/graphics/WebGPUDevice";
+import Globals from "../../engine/Globals";
 
 export default class WebGPUGraphics implements Graphics {
 
@@ -98,16 +99,17 @@ export default class WebGPUGraphics implements Graphics {
         }
 
         let colorAttachments: GPURenderPassColorAttachment[] = [];
-        if (!descriptor.colorAttachment.skip) {
-            const colorTexture = descriptor.colorAttachment.textureId
+        // TODO: Temporary if no color attachment present, add default one
+        if (!descriptor.colorAttachment || !descriptor.colorAttachment.skip) {
+            const colorTexture = descriptor.colorAttachment?.textureId
                 ? this.textures.get(descriptor.colorAttachment.textureId)!
                 // : this.currentTexture;
                 : context.getCurrentTexture();
 
             const view = colorTexture.createView({
-                aspect: descriptor.colorAttachment.textureView?.aspect,
-                baseArrayLayer: descriptor.colorAttachment.textureView?.baseArrayLayer,
-                dimension: descriptor.colorAttachment.textureView?.dimension,
+                aspect: descriptor.colorAttachment?.textureView?.aspect,
+                baseArrayLayer: descriptor.colorAttachment?.textureView?.baseArrayLayer,
+                dimension: descriptor.colorAttachment?.textureView?.dimension,
             });
             colorAttachments.push({
                 view,
@@ -124,8 +126,10 @@ export default class WebGPUGraphics implements Graphics {
                 : this.depthTexture!;
 
             const view = depthTexture.createView({
+                label: descriptor.label + '_depthAttachment',
                 aspect: descriptor.depthAttachment.textureView?.aspect,
                 baseArrayLayer: descriptor.depthAttachment.textureView?.baseArrayLayer,
+                arrayLayerCount: 1,
                 dimension: descriptor.depthAttachment.textureView?.dimension,
             })
             depthStencilAttachment = {
@@ -143,8 +147,8 @@ export default class WebGPUGraphics implements Graphics {
         };
 
         const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
-
         const viewport = descriptor.viewport || {};
+
         passEncoder.setViewport(
             viewport.x || 0,
             viewport.y || 0,
@@ -163,30 +167,8 @@ export default class WebGPUGraphics implements Graphics {
             label: 'vertexShader',
             code: shader.vertexShaderSource
         });
-        const fragmentShader = device.createShaderModule({
-            label: 'fragmentShader',
-            code: shader.fragmentShaderSource
-        });
 
-        const bindGroupLayouts = shader.shaderLayoutIds.map(id => this.shaderLayouts.get(id)!)
-        const layout = device.createPipelineLayout({ bindGroupLayouts, label: `pipeline-layout-${ shader.label }` });
-
-        const buffers: GPUVertexBufferLayout[] = [{
-            arrayStride: shader.vertexShaderStride,
-            attributes: shader.vertexShaderLayout.map(({ offset, format, location }, i) => ({
-                shaderLocation: location || i, format, offset
-            }))
-        }];
-        const pipelineId = Symbol(`webgpu-pipeline-${ shader.label }`);
-        const depthStencil: GPUDepthStencilState | undefined = options.depthAttachment.disabled
-            ? undefined
-            : {
-                // format: 'depth24plus',
-                format: options.depthAttachment.format,
-                depthWriteEnabled: options.depthAttachment.depthWriteEnabled,
-                depthCompare: options.depthAttachment.depthCompare,
-            };
-
+        let fragment: GPUFragmentState | undefined = undefined;
         const targets: [GPUColorTargetState | null] = options.colorAttachment.disabled
             ? [null]
             : [
@@ -201,6 +183,36 @@ export default class WebGPUGraphics implements Graphics {
                         : GPUColorWrite.RED | GPUColorWrite.GREEN | GPUColorWrite.BLUE
                 },
             ];
+        if (shader.fragmentShaderSource) {
+            fragment = {
+                module: device.createShaderModule({
+                    label: 'fragmentShader',
+                    code: shader.fragmentShaderSource
+                }),
+                entryPoint: 'main',
+                targets,
+            };
+        }
+
+        const bindGroupLayouts = shader.shaderLayoutIds.map(id => this.shaderLayouts.get(id)!)
+        const layout = device.createPipelineLayout({ bindGroupLayouts, label: `pipeline-layout-${ shader.label }` });
+
+        const buffers: GPUVertexBufferLayout[] = [{
+            arrayStride: shader.vertexShaderStride,
+            attributes: shader.vertexShaderLayout.map(({ offset, format, location }, i) => ({
+                shaderLocation: location || i, format, offset
+            }))
+        }];
+        const pipelineId = Symbol(`webgpu-pipeline-${ shader.label }`);
+        const depthStencil: GPUDepthStencilState | undefined = options.depthAttachment.disabled
+            ? undefined
+            : {
+                format: options.depthAttachment.format,
+                depthWriteEnabled: options.depthAttachment.depthWriteEnabled,
+                depthCompare: options.depthAttachment.depthCompare,
+            };
+
+        
         this.pipelines.set(pipelineId, device.createRenderPipeline({
             label: `pipeline-${ shader.label }`,
             layout,
@@ -209,20 +221,16 @@ export default class WebGPUGraphics implements Graphics {
                 entryPoint: 'main',
                 buffers,
             },
-            fragment: {
-                module: fragmentShader,
-                entryPoint: 'main',
-                targets,
-            },
+            fragment,
             primitive: {
-                topology: (this.props.getBoolean('wireframe') || options.wireframe) ? 'line-list' : 'triangle-list',
+                topology: options.drawMode,
                 frontFace: 'ccw',
                 // cullMode: 'none',
                 cullMode: options.cullFace,
             },
             depthStencil,
         }));
-        // console.log(`Cullface: ${shader.options.cullFace} TOPOLOGY for ${shader.label}: `, (this.props.getBoolean('wireframe') || shader.options.wireframe) ? 'line-list' : 'triangle-list')
+
         return pipelineId;
     }
 
@@ -375,6 +383,7 @@ export default class WebGPUGraphics implements Graphics {
         if (textureDescription.type === TextureType.TEXTURE_ARRAY
             || textureDescription.type === TextureType.CUBE_MAP) {
             return this._device.createTexture({
+                label: textureDescription.label,
                 size: {
                     width: image.width,
                     height: image.height,
@@ -502,12 +511,13 @@ export default class WebGPUGraphics implements Graphics {
         if (width === 0 || height === 0) {
             this.depthTexture?.destroy();
             this.depthTexture = undefined;
+            console.warn('destroying depth texture')
             return;
         }
 
         this.depthTexture = this._device.createTexture({
             size: [width, height, 1],
-            format: 'depth24plus',
+            format: Globals.DEFAULT_DEPTH_FORMAT,
             usage: GPUTextureUsage.RENDER_ATTACHMENT,
         });
     }
@@ -521,11 +531,9 @@ export default class WebGPUGraphics implements Graphics {
         }
 
         const device = await adapter.requestDevice({ requiredLimits: { maxBindGroups: 4 } });
-        device.onuncapturederror = (error) => {
-            // alert('web gpu error')
-            console.error("WebGPU Error:", error);
-        };
-        console.groupCollapsed('WebGPU Adapter limits')
+        
+        console.groupCollapsed('WebGPU Adapter info')
+        console.log(adapter)
         console.log(device)
         console.table(adapter.limits)
         console.log('Prefered canvas format: ', navigator.gpu.getPreferredCanvasFormat())
@@ -547,30 +555,28 @@ export default class WebGPUGraphics implements Graphics {
         return this._device;
     }
 
-    _getTextureData(textureId: TextureId): Promise<Float32Array> {
-        const bytesPerPixel = Float32Array.BYTES_PER_ELEMENT;
+    // _getTextureData(textureId: TextureId, bufferId?: BufferId): Promise<Float32Array> {
+    _getTextureData(textureId: TextureId, bufferId?: BufferId): Promise<ArrayBuffer> {
         const texture = this.textures.get(textureId)!;
-        const buffer = this._device.createBuffer({
-            size: texture.width * texture.height * bytesPerPixel,
-            usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
-        });
+        const buffer = this.buffers.get(bufferId!)!;
+        buffer.unmap();
 
         const commandEncoder = this._device.createCommandEncoder();
         commandEncoder.copyTextureToBuffer(
             {
                 texture,
+                aspect: 'depth-only',
             },
             {
                 buffer,
-                bytesPerRow: texture.width * bytesPerPixel,
+                bytesPerRow: texture.width * Float32Array.BYTES_PER_ELEMENT,
             },
             [texture.width, texture.height, 1]
         );
 
         this._device.queue.submit([commandEncoder.finish()]);
-        return buffer.mapAsync(GPUMapMode.READ)
-            .then(() => this._device.queue.onSubmittedWorkDone())
-            .then(() => new Float32Array(buffer.getMappedRange()));
+        //  I was waiting for this too , this._device.queue.onSubmittedWorkDone()
+        return buffer.mapAsync(GPUMapMode.READ).then(() => buffer.getMappedRange());
     }
 
 }
@@ -636,20 +642,3 @@ export class WebGPURenderPass implements RenderPass {
     }
 
 }
-
-// RE CREATE DEPTH TEXTURE
-/*
-
-if (!depthTexture ||
-        depthTexture.width !== canvasTexture.width ||
-        depthTexture.height !== canvasTexture.height) {
-      if (depthTexture) {
-        depthTexture.destroy();
-      }
-      depthTexture = device.createTexture({
-        size: [canvasTexture.width, canvasTexture.height],
-        format: 'depth24plus',
-        usage: GPUTextureUsage.RENDER_ATTACHMENT,
-      });
-    }
- */

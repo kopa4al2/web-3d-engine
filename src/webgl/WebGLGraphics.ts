@@ -9,7 +9,7 @@ import SamplingConfig from "core/texture/SamplingConfig";
 import { SamplerId, TextureDescription, TextureId, TextureType } from "core/texture/Texture";
 import TexturePacker from "core/texture/TexturePacker";
 import { vec3 } from 'gl-matrix';
-import DebugUtil from 'util/DebugUtil';
+import DebugUtil from '../util/debug/DebugUtil';
 import { BlendModeConverter } from 'webgl/BlendModeConverter';
 import Canvas from "../Canvas";
 import GlSampler from "./textures/GlSampler";
@@ -21,6 +21,10 @@ const idGenerator = (() => {
         return id++;
     }
 })();
+
+const EMPTY_FRAGMENT_SHADER = `#version 300 es 
+                               void main() {}
+                               `;
 
 export type GlTextureCache = { glTexture: WebGLTexture, metaData: TextureDescription, activeTexture: number }
 export type GlSamplerCache = { glSampler: WebGLSampler, targetTexture?: TextureId, }
@@ -37,7 +41,7 @@ export default class WebGLGraphics implements Graphics {
     public readonly textures: WeakMap<TextureId, GlTextureCache>;
     public readonly samplers: WeakMap<SamplerId, GlSamplerCache>;
 
-    private readonly bindGroupsByLayout: WeakMap<BindGroupLayoutId, WebGlBindGroupInfo>
+    private readonly bindGroupsByLayout: Map<BindGroupLayoutId, WebGlBindGroupInfo>
 
     public readonly pipelines: WeakMap<PipelineId, WebGlPipelineInfo>;
 
@@ -48,7 +52,7 @@ export default class WebGLGraphics implements Graphics {
         DebugUtil.addToWindowObject('glGraphics', this);
         const gl = canvas.getWebGl2Context();
 
-        this.bindGroupsByLayout = new WeakMap();
+        this.bindGroupsByLayout = new Map();
 
         this.uniformBlockIndices = {};
         this.vertexArrayObjects = new WeakMap<BufferId, WebGLVertexArrayObject>();
@@ -59,7 +63,6 @@ export default class WebGLGraphics implements Graphics {
         this.samplers = new WeakMap();
         this.pipelines = new WeakMap();
         this.textureUnitCounter = gl.TEXTURE0;
-
 
         gl.enable(gl.DEPTH_TEST);
         gl.enable(gl.CULL_FACE);
@@ -82,7 +85,7 @@ export default class WebGLGraphics implements Graphics {
         const shaderProgram = gl.createProgram() as WebGLProgram;
 
         gl.attachShader(shaderProgram, this.loadShader(gl.VERTEX_SHADER, shader.vertexShaderSource));
-        gl.attachShader(shaderProgram, this.loadShader(gl.FRAGMENT_SHADER, shader.fragmentShaderSource));
+        gl.attachShader(shaderProgram, this.loadShader(gl.FRAGMENT_SHADER, shader.fragmentShaderSource || EMPTY_FRAGMENT_SHADER));
         gl.linkProgram(shaderProgram);
 
         if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
@@ -95,8 +98,9 @@ export default class WebGLGraphics implements Graphics {
 
         shader.shaderLayoutIds.forEach(bindGroupLayoutId => {
             if (!this.bindGroupsByLayout.has(bindGroupLayoutId)) {
-                console.error(
-                    `ERROR: Pipeline ${shader.label} references bindGroupLayout ${bindGroupLayoutId.description} which is not defined`, bindGroupLayoutId, this.bindGroupsByLayout, shader)
+                console.warn(
+                    `ERROR: Pipeline ${shader.label} references bindGroupLayout ${bindGroupLayoutId.description} which is not defined`, bindGroupLayoutId, this.bindGroupsByLayout, shader);
+                return;
             }
             gl.useProgram(shaderProgram);
             this._createBindGroups(gl, shaderProgram, this.bindGroupsByLayout.get(bindGroupLayoutId)!.bindGroup);
@@ -367,6 +371,11 @@ export default class WebGLGraphics implements Graphics {
         return this.glContext;
     }
 
+    _getTextureData(texture: TextureId, bufferId?: BufferId): Promise<ArrayBuffer> {
+        return Promise.resolve(new ArrayBuffer());
+    }
+
+
     public _exportTextureArray(textureId: TextureId, texturePackerOpt?: TexturePacker) {
         // @ts-ignore
         const texturePacker: TexturePacker = window.texturePacker;
@@ -375,7 +384,8 @@ export default class WebGLGraphics implements Graphics {
         const framebuffer = gl.createFramebuffer();
         const layerWidth = TextureManager.MAX_TEXTURE_ARRAY_SIZE.width;
         const layerHeight = TextureManager.MAX_TEXTURE_ARRAY_SIZE.height;
-        const layers = TextureManager.TEXTURE_ARRAY_LAYERS;
+        const layers = texturePacker.layers.length;
+        // const layers = TextureManager.TEXTURE_ARRAY_LAYERS;
         const gridColumns = Math.ceil(Math.sqrt(layers)); // Square-ish grid
         const gridRows = Math.ceil(layers / gridColumns);
 
@@ -385,8 +395,10 @@ export default class WebGLGraphics implements Graphics {
         canvas.width = gridColumns * layerWidth;
         canvas.height = gridRows * layerHeight;
 
+        console.log(`Canvas width: ${gridColumns * layerWidth}px; height: ${gridRows * layerHeight}px;`);
+
+        const imageData = ctx.createImageData(layerWidth, layerHeight);
         for (let layer = 0; layer < texturePacker.layers.length; layer++) {
-            // for (let layer = 0; layer < layers; layer++) {
             gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
             gl.framebufferTextureLayer(
                 gl.FRAMEBUFFER,
@@ -407,48 +419,45 @@ export default class WebGLGraphics implements Graphics {
             ctx.font = "48px bold";
             ctx.fillStyle = "white";
 
+            gl.readPixels(0, 0, layerWidth, layerHeight, gl.RGBA, gl.UNSIGNED_BYTE, pixelBuffer);
+            imageData.data.set(pixelBuffer);
+            ctx.putImageData(imageData, col * layerWidth, row * layerHeight);
+            
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = 'white';
+            ctx.strokeRect(col * layerWidth, row * layerHeight, layerWidth, layerHeight);
             const textX = col * layerWidth + 50;
             const textY = row * layerHeight + 30;
-
-            new Promise((resolve) => {
-                gl.readPixels(0, 0, layerWidth, layerHeight, gl.RGBA, gl.UNSIGNED_BYTE, pixelBuffer);
-                const imageData = ctx.createImageData(layerWidth, layerHeight);
-                imageData.data.set(pixelBuffer);
-                ctx.putImageData(imageData, textX, textY);
-                ctx.lineWidth = 4;
-                ctx.strokeStyle = 'white';
-                ctx.strokeRect(col * layerWidth, row * layerHeight, layerWidth, layerHeight)
-                ctx.fillText(`Layer ${layer}`, textX, textY + 30);
-                for (let i = 0; i < texturePacker.layers[layer].occupiedRegions.length; i++) {
-                    const {
-                        label,
-                        x,
-                        y,
-                        width,
-                        height,
-                        uvScaleX,
-                        uvScaleY,
-                        uvOffsetX,
-                        uvOffsetY
-                    } = texturePacker.layers[layer].occupiedRegions[i];
-                    if (width <= 16 || height <= 16) {
-                        if (width > 1 && height > 1) {
-                            continue;
-                        }
-                        ctx.font = "12px";
-                        ctx.fillText(`${label.substring(label.lastIndexOf('/') + 1, (label.lastIndexOf('.')))}`, textX + x + 120, textY + y);
-                        ctx.font = "48px bold";
+            ctx.fillText(`Layer ${layer}`, textX, textY + 30);
+            for (let i = 0; i < texturePacker.layers[layer].occupiedRegions.length; i++) {
+                const {
+                    label,
+                    x,
+                    y,
+                    width,
+                    height,
+                    uvScaleX,
+                    uvScaleY,
+                    uvOffsetX,
+                    uvOffsetY
+                } = texturePacker.layers[layer].occupiedRegions[i];
+                if (width <= 16 || height <= 16) {
+                    if (width > 1 && height > 1) {
                         continue;
                     }
-
-                    ctx.fillText(`(x: ${x} y: ${y} w: ${width} h: ${height})`, textX + x, textY + y + 90);
-                    ctx.fillText(`${label.substring(label.lastIndexOf('/') + 1, (label.lastIndexOf('.')))}`, textX + x, textY + y + 180);
-                    ctx.fillText(`uvOff: (${uvOffsetX.toFixed(1)},${uvOffsetY.toFixed(1)})`, textX + x, textY + y + 240);
-                    ctx.fillText(`uvScale: (${uvScaleX.toFixed(1)},${uvScaleY.toFixed(1)})`, textX + x, textY + y + 300);
+                    console.log('4x4?', label, width, height)
+                    ctx.font = "12px";
+                    ctx.fillText(`${label.substring(label.lastIndexOf('/') + 1, (label.lastIndexOf('.')))}`, textX + x + 120, textY + y);
+                    ctx.font = "48px bold";
+                    continue;
                 }
-
-                resolve(null);
-            }).then()
+                ctx.strokeStyle = 'black';
+                ctx.strokeRect(x, y, width, height);
+                ctx.fillText(`(x: ${x} y: ${y} w: ${width} h: ${height})`, textX + x, textY + y + 90);
+                ctx.fillText(`${label.substring(label.lastIndexOf('/') + 1, (label.lastIndexOf('.')))}`, textX + x, textY + y + 180);
+                ctx.fillText(`uvOff: (${uvOffsetX.toFixed(1)},${uvOffsetY.toFixed(1)})`, textX + x, textY + y + 240);
+                ctx.fillText(`uvScale: (${uvScaleX.toFixed(1)},${uvScaleY.toFixed(1)})`, textX + x, textY + y + 300);
+            }
 
             // gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixelBuffer);
 

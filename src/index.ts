@@ -1,3 +1,4 @@
+import { RadioGridController } from "@tweakpane/plugin-essentials";
 import Canvas from "Canvas";
 import ProjectionMatrix from "core/components/camera/ProjectionMatrix";
 import EntityManager from "core/EntityManager";
@@ -6,15 +7,22 @@ import PropertiesManager, { PartialProperties, Property, PropertyValue } from "c
 import EntityComponentSystem from "core/systems/EntityComponentSystem";
 import SdiPerformance from "core/utils/SdiPerformance";
 import Engine, { OnRenderPlugin } from "Engine";
+import { TopMenu } from "engine/ui/menus/TopMenu";
 import { glMatrix, mat4, quat, vec2, vec3 } from "gl-matrix";
 import { enableGpuGraphicsApiSwitch, enableSplitScreenSwitch } from "html/Controls";
 import { enableWebComponentEntitySelect } from 'html/entity-select/EntitySelect';
-import DebugUtil from 'util/DebugUtil';
+import { Pane } from "tweakpane";
+import DebugUtil from './util/debug/DebugUtil';
 import WebGLGraphics from "webgl/WebGLGraphics";
 import WebGPUGraphics from "webgpu/graphics/WebGPUGraphics";
-import EntityControl from './engine/ui/controls/EntityControl';
-import UILayout from "./engine/ui/UILayout";
+import EntityTweakPane from 'engine/ui/controls/EntityTweakPane';
+import RightMenu from "engine/ui/menus/RightMenu";
 import FpsCounter from "./engine/ui/views/FpsCounter";
+import ResourceManager from 'core/resources/ResourceManager';
+import MaterialTweakPane from 'engine/ui/controls/MaterialTweakPane';
+import MaterialFactory from 'core/factories/MaterialFactory';
+import './styles/index.scss'
+import './styles/theme.scss'
 
 // OVERRIDE SYMBOL TO STRING FOR DEBUGGING
 Symbol.prototype.toString = function () {
@@ -25,11 +33,10 @@ DebugUtil.addToWindowObject('vec3', vec3);
 DebugUtil.addToWindowObject('mat4', mat4);
 DebugUtil.addToWindowObject('glMatrix', glMatrix);
 
-enableWebComponentEntitySelect();
+// enableWebComponentEntitySelect();
 
 SdiPerformance.begin();
-// const loadTimer = 'LOAD_TIMER';
-// console.time(loadTimer);
+
 const onRender: OnRenderPlugin = () => {
     screenProps.flushBuffer()
 };
@@ -37,23 +44,8 @@ const onRender: OnRenderPlugin = () => {
 
 document.body.onload = async () => {
     SdiPerformance.log('DOM loaded');
-    // console.timeLog(loadTimer, 'DOM loaded');
 
-    // const globalUI = new UILayout('GLOBAL', document.getElementById('global-controls')!);
-    // const graphicsApiBlade = globalUI.pane.addBlade({
-    //     view: 'list',
-    //     label: 'Graphics API',
-    //     options: [
-    //         {text: 'WebGL2', value: 'webgl2'},
-    //         {text: 'WebGPU', value: 'webgpu'},
-    //         {text: 'Split screen', value: 'split-screen'},
-    //     ],
-    //     value: 'webgl2',
-    // });
-    // // graphicsApiBlade.on()
-    enableSplitScreenSwitch(screenProps, document.getElementById('global-controls')!);
-    enableGpuGraphicsApiSwitch(screenProps, document.getElementById('global-controls')!);
-
+    new GlobalPropertiesControl(screenProps);
     let gpuEngine: Engine | undefined,
         glEngine: Engine | undefined,
         gpuProps: PropertiesManager | undefined,
@@ -95,8 +87,6 @@ document.body.onload = async () => {
         glProps = webGl2Props;
         glEngine.start();
     }
-
-    document.querySelector('canvas')!.focus();
 
     screenProps.subscribeToAnyPropertyChange(['splitScreen', 'gpuApi'], async props => {
         const isSplitScreen = props.getBoolean('splitScreen');
@@ -162,9 +152,8 @@ document.body.onload = async () => {
     });
 
 
-    SdiPerformance.log('Initialized both engines')
-    // console.timeEnd(loadTimer)
-    // console.log("=============FINISHED ENGINE LOADING====================")
+    // document.querySelector('canvas')!.focus();
+    SdiPerformance.log('Initialized engine');
 };
 
 const screenProps = new PropertiesManager({
@@ -189,11 +178,6 @@ const screenProps = new PropertiesManager({
         leftOffset: 0,
         topOffset: 0,
         hide: false,
-    },
-    light: {
-        sourceX: 0,
-        sourceY: 0,
-        sourceZ: 0,
     }
 }, {}, 'Screen');
 
@@ -224,11 +208,6 @@ async function initWebGlEngine(properties: PartialProperties) {
             leftOffset: window.innerWidth / 2,
             topOffset: 0,
             hide: false
-        },
-        light: {
-            sourceX: 0,
-            sourceY: 0,
-            sourceZ: 0
         }
     }, 'webgl2');
 
@@ -236,7 +215,7 @@ async function initWebGlEngine(properties: PartialProperties) {
         webGl2Props,
         'webgl2');
     canvas.addToDOM();
-    const layout = new UILayout(canvas.parent, 'WebGL');
+    const layout = new RightMenu(canvas.parent);
 
     const graphics = new WebGLGraphics(canvas, webGl2Props);
     const webGlEngine = await createEngine('WebGl', webGl2Props, canvas, graphics, layout);
@@ -260,16 +239,11 @@ async function initWebGpu(properties: PartialProperties) {
         gpuApi: 'webgpu',
         window: {
             width: properties['window.width'] as number || window.innerWidth / 2,
-            height: window.innerHeight,
+            height: window.innerHeight - 80,
             leftOffset: 0,
             topOffset: 0,
             hide: false,
         },
-        light: {
-            sourceX: 0,
-            sourceY: 0,
-            sourceZ: 0
-        }
     }, 'webgpu');
 
 
@@ -277,11 +251,15 @@ async function initWebGpu(properties: PartialProperties) {
         webGpuProps,
         'webgpu');
     canvas.addToDOM();
+    SdiPerformance.log('Added canvas to DOM')
 
-    const layout = new UILayout(canvas.parent, 'WebGPU');
+    const layout = new RightMenu(canvas.parent);
 
     const graphics = await WebGPUGraphics.initWebGPU(canvas, webGpuProps);
+    SdiPerformance.log('Initialized graphics')
+
     const webgpuEngine = await createEngine('WebGPU', webGpuProps, canvas, graphics, layout);
+
     return { webGpuProps, webgpuEngine };
 }
 
@@ -294,13 +272,16 @@ async function createEngine(
     properties: PropertiesManager,
     canvas: Canvas,
     graphics: Graphics,
-    uiLayout: UILayout): Promise<Engine> {
+    uiLayout: RightMenu): Promise<Engine> {
 
     const entityManager = new EntityManager();
     const projectionMatrix = new ProjectionMatrix(properties);
 
     const fpsCounter = new FpsCounter(uiLayout);
-    const entityControl = new EntityControl(entityManager, uiLayout);
+    const entityControl = new EntityTweakPane(entityManager, uiLayout);
+    const resourceManager = new ResourceManager(graphics);
+    const materialFactory = new MaterialTweakPane(new MaterialFactory(resourceManager), uiLayout);
+    const topMenu = new TopMenu(materialFactory, entityControl, entityManager, uiLayout);
 
     const engine = new Engine(
         label,
@@ -310,11 +291,77 @@ async function createEngine(
         entityControl,
         new EntityComponentSystem(),
         projectionMatrix,
+        resourceManager,
+        materialFactory,
         [onRender, fpsCounter.tick.bind(fpsCounter)],
     );
-    // enableWireframeSwitch(properties, canvas.parent);
 
-    engine.initializeScene();
+    await resourceManager.init()
+        .then(engine.initializeScene.bind(engine));
 
     return engine;
+}
+
+class GlobalPropertiesControl {
+
+    constructor(private properties: PropertiesManager) {
+        const pane = RightMenu.createPane(document.querySelector('.gpu-api-switch')!, 'GPU Api');
+        FpsCounter.counter = pane.addBlade({ view: 'fpsgraph', label: 'fps', rows: 2 });
+        properties.subscribeToAnyPropertyChange(['gpuApi'], props => {
+            pane.title = props.getString('gpuApi');
+        });
+
+        const isSplitScreenEnabled = properties.getBoolean('splitScreen');
+        const apis = {
+            active: properties.getString('gpuApi'),
+            available: [
+                ['Split Screen', ''],
+                ['Web gpu', 'Webgl 2']
+            ],
+            onSelect: [
+                [this.setSplitScreen.bind(this)],
+                [() => this.setGpuApi('webgpu'), () => this.setGpuApi('webgl2')]],
+        }
+
+        const radioGrid = pane.addBinding(apis, 'active', {
+            label: undefined,
+            view: 'radiogrid',
+            groupName: 'grp',
+            size: [2, 2],
+            cells: (x: number, y: number) => ({
+                title: apis.available[y][x],
+                value: apis.onSelect[y][x],
+            }),
+        }).on('change', (ev) => (ev.value as any)());
+
+        const valueController = radioGrid.controller.valueController as RadioGridController<any>;
+        const splitScreenBtn = valueController.cellControllers[0];
+        const webGpuApiBtn = valueController.cellControllers[2];
+        const webglApiBtn = valueController.cellControllers[3];
+
+        const currentApi = properties.getString('gpuApi');
+        splitScreenBtn.view.element.style.gridColumn = 'span 2';
+        splitScreenBtn.view.inputElement.checked = isSplitScreenEnabled;
+        webGpuApiBtn.view.inputElement.checked = !isSplitScreenEnabled && currentApi === 'webgpu';
+        webglApiBtn.view.inputElement.checked = !isSplitScreenEnabled && currentApi === 'webgl2';
+        valueController.cellControllers[1].viewProps.set("hidden", true);
+    }
+
+    private setGpuApi(api: string) {
+        this.properties.updateProperty('gpuApi', api);
+        this.properties.updateProperty('splitScreen', false);
+        localStorage.setItem('gpuApi', api);
+        localStorage.removeItem('splitScreen');
+        SdiPerformance.reset();
+    }
+
+    private setSplitScreen() {
+        const oldValue = this.properties.getBoolean('splitScreen');
+        this.properties.updateProperty('splitScreen', !oldValue);
+        if (oldValue) {
+            localStorage.removeItem('splitScreen');
+        } else {
+            localStorage.setItem('splitScreen', 'true');
+        }
+    }
 }

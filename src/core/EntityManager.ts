@@ -7,11 +7,15 @@ export type EntityName = string;
 export default class EntityManager {
 
     public scenes: Scene[] = [];
-    private entities: Map<EntityId, Map<ComponentId, Component>> = new Map();
-    private components: Map<ComponentId, EntityId[]> = new Map();
+    protected entities: Map<EntityId, Map<ComponentId, Component>> = new Map();
+    protected components: Map<ComponentId, EntityId[]> = new Map();
+    
+    get _entities(): Map<EntityId, Map<ComponentId, Component>> {
+        return this.entities;
+    }
 
     public createEntity(name: EntityName): EntityId {
-        const entityId = Symbol(name + '-entity');
+        const entityId = Symbol(name);
         this.entities.set(entityId, new Map());
         return entityId;
     }
@@ -22,17 +26,17 @@ export default class EntityManager {
         }
     }
 
-    public addComponent(entityId: EntityId, component: Component) {
+    private addComponent(entityId: EntityId, component: Component) {
         if (!this.entities.has(entityId)) {
             throw `No entity with id: ${entityId.toString()}. First create the entity`;
         }
 
-        (<Map<ComponentId, Component>> this.entities.get(entityId)).set(component.id, component);
+        (<Map<ComponentId, Component>>this.entities.get(entityId)).set(component.id, component);
 
         if (!this.components.has(component.id)) {
             this.components.set(component.id, []);
         }
-        (<EntityId[]> this.components.get(component.id)).push(entityId);
+        (<EntityId[]>this.components.get(component.id)).push(entityId);
     }
 
     public hasAnyComponent(entityId: EntityId, ...components: ComponentId[]): boolean {
@@ -84,6 +88,13 @@ export default class EntityManager {
 
     public getComponent<T extends Component>(entity: EntityId, component: ComponentId): T {
         return (this.entities.get(entity) as Map<ComponentId, Component>).get(component) as T;
+    }
+
+    public getAllComponentsOfEntity(entity: EntityId): Component[] {
+        if (!this.entities.has(entity)) {
+            throw new Error(`No entity with id: ${entity.description}`);
+        }
+        return [...this.entities.get(entity)!.values()];
     }
 }
 

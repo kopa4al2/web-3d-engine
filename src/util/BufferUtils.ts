@@ -1,5 +1,5 @@
 import { vec3 } from "gl-matrix";
-import DebugCanvas from "./DebugCanvas";
+import DebugCanvas from "./debug/DebugCanvas";
 
 export default class BufferUtils {
     private constructor() {

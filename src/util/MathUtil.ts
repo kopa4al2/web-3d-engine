@@ -1,25 +1,22 @@
 import { GeometryData } from 'core/mesh/Geometry';
 import { mat3, mat4, vec2, vec3, vec4 } from "gl-matrix";
-import DebugUtil from 'util/DebugUtil';
-
-// export interface Frustum extends Iterable<vec4>{
-//     left: vec4,
-//     right: vec4,
-//     near: vec4,
-//     far: vec4,
-//     top: vec4,
-//     bottom: vec4
-// }
+import DebugUtil from './debug/DebugUtil';
+import { TextureData } from 'core/texture/Texture';
 
 class MathUtil {
-    
+
+    isPowerOfTwo(n: number): boolean {
+        return n > 0 && Math.log2(n) % 1 === 0;
+    }
+
     normalize(value: number, min: number, max: number) {
         return Math.max(Math.min(value, min), Math.min(value, max));
     }
-    
+
     float32ToFloat16(source: Float32Array) {
         const float32Array = new Float32Array(1);
         const uint32Array = new Uint32Array(float32Array.buffer);
+
         function toFloat16(value: number) {
             const floatView = float32Array;
             const intView = uint32Array;
@@ -46,6 +43,7 @@ class MathUtil {
 
         return Uint16Array.from(source, toFloat16)
     }
+
     clamp(value: number, min: number, max: number) {
         return Math.max(min, Math.min(value, max));
         // return Math.min(Math.max(value, min), max);
@@ -364,6 +362,149 @@ class MathUtil {
         return bitangents;
     }
 
+    calculateTangents({ vertices, normals, texCoords, indices }: GeometryData): GeometryData {
+        const tangents = new Float32Array(vertices.length);
+
+        for (let i = 0; i < indices.length; i += 3) {
+            const i0 = indices[i];
+            const i1 = indices[i + 1];
+            const i2 = indices[i + 2];
+
+            // Positions
+            const p0 = vec3.fromValues(vertices[i0 * 3], vertices[i0 * 3 + 1], vertices[i0 * 3 + 2]);
+            const p1 = vec3.fromValues(vertices[i1 * 3], vertices[i1 * 3 + 1], vertices[i1 * 3 + 2]);
+            const p2 = vec3.fromValues(vertices[i2 * 3], vertices[i2 * 3 + 1], vertices[i2 * 3 + 2]);
+
+            // UVs
+            const uv0 = vec2.fromValues(texCoords[i0 * 2], texCoords[i0 * 2 + 1]);
+            const uv1 = vec2.fromValues(texCoords[i1 * 2], texCoords[i1 * 2 + 1]);
+            const uv2 = vec2.fromValues(texCoords[i2 * 2], texCoords[i2 * 2 + 1]);
+
+            // Edges of the triangle
+            const deltaPos1 = vec3.subtract(vec3.create(), p1, p0);
+            const deltaPos2 = vec3.subtract(vec3.create(), p2, p0);
+
+            const deltaUV1 = vec2.subtract(vec2.create(), uv1, uv0);
+            const deltaUV2 = vec2.subtract(vec2.create(), uv2, uv0);
+
+            const r = 1.0 / (deltaUV1[0] * deltaUV2[1] - deltaUV1[1] * deltaUV2[0]);
+
+            const tangent = vec3.create();
+            vec3.scale(
+                tangent,
+                vec3.subtract(
+                    vec3.create(),
+                    vec3.scale(vec3.create(), deltaPos1, deltaUV2[1]),
+                    vec3.scale(vec3.create(), deltaPos2, deltaUV1[1])
+                ),
+                r
+            );
+
+            // Accumulate tangents
+            for (const idx of [i0, i1, i2]) {
+                tangents[idx * 3] += tangent[0];
+                tangents[idx * 3 + 1] += tangent[1];
+                tangents[idx * 3 + 2] += tangent[2];
+            }
+        }
+
+        // Normalize tangents
+        for (let i = 0; i < tangents.length; i += 3) {
+            const t = vec3.fromValues(tangents[i], tangents[i + 1], tangents[i + 2]);
+            vec3.normalize(t, t);
+            tangents[i] = t[0];
+            tangents[i + 1] = t[1];
+            tangents[i + 2] = t[2];
+        }
+
+        return { vertices, normals, texCoords, indices, tangents };
+    }
+
+    calculateTangentsVec4({ vertices, normals, texCoords, indices }: GeometryData): GeometryData {
+        const tangents = new Float32Array(vertices.length * 4 / 3); // 4 components per vertex
+        const bitangents = new Float32Array(vertices.length); // Temporary storage for bitangents
+
+        for (let i = 0; i < indices.length; i += 3) {
+            const i0 = indices[i];
+            const i1 = indices[i + 1];
+            const i2 = indices[i + 2];
+
+            // Positions
+            const p0 = vec3.fromValues(vertices[i0 * 3], vertices[i0 * 3 + 1], vertices[i0 * 3 + 2]);
+            const p1 = vec3.fromValues(vertices[i1 * 3], vertices[i1 * 3 + 1], vertices[i1 * 3 + 2]);
+            const p2 = vec3.fromValues(vertices[i2 * 3], vertices[i2 * 3 + 1], vertices[i2 * 3 + 2]);
+
+            // UVs
+            const uv0 = vec2.fromValues(texCoords[i0 * 2], texCoords[i0 * 2 + 1]);
+            const uv1 = vec2.fromValues(texCoords[i1 * 2], texCoords[i1 * 2 + 1]);
+            const uv2 = vec2.fromValues(texCoords[i2 * 2], texCoords[i2 * 2 + 1]);
+
+            // Edges of the triangle
+            const deltaPos1 = vec3.subtract(vec3.create(), p1, p0);
+            const deltaPos2 = vec3.subtract(vec3.create(), p2, p0);
+
+            const deltaUV1 = vec2.subtract(vec2.create(), uv1, uv0);
+            const deltaUV2 = vec2.subtract(vec2.create(), uv2, uv0);
+
+            const r = 1.0 / (deltaUV1[0] * deltaUV2[1] - deltaUV1[1] * deltaUV2[0]);
+
+            const tangent = vec3.create();
+            const bitangent = vec3.create();
+
+            vec3.scale(
+                tangent,
+                vec3.subtract(
+                    vec3.create(),
+                    vec3.scale(vec3.create(), deltaPos1, deltaUV2[1]),
+                    vec3.scale(vec3.create(), deltaPos2, deltaUV1[1])
+                ),
+                r
+            );
+
+            vec3.scale(
+                bitangent,
+                vec3.subtract(
+                    vec3.create(),
+                    vec3.scale(vec3.create(), deltaPos2, deltaUV1[0]),
+                    vec3.scale(vec3.create(), deltaPos1, deltaUV2[0])
+                ),
+                r
+            );
+
+            // Accumulate tangents and bitangents
+            for (const idx of [i0, i1, i2]) {
+                tangents[idx * 4] += tangent[0];
+                tangents[idx * 4 + 1] += tangent[1];
+                tangents[idx * 4 + 2] += tangent[2];
+
+                bitangents[idx * 3] += bitangent[0];
+                bitangents[idx * 3 + 1] += bitangent[1];
+                bitangents[idx * 3 + 2] += bitangent[2];
+            }
+        }
+
+        // Normalize tangents and compute handedness
+        for (let i = 0; i < vertices.length / 3; i++) {
+            const t = vec3.fromValues(tangents[i * 4], tangents[i * 4 + 1], tangents[i * 4 + 2]);
+            const b = vec3.fromValues(bitangents[i * 3], bitangents[i * 3 + 1], bitangents[i * 3 + 2]);
+            const n = vec3.fromValues(normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2]);
+
+            vec3.normalize(t, t);
+
+            // Handedness (w): 1.0 or -1.0
+            const crossTB = vec3.cross(vec3.create(), t, b);
+            const handedness = vec3.dot(crossTB, n) < 0.0 ? -1.0 : 1.0;
+
+            tangents[i * 4] = t[0];
+            tangents[i * 4 + 1] = t[1];
+            tangents[i * 4 + 2] = t[2];
+            tangents[i * 4 + 3] = handedness; // Append w
+        }
+
+        return { vertices, normals, texCoords, indices, tangents };
+    }
+    
+    
     calculateTBNV({ vertices, normals, texCoords, indices }: GeometryData): GeometryData {
         const tangents = new Float32Array(vertices.length); // Tangents
         const bitangents = new Float32Array(vertices.length); // Bitangents
@@ -480,6 +621,49 @@ class MathUtil {
         }
 
         return { vertices, normals, texCoords, indices, tangents: [...tangents], bitangents: [...bitangents] };
+    }
+
+    async generateNormalTextureAsImageBitmap(
+        normals: Float32Array,
+        uvs: Float32Array,
+        width: number,
+        height: number
+    ): Promise<ImageBitmap> {
+        // Create an empty RGBA canvas
+        const canvas = new OffscreenCanvas(width, height);
+        const ctx = canvas.getContext("2d")!;
+        const imageData = ctx.createImageData(width, height);
+
+        // Iterate through vertices and write normals to the texture based on UVs
+        for (let i = 0; i < uvs.length / 2; i++) {
+            const nx = normals[i * 3 + 0];
+            const ny = normals[i * 3 + 1];
+            const nz = normals[i * 3 + 2];
+
+            // Normalize the normal vector
+            const length = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+            const normalizedNormal = [nx / length, ny / length, nz / length];
+
+            // Map normal to [0, 1] range
+            const encodedNormal = normalizedNormal.map(n => (n + 1) * 0.5);
+
+            // Get UV coordinates and map them to pixel space
+            const u = Math.floor(uvs[i * 2 + 0] * (width - 1));
+            const v = Math.floor(uvs[i * 2 + 1] * (height - 1));
+
+            // Write the normal to the corresponding pixel in the ImageData
+            const index = (v * width + u) * 4; // RGBA index
+            imageData.data[index + 0] = Math.round(encodedNormal[0] * 255); // R
+            imageData.data[index + 1] = Math.round(encodedNormal[1] * 255); // G
+            imageData.data[index + 2] = Math.round(encodedNormal[2] * 255); // B
+            imageData.data[index + 3] = 255; // A (opaque)
+        }
+
+        // Draw the ImageData to the canvas
+        ctx.putImageData(imageData, 0, 0);
+
+        // Create an ImageBitmap from the canvas
+        return await createImageBitmap(canvas);
     }
 }
 

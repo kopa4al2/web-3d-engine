@@ -3,10 +3,10 @@ export interface GLTFWorkerRequest {
 }
 
 export interface GLTFWorkerResponse {
-    // img: ImageBitmap,
-    data: ArrayBuffer,
-    width: number,
-    height: number,
+    imageBitmap: ImageBitmap,
+    // data: ArrayBuffer,
+    // width: number,
+    // height: number,
 }
 
 self.onmessage = (event: MessageEvent<GLTFWorkerRequest>) => {
@@ -15,35 +15,43 @@ self.onmessage = (event: MessageEvent<GLTFWorkerRequest>) => {
         .then(response => response.blob())
         .then(blob => createImageBitmap(blob))
         .then(bitmap => {
-            const width = bitmap.width;
-            const height = bitmap.height;
-            const canvas = getCanvas(width, height);
-            const context = canvas.getContext('2d', { willReadFrequently: true })!;
-            context.drawImage(bitmap, 0, 0);
-
-            const imageData = context.getImageData(0, 0, width, height);
             self.postMessage({
+            imageBitmap: bitmap,
+            }, { transfer: [bitmap] });
+            // const canvas = getCanvasContext(width, height, self.name);
+            // const context = canvas.getContext('2d', { willReadFrequently: true })!;
+            // const width = bitmap.width;
+            // const height = bitmap.height;
+            // const context = getCanvasContext(width, height, self.name);
+            // context.drawImage(bitmap, 0, 0);
+
+            // const imageData = context.getImageData(0, 0, width, height);
+            // self.postMessage({
                 // img: bitmap,
-                width, height,
-                data: imageData.data.buffer
-            }, { transfer: [imageData.data.buffer] });
+                // width, height,
+                // data: imageData.data.buffer
+            // }, { transfer: [imageData.data.buffer] });
         });
 }
 
-let canvas: OffscreenCanvas;
+const canvases: Record<string, OffscreenCanvas> = {}
 
-function getCanvas(width: number, height: number): OffscreenCanvas {
+function getCanvasContext(width: number, height: number, name: string) {
+    let canvas = canvases[name];
     if (!canvas) {
         canvas = new OffscreenCanvas(width, height);
+        canvases[name] = canvas;
     }
 
     if (canvas.width !== width) {
+        console.warn('resizing canvas, if there are problems, check this');
         canvas.width = width;
     }
 
     if (canvas.height !== height) {
+        console.warn('resizing canvas, if there are problems, check this');
         canvas.height = height;
     }
 
-    return canvas;
+    return canvas.getContext('2d', { willReadFrequently: true })!;
 }

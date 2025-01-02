@@ -4,7 +4,7 @@ import ProjectionMatrix from 'core/components/camera/ProjectionMatrix';
 import Component from 'core/components/Component';
 import Input from 'core/components/Input';
 import Mesh from 'core/components/Mesh';
-import Transform, { defaultTransform } from 'core/components/Transform';
+import Transform, { defaultTransform, TransformBuilder } from 'core/components/Transform';
 import EntityFactory from 'core/entities/EntityFactory';
 import EntityManager, { EntityId, EntityName } from 'core/EntityManager';
 import GeometryFactory from 'core/factories/GeometryFactory';
@@ -32,12 +32,16 @@ import TerrainSystem from 'core/systems/terrain/TerrainSystem';
 import TransformSystem from 'core/systems/TransformSystem';
 import PromiseQueue from "core/utils/PromiseQueue";
 import SdiPerformance from "core/utils/SdiPerformance";
-import { glMatrix, quat, vec2, vec3, vec4 } from 'gl-matrix';
+import FpsCounter from "engine/ui/views/FpsCounter";
+import { glMatrix, mat4, quat, vec2, vec3, vec4 } from 'gl-matrix';
+import { worldCoordinates } from "./html/Views";
 // import { enableEntitySelect, LightControls } from 'html/Controls';
 // import { worldCoordinates } from 'html/Views';
 import { SdiColor, SdiDirection, SdiPoint3D } from './types/engine-types/EngineTypes';
-import DebugUtil from './util/DebugUtil';
+import DebugCanvas from "./util/debug/DebugCanvas";
+import DebugUtil from './util/debug/DebugUtil';
 import ObjectUtils from './util/ObjectUtils';
+import OrderComponent from 'core/components/OrderComponent';
 
 export default class Engine {
 
@@ -46,9 +50,9 @@ export default class Engine {
 
     private lastFrame: number = 0;
 
-    private readonly resourceManager: ResourceManager;
+    // private readonly resourceManager: ResourceManager;
     private readonly entityFactory: EntityFactory;
-    private readonly materialFactory: MaterialFactory;
+    // private readonly materialFactory: MaterialFactory;
     private readonly geometryFactory: GeometryFactory;
     private readonly modelRepository: ModelRepository;
     private readonly shaderManager: ShaderManager;
@@ -64,14 +68,14 @@ export default class Engine {
         public entityManager: EntityManager,
         public ecs: EntityComponentSystem,
         public projectionMatrix: ProjectionMatrix,
+        public resourceManager: ResourceManager,
+        public materialFactory: MaterialFactory,
         public onRenderPlugins: OnRenderPlugin[]) {
 
-        this.resourceManager = new ResourceManager(graphicsApi);
         this.entityFactory = new EntityFactory(this.entityManager);
         this.shaderManager = new ShaderManager(this.graphicsApi, this.resourceManager);
-        this.materialFactory = new MaterialFactory(this.resourceManager);
         this.geometryFactory = new GeometryFactory(this.resourceManager);
-        this.modelRepository = new ModelRepository(this.geometryFactory, this.materialFactory, this.shaderManager, this.resourceManager);
+        this.modelRepository = new ModelRepository(this.geometryFactory, this.materialFactory, this.shaderManager, this.resourceManager, entityManager);
 
         const freeCameraEntity = this.createEntity('CAMERA', this.freeCameraComponent, this.input);
         this.scene = new Scene(this.freeCameraComponent, this.projectionMatrix, entityManager, [freeCameraEntity]);
@@ -94,6 +98,7 @@ export default class Engine {
 
     loop(now: number) {
         this.onRenderPlugins.forEach(plugin => plugin());
+        FpsCounter.begin();
         this.properties.flushBuffer();
         if (this.isRunning) {
             const deltaTime = (now - this.lastFrame) / 1000;
@@ -102,24 +107,21 @@ export default class Engine {
 
             this.lastFrame = now;
             this.frameRequest = requestAnimationFrame(this.loop.bind(this));
+            FpsCounter.end();
         }
     }
 
-    initializeScene(): void {
-
-        // this.initializeTerrain();
-
-
-        const renderLightBulb = (transform: vec3) => this.modelRepository.lightBulb()
-            .then(mesh => {
-                this.scene.addEntities(
-                    this.entityFactory.createEntityInstance('lightBulb', mesh, defaultTransform().scaleBy(10).translate(transform)),
-                );
-            })
+    async initializeScene(): Promise<void> {
+        // const renderLightBulb = (transform: vec3) => this.modelRepository.lightBulb()
+        //     .then(mesh => {
+        //         this.scene.addEntities(
+        //             this.entityFactory.createEntityInstance('lightBulb', mesh, defaultTransform().scaleBy(10).translate(transform)),
+        //         );
+        //     })
 
         const entities = {
             // dragon: (coordinates: vec3) => renderDragon(coordinates),
-            lightBulb: (transform: vec3) => renderLightBulb(transform),
+            // lightBulb: (transform: vec3) => renderLightBulb(transform),
             // square: (transform: vec3) => renderCube(transform),
             // sphere: (transform: vec3) => renderSphere(transform),
             // grass: (transform: Transform) => renderWavefront('grass', transform),
@@ -129,150 +131,158 @@ export default class Engine {
             // wavefront: (transform: vec3, key: keyof typeof ModelRepository.wavefrontFiles) => renderWavefront(transform, key)
         }
 
-        // renderWavefront('barrel', defaultTransform().translate([-5, 10, -5]));
-
-        // this.modelRepository.createSkyBox().then(m => {
-        //     this.scene.addEntities(this.entityFactory.createEntity(`SKY_BOX`, m, new OrderComponent(1)));
-        // });
-        const sunLight = new DirectionalLight({
-            direction: new SdiDirection(-0.13, -0.2, -0.1, 1.0),
-            color: new SdiColor(1.0, 1.0, 1.0, 1.0),
-            intensity: 1.0
-        });
-        const sunLightEntity = this.entityFactory.createEntity('Sun', sunLight);
-        this.scene.addEntities(sunLightEntity);
-
-        this.createPointLight('BRIGHT_POINT',
-            {
-                color: PointLight.MOON_LIGHT, quadraticAttenuation: 0.001,
-                linearAttenuation: 0.001, intensity: 4
-            },
-            defaultTransform().translate([0, 30, 0]));
-
 
         // this.createSpotLight('SPOT_LIGHT_2', {
-        //     color: vec4.fromValues(0, 1, 1, 1),
-        //     intensity: 20,
-        //     innerCutoff: Math.cos(glMatrix.toRadian(60.0))
-        // });
+        //     color: vec4.fromValues(1, 0, 1, 1),
+        //     intensity: 5,
+        //     innerCutoff: Math.cos(glMatrix.toRadian(30.0)),
+        //     outerCutoff: Math.cos(glMatrix.toRadian(40.0)),
+        //     quadraticAttenuation: 0.04
+        // }, defaultTransform().translate(vec3.fromValues(0, 10, 0)).lookAt([0, 0, 10]));
+
         // this.createPointLight('Red', { color: PointLight.WARM_LIGHT }, defaultTransform().translate([10, 10, 0]));
 
 
-        // this.loadAndAddMesh(() => this.modelRepository.createCrate(), [10, 15, -15])
+        // this.loadAndAddMesh('crate 2', () => this.modelRepository.createCrate(), [0, -3, 0])
         // this.loadAndAddMesh(() => this.modelRepository.lightBulb(), [10, 15, -15])
 
 
-        const promiseQueue = new PromiseQueue();
-
-        function traverse(mesh: Mesh, onRender: (m: Mesh) => void) {
-            promiseQueue.addTask(async () => onRender(mesh));
-
-            for (const subMesh of mesh.subMesh) {
-                traverse(subMesh, onRender);
-            }
-        }
+        // const promiseQueue = new PromiseQueue();
+        //
+        // function flatMapTransform(transform: Transform, arr: Transform[] = []) {
+        //     arr.push(transform);
+        //
+        //     for (const child of transform.children) {
+        //         flatMapTransform(child, arr);
+        //     }
+        //
+        //     return arr;
+        // }
+        //
+        // function traverse(mesh: Mesh, onRender: (m: Mesh) => void) {
+        //     promiseQueue.addTask(async () => onRender(mesh));
+        //
+        //     for (const subMesh of mesh.subMesh) {
+        //         traverse(subMesh, onRender);
+        //     }
+        // }
 
         // this.modelRepository.lightBulb().then(meshes => {
         //     const lightTransform = defaultTransform();
-        //     meshes.modelMatrix.children.push(lightTransform);
-        //     lightTransform.parent = meshes.modelMatrix;
-        //     mat4.targetTo(lightTransform.worldTransform.mat4, lightTransform.localTransform.position, meshes.modelMatrix, vec3.fromValues(0, 1, 0));
+        //     meshes.transform.children.push(lightTransform);
+        //     lightTransform.parent = meshes.transform;
+        //     mat4.targetTo(lightTransform.worldTransform.mat4, lightTransform.localTransform.position, meshes.transform, vec3.fromValues(0, 1, 0));
         //     traverse(meshes, mesh => {
         //         if (!mesh.pipelineId) {
-        //             const entityId = this.entityFactory.createEntity(`no-transform`, mesh.modelMatrix);
+        //             const entityId = this.entityFactory.createEntity(`no-transform`, mesh.transform);
         //             this.scene.addEntity(entityId);
         //             return;
         //         }
         //         const entityId = this.entityFactory.createEntityInstance(
         //             `${ mesh.geometry.vertexBuffer.toString() }`,
-        //             mesh, mesh.modelMatrix);
+        //             mesh, mesh.transform);
         //         this.scene.addEntities(entityId);
         //     });
         //     promiseQueue
         //         .addTask(async () => this.createSpotLight('BulbLight', { color: vec4.fromValues(1.0, 0.2, 0.7, 1) }, lightTransform));
         // });
 
+        // this.modelRepository.createSkyBox().then(m => {
+        //     this.scene.addEntities(this.entityFactory.createEntity(`SKY_BOX`, m, new OrderComponent(1)));
+        // });
 
-        SdiPerformance.log('Begin loading Sponza Atrium');
-        this.modelRepository.drawScene()
-            .then(meshes => {
-                SdiPerformance.log('Sponza atrium loaded in memory, about to load it in the scene');
-                let i = 0;
-                traverse(meshes, mesh => {
-                    i += 1;
-                    if (!mesh.pipelineId) {
-                        const entityId = this.entityFactory.createEntity(`no-mesh-${i}`, mesh.transform);
-                        this.scene.addEntity(entityId);
-                        return;
-                    }
-                    // if (i > 10) {
-                    //     return;
-                    // }
-                    const entityId = this.entityFactory.createEntityInstance(
-                        `${i}-${mesh.geometry.vertexBuffer.toString()}`,
-                        mesh, mesh.transform);
-                    this.scene.addEntities(entityId);
-                });
-                SdiPerformance.log('Added the whole Sponza Atrium to the scene');
-                this.loadAndAddMesh(() => this.modelRepository.createCrate(), [-5, 10, 10])
+        const sunLight = new DirectionalLight({
+            direction: vec4.fromValues(-1.0, -0.7, 0.1, 0.0),
+            color: new SdiColor(1.0, 1.0, 0.85, 1.0),
+            intensity: 1.0
+        });
+
+        const sunLightEntity = this.entityFactory.createEntity('Sun', sunLight);
+        this.scene.addEntities(sunLightEntity);
+
+        // this.createPointLight('BRIGHT_POINT',
+        //     {
+        //         color: new SdiColor([1, 0, 0]), quadraticAttenuation: 0.001,
+        //         linearAttenuation: 0.01, intensity: 1
+        //     },
+        //     defaultTransform().translate([0, 5, 0]));
+        //
+        // this.createPointLight('WARM',
+        //     {
+        //         color: new SdiColor([0.5, 0, 0]), quadraticAttenuation: 0.01,
+        //         linearAttenuation: 0.01, intensity: 2
+        //     },
+        //     defaultTransform().translate([-5, 1, 0]));
+
+        //
+        // this.createSpotLight('Orange Spotlight', {
+        //         color: vec4.fromValues(1, 0.6, 0, 1),
+        //         intensity: 2.0,
+        //         innerCutoff: Math.cos(glMatrix.toRadian(30.0)),
+        //         outerCutoff: Math.cos(glMatrix.toRadian(40.0)),
+        //         linearAttenuation: 0.1,
+        //         quadraticAttenuation: 0.0032
+        //     }, TransformBuilder.position(vec3.fromValues(0, 5, 0)).lookAt([0, 5, -1]).build());
+        
+        this.createSpotLight('White', {
+                color: vec4.fromValues(0.7, 0.85, 1.0, 1),
+                intensity: 2.5,
+                innerCutoff: Math.cos(glMatrix.toRadian(25.0)),
+                outerCutoff: Math.cos(glMatrix.toRadian(25.0)),
+                linearAttenuation: 0.1,
+                quadraticAttenuation: 0.0032
+            }, TransformBuilder.position(vec3.fromValues(3, 3, -1)).lookAt([0, 0, 0]).build());
+
+        // defaultTransform().translate(vec3.fromValues(0, 5, 0)).lookAt([0, 5, -1])
+        const skeletalTransform = new TransformBuilder()
+            .reorient()
+            .translate([4, 2, 0])
+            .lookAt([4, 4, 0])
+            .scaleBy(0.5)
+            .build();
+
+        // const skeletalTransform = Transform.fromMat4(lookAtWithOffset(vec3.fromValues(4, 2, 2), vec3.fromValues(2, 2, 0), Transform.UP));
+
+        const e = this.entityManager.createEntity('TransformEntity')
+        this.entityManager.addComponents(e, [skeletalTransform]);
+        this.scene.addEntities(e)
+        return Promise.all([
+            this.addScene('Skeletal', () => this.modelRepository.midas(skeletalTransform)),
+            // this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumGLB),
+            this.loadAndAddMesh('Crate1', this.modelRepository.createCrate, [-2, 2, 0], 0.005),
+        ])
+            // .then(() => this.addScene('Skeletal', () => this.modelRepository.finalWarsMonster(skeletalTransform)))
+            // .then(() => this.addScene('Monster', this.modelRepository.monster, defaultTransform().translate([3, 3, 0]).lookAt([0, 1, 0])))
+            // .then(() => this.addScene('MonkeyHead', this.modelRepository.monkeyHead, defaultTransform().translate([-3, 3, 0])))
+            // .then(() => this.loadAndAddMesh('Crate2', this.modelRepository.createCrate, [0, 0, 0], 0.005),)
+            // .then(() => this.addScene('Porsche', this.modelRepository.test))
+            .then(() => this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumScene))
+            .then(() => {
+                this.ecs.registerUpdateSystems(
+                    new SceneSystem(this.entityManager),
+                    new InputSystem(this.entityManager, this.properties, this.canvas.htmlElement),
+                    new TransformSystem(this.entityManager),
+                    new FreeCameraSystem(this.entityManager, this.properties)
+                );
+
+                this.ecs.registerSystems(
+                    new Renderer(this.graphicsApi, this.entityManager, this.resourceManager, this.shaderManager),
+                    new ViewFrustumSystem(this.entityManager, this.graphicsApi, this.properties),
+                    new TerrainSystem(this.graphicsApi));
             });
 
-        // this.modelRepository.lightBulb().then(mesh => {
-        //     this.scene.addEntities(
-        //         this.entityFactory.createEntityInstance('lightBulb', mesh, defaultTransform().scaleBy(10).translate([-8, -15, -5])),
-        //     );
-        // })
-        // this.modelRepository.dragon().then(mesh => {
-        //     this.scene.addEntities(
-        //         this.entityFactory.createEntityInstance('dragon', mesh, defaultTransform().translate([-8, 15, -5])),
-        //         this.entityFactory.createEntityInstance('dragon', mesh, defaultTransform().scaleBy(0.5).translate([0, 0, 0])),
-        //     )
-        // })
-        // this.modelRepository.dragon().then(mesh => {
-        //     this.scene.addEntities(
-        //         this.entityFactory.createEntityInstance('dragon', mesh, defaultTransform().translate([-12, -15, 5])),
-        //         this.entityFactory.createEntityInstance('dragon', mesh, defaultTransform().scaleBy(0.5).translate([10, 10, 10])),
-        //     )
-        // })
-        /* this.modelRepository.createCrate(false)
-             .then(mesh => {
-                 this.scene.addEntities(
-                     this.entityFactory.createEntityInstance('crate', mesh, defaultTransform().scaleBy(0.05).translate([-13, 35, 25])),
-                     this.entityFactory.createEntityInstance('crate', mesh, defaultTransform().scaleBy([0.16, 0.08, 0.08]).translate([15, 15, -32]))
-                 )
-             })*/
-
-        // const frustumGeometry = this.geometryFactory.createFrustumDescriptor(VertexShaderName.UNUSED_OLD_BASIC);
-        // const frustumMaterial = this.materialFactory.viewFrustumMaterial();
-        // const mesh = this.meshFactory.newNotInstancedMesh(frustumMaterial, frustumGeometry);
-        // const frustumEntity = this.createEntity('ViewFrustum', new Frustum(), mesh);
-        // this.scene.addEntity(frustumEntity);
-
-        // this.addMeshCopies();
-
-        // entities.dragon(vec3.fromValues(10, 15, -10));
-        // entities.lightBulb(vec3.fromValues(-8, 4, 22));
-        // entities.lightBulb(vec3.fromValues(-12, 9, 9));
-
-        // enableEntitySelect(this.canvas.parent, Object.keys(entities),
-        //     e => {
-        //         console.log('ADD ', e);
-        //         const { selectedEntity, coordinates } = e;
-        //         // @ts-ignore
-        //         entities[selectedEntity](coordinates, selectedEntity);
-        //     })
-        this.ecs.registerUpdateSystems(
-            new SceneSystem(this.entityManager),
-            new InputSystem(this.entityManager, this.properties, this.canvas.htmlElement),
-            new TransformSystem(this.entityManager),
-            new FreeCameraSystem(this.entityManager, this.properties)
-        );
-
-        this.ecs.registerSystems(
-            new Renderer(this.graphicsApi, this.entityManager, this.resourceManager, this.shaderManager),
-            new ViewFrustumSystem(this.entityManager, this.graphicsApi, this.properties),
-            new TerrainSystem(this.graphicsApi));
         // worldCoordinates(this.properties, this.freeCameraComponent, this.projectionMatrix, this.input, this.canvas.parent);
+    }
+
+    private async addScene(label = 'scene', scene: () => Promise<EntityId[]>, transform?: Transform): Promise<void> {
+        console.time(`Loading ${label} took:`);
+        const entities = await scene.bind(this.modelRepository)();
+        if (transform) {
+            const component = this.entityManager.getComponents<[Transform]>(entities[0], Transform.ID)[0];
+            component.transformBy(transform);
+        }
+        this.scene.addEntities(...entities);
+        console.timeEnd(`Loading ${label} took:`);
     }
 
     private createPointLight(label: string, props: Partial<PointLightProps>, transform?: Transform) {
@@ -290,15 +300,13 @@ export default class Engine {
 
     private createSpotLight(label: string, props: Partial<SpotLightProps>, transform: Transform = defaultTransform()) {
         const defaultProps: SpotLightProps = {
-            // position: vec4.fromValues(0, 0, 0, 1),
-            // direction: quat.create(),
             color: vec4.fromValues(1, 1, 1, 1),
             innerCutoff: Math.cos(glMatrix.toRadian(20.0)),
             outerCutoff: Math.cos(glMatrix.toRadian(30.0)),
             intensity: 5.0,
             constantAttenuation: 1.0,
             linearAttenuation: 0.09,
-            quadraticAttenuation: 0.032
+            quadraticAttenuation: 0.0032
         };
         const light = new SpotLight(ObjectUtils.mergePartial(props, defaultProps));
         this.scene.addEntities(this.entityFactory.createEntity(label, light, transform));
@@ -421,16 +429,24 @@ export default class Engine {
     }
 
     private createFreeCamera() {
+        const forward = vec3.fromValues(0, 0, -1);
+        const up = vec3.fromValues(0, 1, 0);
+        const rotation = quat.fromEuler(quat.create(), 0, 90, 10);
+        const position = vec3.fromValues(5, 3, 0);
         return new CameraComponent(
-            vec3.fromValues(52, 12, -1.5),
-            quat.fromValues(-0.07, 0.7, 0.07, 0.7),
-            0.2,
-            15.0,
-            30,
-            30,
-            30,
-            vec3.fromValues(-1, 0.2, 0),
-            vec3.fromValues(0.2, 1, 0)
+            // vec3.fromValues(52, 12, -1.5),
+            position,
+            rotation,
+            // quat.fromValues(-0.07, 0.7, 0.07, 0.7),
+            0.3,
+            15.0, // lerp factor
+            10, // max speed
+            10, // acceleration
+            30, // deceleration
+            forward,
+            up,
+            // vec3.fromValues(-1, 0.2, 0),
+            // vec3.fromValues(0.2, 1, 0)
         );
     }
 
@@ -478,22 +494,66 @@ export default class Engine {
     //     this.scene.addEntity(this.createEntity(name), mesh, transform.createModelMatrix())
     //     this.scene.addEntity(this.createEntity(`${name}-bounding_sphere`), meshBoundingBox, transform.createModelMatrix())
     // }
-    private loadAndAddMesh(meshCreator: (cache?: boolean) => Promise<Mesh>, translate: number[] = [0, 0, 0]) {
-        meshCreator()
-            .then(mesh => {
-                const transform = Transform.copyOf(mesh.transform).translate(translate);
-                const transform2 = Transform.copyOf(mesh.transform).translate([3, 40, 5]);
-                mesh.transform = transform;
-                this.scene.addEntities(
-                    this.entityFactory.createEntityInstance(`${mesh.material.label}`, mesh, transform),
-                    this.entityFactory.createEntityInstance(`${mesh.material.label}`, mesh, transform2),
-                    // this.entityFactory.createEntityInstance('crate', mesh, mesh.transform.scaleBy(0.05).translate([0, 0, 0])),
-                    // this.entityFactory.createEntityInstance('crate', mesh, mesh.transform.scaleBy(0.1).translate([8, -41, -67])),
-                    // this.entityFactory.createEntityInstance('crate', mesh, mesh.transform.scaleBy([0.16, 0.08, 0.08]).translate([15, 25, -2])),
-                    // this.entityFactory.createEntityInstance('crate', mesh, mesh.transform.scaleBy(0.1).translate([-23, 51, 15])),
-                )
-            })
+    private async loadAndAddMesh(label: string, meshCreator: (cache?: boolean) => Promise<Mesh>, translate: number[] = [0, 0, 0], scaleFactor: number = 1) {
+        console.time(`Loading ${label} took:`);
+        const mesh = await meshCreator.bind(this.modelRepository)();
+        const entity = this.entityManager.createEntity(label);
+        const transform = defaultTransform().scaleBy(scaleFactor).translate(translate);
+        this.entityManager.addComponents(entity, [mesh, transform]);
+        this.scene.addEntities(entity);
+        console.timeEnd(`Loading ${label} took:`);
     }
 }
 
 export type OnRenderPlugin = () => void;
+
+// let i = 0;
+// traverse(meshes, mesh => {
+//     i += 1;
+//     if (!mesh.pipelineId) {
+//         const entityId = this.entityFactory.createEntity(`${mesh.label}`, mesh.transform);
+//         this.scene.addEntity(entityId);
+//         return;
+//     }
+//
+//     const entityId = this.entityFactory.createEntityInstance(`${mesh.label}`, mesh, mesh.transform);
+//     this.scene.addEntities(entityId);
+//     // SdiPerformance.log('Added the whole Sponza Atrium to the scene');
+// });
+
+
+function lookAtWithOffset(position: vec3, target: vec3, up: vec3): mat4 {
+    // Compute forward vector
+    const forward = vec3.create();
+    vec3.subtract(forward, target, position);
+    vec3.normalize(forward, forward);
+
+    // Compute right vector
+    const right = vec3.create();
+    vec3.cross(right, up, forward);
+    vec3.normalize(right, right);
+
+    // Compute corrected up vector
+    const correctedUp = vec3.create();
+    vec3.cross(correctedUp, forward, right);
+    vec3.normalize(correctedUp, correctedUp);
+
+    // Build rotation matrix
+    const rotation = mat4.create();
+    mat4.set(rotation,
+        right[0], correctedUp[0], -forward[0], 0,
+        right[1], correctedUp[1], -forward[1], 0,
+        right[2], correctedUp[2], -forward[2], 0,
+        0, 0, 0, 1
+    );
+
+    // Build translation matrix
+    const translation = mat4.create();
+    mat4.translate(translation, translation, position);
+
+    // Combine translation and rotation
+    const modelMatrix = mat4.create();
+    mat4.multiply(modelMatrix, translation, rotation);
+
+    return modelMatrix;
+}

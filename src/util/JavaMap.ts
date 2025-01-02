@@ -1,4 +1,4 @@
-import DebugUtil from 'util/DebugUtil';
+import DebugUtil from './debug/DebugUtil';
 import { Comparable, Comparator } from 'util/JavaTypes';
 
 export default class JavaMap<K, V> extends Map<K, V> {
@@ -42,25 +42,25 @@ export default class JavaMap<K, V> extends Map<K, V> {
         return this.size === 0;
     }
 
-    public static groupBy<T,
-        K extends keyof T,
-        V extends T[K], U>(objs: T[],
-                           key: K,
-                           remappingFunction: (t: T) => U = (t: T) => t as unknown as U): JavaMap<V, U[]> {
-        return objs.reduce((acc, obj) => {
-            const keyValue = obj[key] as V;
-
-            // Initialize the array for this key if it doesn't exist
-            if (!acc.has(keyValue)) {
-                acc.set(keyValue, []);
-            }
-
-            // Add the object to the corresponding group
-            acc.get(keyValue).push(remappingFunction(obj));
-
-            return acc;
-        }, new JavaMap<V, U[]>());
-    }
+    // public static groupBy<T,
+    //     K extends keyof T,
+    //     V extends T[K], U>(objs: T[],
+    //                        key: K,
+    //                        remappingFunction: (t: T) => U = (t: T) => t as unknown as U): JavaMap<V, U[]> {
+    //     return objs.reduce((acc, obj) => {
+    //         const keyValue = obj[key] as V;
+    //
+    //         // Initialize the array for this key if it doesn't exist
+    //         if (!acc.has(keyValue)) {
+    //             acc.set(keyValue, []);
+    //         }
+    //
+    //         // Add the object to the corresponding group
+    //         acc.get(keyValue).push(remappingFunction(obj));
+    //
+    //         return acc;
+    //     }, new JavaMap<V, U[]>());
+    // }
 
     public static groupByTwoProperties<T,
         K1 extends keyof T,
@@ -106,23 +106,7 @@ export class SortedMap<K, V> extends Map<K, V> {
 
         return this;
     }
-
-    public static groupBy<T, K extends keyof T, V extends T[K]>(objs: T[], key: K): JavaMap<V, T[]> {
-        return objs.reduce((acc, obj) => {
-            const keyValue = obj[key] as V;
-
-            // Initialize the array for this key if it doesn't exist
-            if (!acc.has(keyValue)) {
-                acc.set(keyValue, []);
-            }
-
-            // Add the object to the corresponding group
-            acc.get(keyValue).push(obj);
-
-            return acc;
-        }, new JavaMap<V, T[]>());
-    }
-
+    
     public static groupByTwoProperties<T,
         K1 extends keyof T,
         K2 extends keyof T,
