@@ -1,8 +1,8 @@
 import EntityManager, { EntityId } from "core/EntityManager";
 import { UpdateSystem } from "core/systems/EntityComponentSystem";
 import { mat4, quat, vec3 } from "gl-matrix";
-import { rateLimitedLog } from "../../util/Logger";
-import ThrottleUtil from "../../util/ThrottleUtil";
+import { rateLimitedLog } from "../../utils/Logger";
+import ThrottleUtil from "../../utils/ThrottleUtil";
 import Transform from "../components/Transform";
 
 export default class TransformSystem implements UpdateSystem {
@@ -56,7 +56,7 @@ export default class TransformSystem implements UpdateSystem {
             transform.worldTransform = transform.localTransform;
             // transform.worldTransform.mat4 = transform.localTransform.mat4;
         } else {
-            transform.multiply(transform.worldTransform, transform.parent.worldTransform, transform.localTransform)
+            transform.multiply(transform.worldTransform, transform.parent.worldTransform.mat4, transform.localTransform.mat4)
         }
 
         for (const child of transform.children) {

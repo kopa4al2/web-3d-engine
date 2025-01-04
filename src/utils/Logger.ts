@@ -1,5 +1,5 @@
-import JavaMap from "util/JavaMap";
-import ThrottleUtil from "util/ThrottleUtil";
+import JavaMap from "utils/JavaMap";
+import ThrottleUtil from "utils/ThrottleUtil";
 
 function isIterable(obj: any): obj is Iterable<any> {
     return obj != null && typeof obj[Symbol.iterator] === 'function';

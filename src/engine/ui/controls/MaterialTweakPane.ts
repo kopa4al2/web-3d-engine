@@ -8,10 +8,11 @@ import { PipelineOptions } from 'core/resources/gpu/GpuShaderData';
 import TextureManager from 'core/resources/TextureManager';
 import Texture, { Image } from 'core/texture/Texture';
 import { ListBladeApi } from "tweakpane/dist/types/blade/list/api/list";
-import DebugCanvas from '../../../util/debug/DebugCanvas';
+import DebugCanvas from '../../../utils/debug/DebugCanvas';
 import RightMenu, { UiBladeWrapper } from 'engine/ui/menus/RightMenu';
 import { wrapArrayAsColor } from '../utils';
 import { TabPageApi } from 'tweakpane';
+import DebugUtil from 'utils/debug/DebugUtil';
 
 export default class MaterialTweakPane extends MaterialFactory {
 
@@ -24,6 +25,7 @@ export default class MaterialTweakPane extends MaterialFactory {
     constructor(matFactory: MaterialFactory, private layout: RightMenu) {
         // @ts-ignore
         super(matFactory.resourceManager);
+        DebugUtil.addToWindowObject('matTweakPane', this);
         // this.materialLabels = matFactory.materialLabels;
     }
 
@@ -51,8 +53,13 @@ export default class MaterialTweakPane extends MaterialFactory {
     }
 
     addMaterial(material: Material) {
-        const folder = this.materialPane!.addFolder({ title: material.label, expanded: false });
         const pbrProps = material.properties as PBRMaterialProperties;
+        if (!pbrProps.albedo) {
+            return;
+        }
+
+        const folder = this.materialPane!.addFolder({ title: material.label, expanded: false });
+
 
         this.forceUpdateOnChange(folder.addBinding(wrapArrayAsColor(pbrProps.baseColorFactor), 'color', {
             color: { type: 'float' },

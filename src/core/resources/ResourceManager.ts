@@ -2,40 +2,11 @@ import Graphics, { BindGroupId, BindGroupLayoutId } from 'core/Graphics';
 import BindGroup from 'core/resources/BindGroup';
 import BindGroupLayout from 'core/resources/BindGroupLayout';
 import BufferManager from 'core/resources/BufferManager';
-import { FragmentShaderName, VertexShaderName } from 'core/resources/cpu/CpuShaderData';
 import { BufferData, BufferDescription } from 'core/resources/gpu/BufferDescription';
-import { DEFAULT_PIPELINE_OPTIONS, PipelineOptions, UniformVisibility } from 'core/resources/gpu/GpuShaderData';
 import ShaderManager from 'core/resources/shader/ShaderManager';
-import { ShaderStruct } from "core/resources/shader/ShaderStruct";
 import TextureManager from 'core/resources/TextureManager';
-import Texture from "core/texture/Texture";
-import DebugUtil from '../../util/debug/DebugUtil';
-import logger from 'util/Logger';
-import ObjectUtils from 'util/ObjectUtils';
-import glBasicFragmentShader from 'webgl/shaders/basic/basicFragmentShader.frag';
-import glBasicVertexShader from 'webgl/shaders/basic/basicVertexShader.vert';
-import glBasicVertexShaderInstanced from 'webgl/shaders/basic/basicVertexShaderInstanced.vert';
-import glShapeFragmentShader from 'webgl/shaders/debug/outlinedShapeFragmentShader.frag';
-import glShapeVertexShader from 'webgl/shaders/debug/outlinedShapeVertexShader.vert';
-import glPBRLightFragmentShader from 'webgl/shaders/light/pbrFragment.frag';
-import glPhongLightFragmentShader from 'webgl/shaders/light/phongFragment.frag';
-import glLightVertexShader from 'webgl/shaders/light/vertexShader.vert';
-import glTerrainFragmentShader from 'webgl/shaders/terrain/terrainFragmentShader.frag';
-import glTerrainVertexShader from 'webgl/shaders/terrain/terrainVertexShader.vert';
-import WebGPUGraphics from 'webgpu/graphics/WebGPUGraphics';
-import gpuBasicFragment from 'webgpu/shaders/basic/basicFragmentShader.wgsl';
-import basicFragmentShaderInstanced from 'webgpu/shaders/basic/basicFragmentShaderInstanced.wgsl';
-import gpuBasicVertex from 'webgpu/shaders/basic/basicVertexShader.wgsl';
-import gpuBasicVertexInstanced from 'webgpu/shaders/basic/basicVertexShaderInstanced.wgsl';
-import gpuSphereFragmentShader from 'webgpu/shaders/debug/sphereFragmentShader.wgsl';
-import gpuSphereVertexShader from 'webgpu/shaders/debug/sphereVertexShader.wgsl';
-import gpuPBRLightFragmentShader from 'webgpu/shaders/light/pbrFragment.wgsl';
-import gpuPhongLightFragmentShader from 'webgpu/shaders/light/phongFragment.wgsl';
-import gpuLightVertexShader from 'webgpu/shaders/light/vertexShader.wgsl';
-import gpuTerrainFragmentShader from 'webgpu/shaders/terrain/terrainFragmentShader.wgsl';
-import gpuTerrainVertexShader from 'webgpu/shaders/terrain/terrainVertexShader.wgsl';
-import { BindGroupHelper } from 'core/rendering/Helpers';
-import Globals from '../../engine/Globals';
+import Texture from 'core/texture/Texture';
+import DebugUtil from '../../utils/debug/DebugUtil';
 
 
 export type PipelineHash = string;
@@ -170,7 +141,7 @@ export default class ResourceManager {
         if (!this.bindGroupLayoutsCache[uniqueKey]) {
             this.bindGroupLayoutsCache[uniqueKey] = this.graphics.createShaderLayout({ ...bindGroupLayout });
         } else {
-            // console.warn(`Taking bind group layout from cache: ${ uniqueKey }`)
+            // console.warn(`Taking bind group layout from cache: ${ uniqueKey }`, this.bindGroupLayoutsCache)
         }
 
         return this.bindGroupLayoutsCache[uniqueKey];
@@ -188,104 +159,5 @@ export default class ResourceManager {
     public createBindGroup(bindGroupLayoutId: BindGroupLayoutId,
                            bindGroup: BindGroup): BindGroupId {
         return this.graphics.createBindGroup(bindGroupLayoutId, bindGroup);
-    }
-
-    private mergeWithDefaultOptions(pipelineOptions: Partial<PipelineOptions>): PipelineOptions {
-        return ObjectUtils.mergePartial(pipelineOptions, DEFAULT_PIPELINE_OPTIONS);
-    }
-
-    private getFragmentSource(shaderName: FragmentShaderName) {
-        if (this.graphics instanceof WebGPUGraphics) {
-            return this.getWebGpuFragmentSource(shaderName);
-        }
-
-        return this.getWebGlFragmentSource(shaderName);
-    }
-
-    private getVertexSource(shaderName: VertexShaderName) {
-        if (this.graphics instanceof WebGPUGraphics) {
-            return this.getWebGpuVertexSource(shaderName);
-        }
-
-        return this.getWebGlVertexSource(shaderName);
-    }
-
-    private getWebGpuVertexSource(shaderName: VertexShaderName) {
-        switch (shaderName) {
-            case VertexShaderName.LIT_TANGENTS_VEC4:
-                return gpuBasicVertex;
-            case VertexShaderName.UNLIT_GEOMETRY:
-                return gpuSphereVertexShader;
-            case VertexShaderName.UNUSED_OLD_BASIC_INSTANCED:
-                return gpuBasicVertexInstanced;
-            case VertexShaderName.LIT_GEOMETRY:
-                return gpuLightVertexShader;
-            case VertexShaderName.TERRAIN:
-                return gpuTerrainVertexShader
-            default: {
-                logger.warn(`Unknown vertex shader name: ${shaderName}. Defaulting to basic!`);
-                return gpuBasicVertex;
-            }
-        }
-    }
-
-    private getWebGlVertexSource(shaderName: VertexShaderName) {
-        switch (shaderName) {
-            case VertexShaderName.LIT_TANGENTS_VEC4:
-                return glBasicVertexShader
-            case VertexShaderName.UNUSED_OLD_BASIC_INSTANCED:
-                return glBasicVertexShaderInstanced;
-            case VertexShaderName.UNLIT_GEOMETRY:
-                return glShapeVertexShader;
-            case VertexShaderName.LIT_GEOMETRY:
-                return glLightVertexShader;
-            case VertexShaderName.TERRAIN:
-                return glTerrainVertexShader
-            default: {
-                logger.warn(`Unknown vertex shader name: ${shaderName}. Defaulting to basic!`);
-                return glBasicVertexShader;
-            }
-        }
-    }
-
-    private getWebGpuFragmentSource(shaderName: FragmentShaderName) {
-        switch (shaderName) {
-            case FragmentShaderName.BASIC:
-                return gpuBasicFragment;
-            case FragmentShaderName.UNLIT:
-                return gpuSphereFragmentShader;
-            case FragmentShaderName.BASIC_INSTANCED:
-                return basicFragmentShaderInstanced;
-            case FragmentShaderName.PHONG_LIT:
-                return gpuPhongLightFragmentShader;
-            case FragmentShaderName.PBR:
-                return gpuPBRLightFragmentShader;
-            case FragmentShaderName.TERRAIN:
-                return gpuTerrainFragmentShader;
-            default: {
-                logger.warn(`Unknown fragment shader name: ${shaderName}. Defaulting to basic!`);
-                return gpuBasicFragment;
-            }
-        }
-    }
-
-    private getWebGlFragmentSource(shaderName: FragmentShaderName) {
-        switch (shaderName) {
-            case FragmentShaderName.BASIC:
-            case FragmentShaderName.BASIC_INSTANCED:
-                return glBasicFragmentShader;
-            case FragmentShaderName.UNLIT:
-                return glShapeFragmentShader
-            case FragmentShaderName.PHONG_LIT:
-                return glPhongLightFragmentShader;
-            case FragmentShaderName.PBR:
-                return glPBRLightFragmentShader;
-            case FragmentShaderName.TERRAIN:
-                return glTerrainFragmentShader;
-            default: {
-                logger.warn(`Unknown fragment shader name: ${shaderName}. Defaulting to basic!`);
-                return glBasicFragmentShader;
-            }
-        }
     }
 }

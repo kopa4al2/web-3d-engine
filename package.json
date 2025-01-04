@@ -1,16 +1,12 @@
 {
-  "name": "strengine",
+  "name": "stengine",
   "version": "1.0.0",
-  "description": "",
-  "main": "app.js",
-  "directories": {
-    "lib": "lib"
-  },
+  "description": "Front end rendering engine supporting webgl2 and webgpu",
   "scripts": {
     "start": "webpack serve --mode development",
     "build": "webpack --mode production"
   },
-  "author": "",
+  "author": "Stefan Ivanov",
   "license": "ISC",
   "dependencies": {
     "@0b5vr/tweakpane-plugin-rotation": "^0.2.0",
@@ -34,6 +30,7 @@
     "@tweakpane/core": "^2.0.5",
     "@types/gl-matrix": "^3.2.0",
     "@webgpu/types": "^0.1.52",
+    "circular-dependency-plugin": "^5.2.2",
     "copy-webpack-plugin": "^12.0.2",
     "css-loader": "^7.1.2",
     "html-webpack-plugin": "^5.6.3",
@@ -46,8 +43,10 @@
     "ts-loader": "^9.5.1",
     "typescript": "^5.7.2",
     "webpack": "^5.97.1",
+    "webpack-bundle-analyzer": "^4.10.2",
     "webpack-cli": "^6.0.1",
     "webpack-dev-server": "^5.2.0",
-    "webpack-glsl-loader": "^1.0.1"
+    "webpack-glsl-loader": "^1.0.1",
+    "worker-loader": "^3.0.8"
   }
 }

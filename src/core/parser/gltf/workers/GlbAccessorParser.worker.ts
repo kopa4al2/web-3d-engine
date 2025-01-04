@@ -1,5 +1,4 @@
 export interface GlbGeometryParseRequest {
-    // bufferView: number,
     bufferInfo: ArrayBuffer,
     buffer: ArrayBuffer,
     // debugData: any,
@@ -10,7 +9,6 @@ self.onmessage = async (event: MessageEvent<GlbGeometryParseRequest>) => {
     const buffer = event.data.buffer;
     const view = new Uint32Array(bufferInfo);
 
-    // const data: RequestBufferLayout[] = [];
     const parsedBuffers: ArrayBuffer[] = [];
 
     for (let i = 0; i < view.length; i += 5) {

@@ -21,7 +21,7 @@
         "engine/*"
       ],
       "utils/*": [
-        "util/*"
+        "utils/*"
       ]
     },
     "rootDir": "src",
@@ -36,11 +36,12 @@
     ]
   },
   "include": [
-    "src/engine/**/*",
-    "src/core",
-    "src/util",
-    "src/webgl",
+//    "src/engine/**/*",
+//    "src/core/**/*",
+//    "src/utils/**/*",
+//    "src/webgl/**/*",
+//    "src/webgpu/**/*",
     "src/**/*",
-    "src/types/**/*",
+//    "src/types/**/*",
   ]
 }

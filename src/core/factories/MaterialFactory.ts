@@ -12,6 +12,7 @@ import { BufferData, BufferUsage } from "core/resources/gpu/BufferDescription";
 import { PipelineOptions } from 'core/resources/gpu/GpuShaderData';
 import ResourceManager from "core/resources/ResourceManager";
 import Globals from '../../engine/Globals';
+import DebugUtil from 'utils/debug/DebugUtil';
 
 export interface MaterialBehaviour {
     setBindGroup: (renderPass: RenderPass) => void,
@@ -23,6 +24,7 @@ export default class MaterialFactory {
     protected readonly materialLabels = new Map<string, Material>();
 
     constructor(protected resourceManager: ResourceManager) {
+        DebugUtil.addToWindowObject('materialFactory', this);
     }
 
     public skybox() {

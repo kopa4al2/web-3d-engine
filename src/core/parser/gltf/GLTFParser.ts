@@ -1,567 +1,413 @@
-import Mesh from "core/components/Mesh";
-import Transform, { defaultTransform } from "core/components/Transform";
-import EntityManager, { EntityId } from "core/EntityManager";
-import GeometryFactory from "core/factories/GeometryFactory";
-import MaterialFactory from "core/factories/MaterialFactory";
-import Geometry, { GeometryData } from "core/mesh/Geometry";
-import { PBRMaterialProperties } from "core/mesh/material/MaterialProperties";
-import Skeleton from "core/mesh/Skeleton";
+import Mesh from 'core/components/Mesh';
+import Transform, { defaultTransform } from 'core/components/Transform';
+import EntityManager, { EntityId } from 'core/EntityManager';
+import GeometryFactory from 'core/factories/GeometryFactory';
+import MaterialFactory from 'core/factories/MaterialFactory';
+import Geometry from 'core/mesh/Geometry';
+import { PBRMaterialProperties } from 'core/mesh/material/MaterialProperties';
+import Skeleton from 'core/mesh/Skeleton';
 import {
-    GlbJsonParserRequest,
-    GlbJsonParserResponse, GlbWorkerImage,
-    GlbWorkerMesh
-} from "core/parser/gltf/workers/GLBJsonParserWorker";
-import { GLBWorkerRequest, GLBWorkerResponse } from "core/parser/gltf/workers/GLBWorker";
-import { GLTFWorkerRequest, GLTFWorkerResponse } from "core/parser/gltf/workers/GLTFWorker";
-// import { Attribute } from "core/parser/gltf/workers/GLBJsonParserWorker";
-import { BindGroupHelper } from "core/rendering/Helpers";
-import { VertexShaderName } from "core/resources/cpu/CpuShaderData";
-import { BlendPresets } from "core/resources/gpu/Blend";
-import { BufferData } from "core/resources/gpu/BufferDescription";
-import { PipelineColorAttachment, UniformVisibility } from "core/resources/gpu/GpuShaderData";
-import ResourceManager from "core/resources/ResourceManager";
-import ShaderManager from "core/resources/shader/ShaderManager";
-import TextureManager from "core/resources/TextureManager";
-import Texture from "core/texture/Texture";
-import WorkerPool from "core/worker/WorkerPool";
+  GlbJsonParserRequest,
+  GlbJsonParserResponse,
+  GlbWorkerImage,
+  GlbWorkerMesh,
+  GlbWorkerNode
+} from 'core/parser/gltf/workers/GlbLoader.worker';
+import { GLTFWorkerRequest, GLTFWorkerResponse } from 'core/parser/gltf/workers/GLTFWorker';
+import { BindGroupHelper, ShaderStructV2 } from 'core/rendering/Helpers';
+import { BlendPresets } from 'core/resources/gpu/Blend';
+import { PipelineColorAttachment, UniformVisibility } from 'core/resources/gpu/GpuShaderData';
+import ResourceManager from 'core/resources/ResourceManager';
+import ShaderManager from 'core/resources/shader/ShaderManager';
+import TextureManager from 'core/resources/TextureManager';
+import Texture from 'core/texture/Texture';
+import WorkerPool from 'core/worker/WorkerPool';
 import { mat4, quat, vec2, vec3 } from 'gl-matrix';
-import DebugUtil from "../../../util/debug/DebugUtil";
-import JavaMap from "../../../util/JavaMap";
-import MathUtil from "../../../util/MathUtil";
+import DebugUtil from '../../../utils/debug/DebugUtil';
+import JavaMap from '../../../utils/JavaMap';
 
-enum Attribute {
-    INDICES = 0,
-    POSITIONS = 1,
-    NORMALS = 2,
-    TANGENT = 3,
-    JOINTS = 4,
-    WEIGHTS = 5,
-    UV_0 = 6,
-    UV_1 = 7,
-}
 
 // const glbWorkerPool = new WorkerPool<GlbJsonParserRequest, GlbJsonParserResponse>(
-//     () => new Worker(new URL('./workers/GLBJsonParserWorker.ts', import.meta.url), { name: 'GLB-Parser-Worker' }),
+//     () => new Worker(new URL('./workers/GlbLoader.worker.ts', import.meta.url), { name: 'GLB-Parser-Worker' }),
 //     1
 // );
 export default class GLTFParser {
-    private static readonly gltfWorkerPool = new WorkerPool<GLTFWorkerRequest, GLTFWorkerResponse>();
-    public static readonly glbWorkerPool = new WorkerPool<GlbJsonParserRequest, GlbJsonParserResponse>(
-        () => new Worker(new URL('./workers/GLBJsonParserWorker.ts', import.meta.url), { name: 'GLB-Parser-Worker' }),
-        1
-    );
+  private static readonly gltfWorkerPool = new WorkerPool<GLTFWorkerRequest, GLTFWorkerResponse>();
+  public static readonly glbWorkerPool = new WorkerPool<GlbJsonParserRequest, GlbJsonParserResponse>(
+    () => new Worker(new URL('./workers/GlbLoader.worker.ts', import.meta.url), { name: 'GLB-Parser-Worker' }),
+    2
+  );
 
-    public buffers: ArrayBuffer[] = [];
+  public buffers: ArrayBuffer[] = [];
 
-    constructor(public json: GLTFJson,
-                public imageBitmaps: GlbWorkerImage[],
-                public meshes: GlbWorkerMesh[]) {
-        // public meshes: Record<number, Record<Attribute, ArrayBuffer>>) {
-        DebugUtil.addToWindowObject('gltf', this);
-        console.log('GLTF JSON', json)
+  constructor(public json: GLTFJson,
+              public imageBitmaps: GlbWorkerImage[],
+              public meshes: GlbWorkerMesh[],
+              public nodes: GlbWorkerNode[],
+              public skins: ArrayBuffer[]) {
+    DebugUtil.addToWindowObject('gltf', this);
+    console.log('GLTF JSON', json);
+  }
+
+  public createMeshes(shaderManager: ShaderManager,
+                      geometryFactory: GeometryFactory,
+                      materialFactory: MaterialFactory,
+                      resourceManager: ResourceManager,
+                      entityManager: EntityManager,
+                      rootTransform?: Transform): EntityId[] {
+    const textureManager: TextureManager = resourceManager.textureManager;
+
+    const bgHelper = new BindGroupHelper(resourceManager, 'VERTEX-INSTANCE', [{
+      type: 'storage',
+      byteLength: 4096,
+      name: 'InstanceData',
+      visibility: UniformVisibility.VERTEX | UniformVisibility.FRAGMENT
+    }]);
+
+    const skinBindGroupHelpers: BindGroupHelper[] = [];
+    const skeletons = [];
+    if (this.json.skins) {
+      for (let i = 0; i < this.json.skins.length; i++) {
+        const skin = this.json.skins[i];
+        const rootJoint = this.json.nodes[skin.skeleton];
+        const arrayBuffer = this.skins[i];
+        skinBindGroupHelpers.push(new BindGroupHelper(resourceManager, 'SKINNED',
+          [
+            {
+              type: 'storage',
+              byteLength: 4096,
+              name: 'InstanceData',
+              visibility: UniformVisibility.VERTEX
+            },
+            {
+              type: 'uniform',
+              data: arrayBuffer,
+              name: 'inverseJoinBindMatrix',
+              visibility: UniformVisibility.VERTEX
+            }
+          ]));
+
+        const skeleton = new Skeleton(rootJoint.name, new Array(skin.joints.length), arrayBuffer);
+
+        skeletons.push(skeleton);
+      }
+
     }
 
-    private parseSkin(name: string, gltfSkeleton: GltfSkin) {
-        const joints = gltfSkeleton.joints;
-        const inverseBindMatricesAccessor = gltfSkeleton.inverseBindMatrices;
 
-        const skeleton = new Skeleton(name, new Array(joints.length), new Array(joints.length));
+    // const usedSkeletons = new JavaMap<number, Skeleton>();
+    // const nodesToEntity = new JavaMap<number, EntityId>();
+    const usedMaterials = new JavaMap<string, Mesh>();
+    // key is the skin index, value is list of nodes that reference it
+    const nodesWithSkin: Record<number, EntityId[]> = {};
 
-        const inverseBindMatrices: mat4[] = [];
-        if (inverseBindMatricesAccessor !== undefined) {
-            const accessor = this.json.accessors[inverseBindMatricesAccessor];
-            const bufferView = this.json.bufferViews[accessor.bufferView];
-            const buffer = this.buffers[bufferView.buffer];
-            const byteOffset = (bufferView.byteOffset || 0) + (accessor.byteOffset || 0);
-            const byteLength = accessor.count * 16 * Float32Array.BYTES_PER_ELEMENT; // 16 floats per mat4
-            const rawData = new Float32Array(buffer, byteOffset, accessor.count * 16);
+    const entities: EntityId[] = new Array(this.nodes.length);
+    const transforms: Transform[] = new Array(this.nodes.length);
+    for (let nodeIndex = 0; nodeIndex < this.nodes.length; nodeIndex++) {
+      const node = this.nodes[nodeIndex];
+      if (this.json.nodes[nodeIndex].name !== node.name || node.mesh !== this.json.nodes[nodeIndex].mesh) {
+        console.log(`node ${nodeIndex} original`, this.json.nodes[nodeIndex], `now: `, node);
+        console.error('Node name changed', this.json.nodes[nodeIndex].name, node.name, this.json.nodes[nodeIndex].mesh, node.mesh);
+      }
+      const transform = Transform.fromMat4(new Float32Array(node.localTransform));
+      transform.worldTransform.mat4 = new Float32Array(node.worldTransform);
 
-            for (let i = 0; i < accessor.count; i++) {
-                skeleton.inverseBindMatrices[i] = rawData.slice(i * 16, (i + 1) * 16) as mat4;
-                // inverseBindMatrices.push(matrix);
-            }
-        }
+      transform.label = node.name;
+      // transform.needsCalculate = false;
+      const entity = entityManager.createEntity(node.name);
 
-        return skeleton;
-    }
+      entities[nodeIndex] = entity;
+      transforms[nodeIndex] = transform;
+      // entityManager.addComponents(entity, [transform]);
 
-    public createMeshes(shaderManager: ShaderManager,
-                        geometryFactory: GeometryFactory,
-                        materialFactory: MaterialFactory,
-                        resourceManager: ResourceManager,
-                        entityManager: EntityManager,
-                        rootTransform?: Transform): EntityId[] {
-        const textureManager: TextureManager = resourceManager.textureManager;
+      if (nodeIndex === 0 && rootTransform) {
+        transform.parent = rootTransform;
+        transform.multiply(transform.worldTransform, rootTransform.worldTransform.mat4, transform.localTransform.mat4);
+        rootTransform.children.push(transform);
+      } else if (typeof node.parent === 'number') {
+        const parentT = transforms[node.parent];
+        transform.parent = parentT;
+        parentT.children.push(transform);
+      }
 
-        const bgHelper = new BindGroupHelper(resourceManager, 'VERTEX-INSTANCE', [{
-            type: 'storage',
-            byteLength: 4096,
-            name: 'InstanceData',
-            visibility: UniformVisibility.VERTEX | UniformVisibility.FRAGMENT
-        }]);
+      if (this.json.nodes[nodeIndex].skin !== undefined) {
+        entityManager.addComponents(entity, [skeletons[this.json.nodes[nodeIndex].skin!]]);
+      }
 
-        const usedSkeletons = new JavaMap<number, Skeleton>();
-        const usedMaterials = new JavaMap<string, Mesh>();
-        const nodesToEntity = new JavaMap<number, EntityId>();
-        console.time('Create meshes')
-        const buildNode = (array: EntityId[], nodeIndex: number, parentTransform?: Transform): EntityId[] => {
-            const node = this.json.nodes[nodeIndex];
-            const entity = entityManager.createEntity(node.name);
-            nodesToEntity.set(nodeIndex, entity);
-            array.push(entity);
-            const transform = this.parseTransform(node);
+      if (typeof node.mesh === 'number') {
+        const mesh = this.meshes[node.mesh];
 
-            transform.label = node.name;
-            if (parentTransform) {
-                transform.parent = parentTransform;
-                parentTransform.children.push(transform);
-            }
+        const geometry: Geometry = geometryFactory.createGeometryFromInterleaved(mesh.name,
+          mesh.shader,
+          // VertexShaderName.LIT_TANGENTS_VEC4,
+          new Float32Array(mesh.data),
+          new Uint32Array(mesh.indices));
 
-            if (typeof node.mesh === 'number') {
-                const mesh = this.meshes[node.mesh];
-
-                const geometry: Geometry = geometryFactory.createGeometryFromInterleaved(mesh.name,
-                    VertexShaderName.LIT_TANGENTS_VEC4,
-                    new Float32Array(mesh.data),
-                    new Uint32Array(mesh.indices));
-
-                const gltfMaterial = this.json.materials[mesh.material];
-                const matName = gltfMaterial.name || `unnamed-mat-${Math.random()}`;
-                if (usedMaterials.get(matName)) {
-                    const usedMesh = usedMaterials.get(matName)!
-                    entityManager.addComponents(entity, [
-                        new Mesh(usedMesh.pipelineId, geometry,
-                            usedMesh.material, usedMesh.instanceBuffers, usedMesh.label)
-                    ]);
-                } else {
-                    const pbr = gltfMaterial.pbrMetallicRoughness || {};
-                    const baseColorFactor = pbr.baseColorFactor || [1.0, 1.0, 1.0, 1.0];
-                    const metallicFactor = pbr.metallicFactor ?? 1.0;
-                    const roughnessFactor = pbr.roughnessFactor ?? 1.0;
-
-                    let normal = gltfMaterial.normalTexture
-                        ? this.getTextureAtIndex(gltfMaterial.normalTexture.index, textureManager)
-                        : textureManager.getTexture(Texture.DEFAULT_NORMAL_MAP);
-                    const albedo = pbr.baseColorTexture
-                        ? this.getTextureAtIndex(pbr.baseColorTexture.index, textureManager)
-                        : textureManager.getTexture(Texture.DEFAULT_ALBEDO_MAP);
-                    const metallicRoughness = pbr.metallicRoughnessTexture
-                        ? this.getTextureAtIndex(pbr.metallicRoughnessTexture.index, textureManager)
-                        : textureManager.getTexture(Texture.DEFAULT_METALLIC_ROUGHNESS_MAP);
-                    const metallicRoughnessFactor = vec2.fromValues(metallicFactor, roughnessFactor);
-
-                    const blendMode = gltfMaterial.alphaMode === 'BLEND' ? BlendPresets.TRANSPARENT : undefined;
-                    const pbrMaterialProperties = new PBRMaterialProperties(
-                        albedo, normal, metallicRoughness, new Float32Array(baseColorFactor), metallicRoughnessFactor);
-
-                    const material = materialFactory.pbrMaterial(gltfMaterial.name,
-                        pbrMaterialProperties,
-                        {
-                            colorAttachment: { blendMode } as PipelineColorAttachment,
-                            // cullFace: 'back'
-                            cullFace: gltfMaterial.doubleSided ? 'none' : 'back'
-                        });
-
-                    const gpuMesh = new Mesh(
-                        shaderManager.createPipeline(geometry, material),
-                        geometry, material, [{
-                            bindGroupId: bgHelper.bindGroupId,
-                            bufferId: bgHelper.bufferId
-                        }], mesh.name);
-                    entityManager.addComponents(entity, [gpuMesh]);
-                    usedMaterials.set(matName, gpuMesh);
-                }
-            }
-            // }
-
-            if (typeof node.skin === 'number') {
-                // if (!usedSkeletons.has(node.skin)) {
-                //     const skeleton = this.parseSkin(node.name, this.json.skins[node.skin]);
-                //     usedSkeletons.set(node.skin, skeleton);
-                //     entityManager.addComponents(entity, [skeleton]);
-                // }
-            }
-
-            entityManager.addComponents(entity, [transform]);
-
-            if (node.children) {
-                for (const childIndex of node.children) {
-                    buildNode(array, childIndex, transform);
-                }
-            }
-
-            return array;
-        };
-
-        const startOffset = 0;
-
-        const arr: EntityId[] = [];
-        if (!this.json.scenes) {
-            console.warn('No scenes present, creating meshes from the nodes');
-            return buildNode([], startOffset);
-        }
-
-        for (const sceneNode of this.json.scenes[this.json.scene].nodes) {
-            buildNode(arr, sceneNode, rootTransform);
-        }
-
-        console.timeEnd('Create meshes');
-        return arr;
-    }
-
-    private getTextureAtIndex(texture: number, textureManager: TextureManager) {
-        // return this.images[this.json.textures[texture].source];
-        const img = this.imageBitmaps[this.json.textures[texture].source];
-        return textureManager.addPreloadedToGlobalTexture(img.name, img.imageBitmaps);
-    }
-
-    private parseTransform(node: GLTFNode) {
-        if (node.matrix) {
-            return Transform.fromMat4(node.matrix);
-        }
-
-
-        if (node.rotation || node.scale || node.translation) {
-            if (node.scale && node.scale[0] > 10) {
-                // console.warn('Large scale detected', JSON.stringify(node), node);
-                node.scale = [0.01, 0.01, 0.01];
-            }
-            if (node.translation && node.translation[0] > 100) {
-                // console.warn('Large transaltion detected', JSON.stringify(node));
-                // node.translation = [0, 0, 0];
-            }
-            return new Transform(
-                node.translation || vec3.fromValues(0, 0, 0),
-                node.rotation || quat.create(),
-                node.scale || vec3.fromValues(1, 1, 1));
-        }
-
-        return defaultTransform();
-    }
-
-    public createGeometry(name: string, primitive: GLTFMeshPrimitive, geometryFactory: GeometryFactory): Geometry {
-        if (!primitive.indices && primitive.indices !== 0) {
-            console.error('Mesh has no indices', primitive);
-        }
-        // console.groupCollapsed('INDICES', name)
-        const indices = this.parseAccessor(primitive.indices);
-        // console.groupEnd();
-        const vertices = this.parseAccessor(primitive.attributes.POSITION);
-        const normals = this.parseAccessor(primitive.attributes.NORMAL);
-        const texCoords = name === 'material_11'
-            ? this.parseAccessor(primitive.attributes.TEXCOORD_2)
-            : this.parseAccessor(primitive.attributes.TEXCOORD_0);
-
-        if (primitive.attributes.TANGENT === undefined) {
-            return geometryFactory.createGeometry(
-                name,
-                VertexShaderName.LIT_TANGENTS_VEC4,
-                MathUtil.calculateTangentsVec4({ indices, vertices, normals, texCoords } as GeometryData))
-
-        }
-        const tangents = this.parseAccessor(primitive.attributes.TANGENT);
-
-        return geometryFactory.createGeometry(
-            name,
-            VertexShaderName.LIT_TANGENTS_VEC4,
-            { indices, vertices, normals, texCoords, tangents });
-    }
-
-    parseAccessor(accessorIndex: number): BufferData {
-        const accessor = this.json.accessors[accessorIndex];
-        const bufferView = this.json.bufferViews[accessor.bufferView];
-        const buffer = this.buffers[bufferView.buffer];
-
-        const start = (bufferView.byteOffset || 0) + (accessor.byteOffset || 0);
-        const componentSize = this.getBytesPerElement(accessor.componentType);
-        const elementsPerVertex = this.getElementsCount(accessor.type);
-        const bytesPerVertex = this.getBytesPerVertex(accessor);
-        const stride = bufferView.byteStride || bytesPerVertex;
-        const totalVertices = accessor.count;
-        const sourceBuffer = new DataView(buffer);
-        const targetBuffer = new ArrayBuffer(totalVertices * bytesPerVertex);
-        const targetBufferView = new DataView(targetBuffer);
-
-        // console.log('start', (bufferView.byteOffset || 0), (accessor.byteOffset || 0), (bufferView.byteOffset || 0) + (accessor.byteOffset || 0))
-        // console.log(`Start: ${start};componentType:${componentSize};elementsPerVertex: ${elementsPerVertex}; totalVertices: ${totalVertices}; stride: ${stride}`, accessor, bufferView,
-        // sourceBuffer.byteLength, targetBuffer.byteLength);
-
-        for (let i = 0; i < totalVertices; i++) {
-            const offset = start + i * stride;
-
-            for (let j = 0; j < elementsPerVertex; j++) {
-                const sourceOffset = offset + j * componentSize;
-                const targetOffset = i * bytesPerVertex + j * componentSize;
-
-                if (sourceOffset + componentSize > start + bufferView.byteLength) {
-                    console.error('Source offset exceeds buffer bounds', sourceOffset, buffer.byteLength);
-                    throw new Error('Source offset exceeds buffer bounds');
-                }
-
-                this.setData(accessor.componentType, sourceBuffer, targetBufferView, sourceOffset, targetOffset);
-            }
-        }
-
-        if (accessor.componentType === 5123) { // UNSIGNED_SHORT
-            return new Uint16Array(targetBuffer);
-        } else if (accessor.componentType === 5125) { // UNSIGNED_INT
-            return new Uint32Array(targetBuffer);
-        } else if (accessor.componentType === 5126) { // FLOAT
-            return new Float32Array(targetBuffer)
+        const gltfMaterial = this.json.materials[mesh.material];
+        const matName = gltfMaterial.name || `unnamed-mat-${Math.random()}`;
+        if (usedMaterials.get(matName)) {
+          const usedMesh = usedMaterials.get(matName)!;
+          entityManager.addComponents(entity, [
+            new Mesh(usedMesh.pipelineId, geometry,
+              usedMesh.material, usedMesh.instanceBuffers, usedMesh.label)
+          ]);
         } else {
-            console.warn(`Unknown componentType: ${accessor.componentType}, returning Uint8Array`);
-            return new Uint8Array(targetBuffer);
+          const pbr = gltfMaterial.pbrMetallicRoughness || {};
+          const baseColorFactor = pbr.baseColorFactor || [1.0, 1.0, 1.0, 1.0];
+          const metallicFactor = pbr.metallicFactor ?? 1.0;
+          const roughnessFactor = pbr.roughnessFactor ?? 1.0;
+
+          let normal = gltfMaterial.normalTexture
+            ? this.getTextureAtIndex(gltfMaterial.normalTexture.index, textureManager)
+            : textureManager.getTexture(Texture.DEFAULT_NORMAL_MAP);
+          const albedo = pbr.baseColorTexture
+            ? this.getTextureAtIndex(pbr.baseColorTexture.index, textureManager)
+            : textureManager.getTexture(Texture.DEFAULT_ALBEDO_MAP);
+          const metallicRoughness = pbr.metallicRoughnessTexture
+            ? this.getTextureAtIndex(pbr.metallicRoughnessTexture.index, textureManager)
+            : textureManager.getTexture(Texture.DEFAULT_METALLIC_ROUGHNESS_MAP);
+          const metallicRoughnessFactor = vec2.fromValues(metallicFactor, roughnessFactor);
+
+          const blendMode = gltfMaterial.alphaMode === 'BLEND' ? BlendPresets.TRANSPARENT : undefined;
+          const pbrMaterialProperties = new PBRMaterialProperties(
+            albedo, normal, metallicRoughness, new Float32Array(baseColorFactor), metallicRoughnessFactor);
+
+          const material = materialFactory.pbrMaterial(gltfMaterial.name,
+            pbrMaterialProperties,
+            {
+              colorAttachment: { blendMode } as PipelineColorAttachment,
+              // cullFace: 'back'
+              cullFace: gltfMaterial.doubleSided ? 'none' : 'back'
+            });
+
+          const bindGroupHelper = this.json.nodes[nodeIndex].skin !== undefined
+            ? skinBindGroupHelpers[this.json.nodes[nodeIndex].skin!]
+            : bgHelper;
+          console.log(this.json.nodes[nodeIndex].skin, bindGroupHelper);
+          const gpuMesh = new Mesh(
+            shaderManager.createPipeline(geometry, material, mesh.name, bindGroupHelper.bindGroupLayoutId),
+            geometry, material, [{
+              bindGroupId: bindGroupHelper.bindGroupId,
+              bufferId: bindGroupHelper.bufferId
+            }], mesh.name);
+          entityManager.addComponents(entity, [gpuMesh]);
+          usedMaterials.set(matName, gpuMesh);
         }
+      }
     }
 
-
-    private getElementsCount(type: AccessorType): number {
-        const typeToSize: Record<string, number> = {
-            SCALAR: 1,
-            VEC2: 2,
-            VEC3: 3,
-            VEC4: 4,
-            MAT4: 16,
-        };
-        return typeToSize[type];
-    }
-
-    private getBytesPerElement(componentType: AccessorComponentType): number {
-        switch (componentType) {
-            case 5120: // BYTE
-            case 5121: // UNSIGNED_BYTE
-                return 1;
-            case 5122: // SHORT
-            case 5123: // UNSIGNED_SHORT
-                return 2;
-            case 5125: // UNSIGNED_INT
-            case 5126: // FLOAT
-                return 4;
-            default:
-                throw new Error(`Unsupported componentType: ${componentType}`);
-        }
-    }
-
-    private getBytesPerVertex(accessor: GLTFAccessor): number {
-        const { componentType, type } = accessor;
-        const componentSize = this.getBytesPerElement(componentType);
-        const typeSize = this.getElementsCount(type);
-        return componentSize * typeSize;
-    }
-
-    private setData(componentType: AccessorComponentType,
-                    sourceBuffer: DataView<ArrayBuffer>,
-                    targetBuffer: DataView<ArrayBuffer>,
-                    sourceOffset: number,
-                    targetOffset: number) {
-        switch (componentType) {
-            case 5120 :
-                targetBuffer.setInt8(targetOffset, sourceBuffer.getInt8(sourceOffset));
-                break;
-            case 5121 :
-                targetBuffer.setUint8(targetOffset, sourceBuffer.getUint8(sourceOffset));
-                break;
-            case 5122 :
-                targetBuffer.setInt16(targetOffset, sourceBuffer.getInt16(sourceOffset, true), true);
-                break;
-            case 5123 :
-                targetBuffer.setUint16(targetOffset, sourceBuffer.getUint16(sourceOffset, true), true);
-                break;
-            case 5125 :
-                targetBuffer.setUint32(targetOffset, sourceBuffer.getUint32(sourceOffset, true), true);
-                break;
-            case 5126 :
-                targetBuffer.setFloat32(targetOffset, sourceBuffer.getFloat32(sourceOffset, true), true);
-                break;
-        }
-    }
-
-    public static async parseGlb(rootDir: string, relativePath: string, textureManager: TextureManager): Promise<GLTFParser> {
-        console.log(`LOADING ${rootDir + relativePath} GLB`)
-        return fetch(rootDir + relativePath)
-            .then(res => res.arrayBuffer())
-            .then(buffer => this.glbWorkerPool.submit({ binary: buffer }, [buffer]))
-            .then(resp => new GLTFParser(resp.json, resp.imageBitmaps, resp.meshes));
-        // return glbWorkerPool.submit({ rootDir, relativePath })
-        // return this.glbWorkerPool.submit({ rootDir, relativePath })
-        //     .then(response => {
-        //         console.log(`LOADING ${rootDir + relativePath} GLB`)
-        //         return new GLTFParser(response.json, response.imageBitmaps, response.meshes);
-        //     });
-        // const worker = new Worker(new URL('./workers/GLBJsonParserWorker.ts', import.meta.url), { name: 'GLB-Parser-Worker-1' });
-        // worker.postMessage({ rootDir, relativePath });
-        // const workerPromise = new Promise(resolve => worker.onmessage = res => resolve(res.data));
-
-        // return workerPromise.then(result => {
-        //     console.timeEnd(`LOADING ${rootDir + relativePath} GLB`)
-        //     console.log('RECEIVE MESSAGE: ', performance.now())
-        //
-        //     // @ts-ignore
-        //     return new GLTFParser(result.json, result.imageBitmaps, result.meshes)
-        // });
-    }
-
-    public static async parseGltf(rootDir: string, gltfPath: string, binaryPath: string, textureManager: TextureManager): Promise<GLTFParser> {
-        const [json, binary] = await Promise.all([
-            fetch(rootDir + gltfPath).then(res => res.json()),
-            fetch(rootDir + binaryPath).then(res => res.arrayBuffer())
-        ]);
-
-        console.log('GLTF JSON: ', json);
-
-        this.gltfWorkerPool.addWorker(new Worker(new URL('./workers/GLTFWorker.ts', import.meta.url), { name: 'GLTF-Worker-1' }));
-        this.gltfWorkerPool.addWorker(new Worker(new URL('./workers/GLTFWorker.ts', import.meta.url), { name: 'GLTF-Worker-2' }));
-        this.gltfWorkerPool.addWorker(new Worker(new URL('./workers/GLTFWorker.ts', import.meta.url), { name: 'GLTF-Worker-3' }));
-        this.gltfWorkerPool.addWorker(new Worker(new URL('./workers/GLTFWorker.ts', import.meta.url), { name: 'GLTF-Worker-4' }));
-        // this.gltfWorkerPool.addWorker(new Worker(new URL('./workers/GLTFWorker.ts', import.meta.url), { name: 'GLTF-Worker-5' }));
-        // this.gltfWorkerPool.addWorker(new Worker(new URL('./workers/GLTFWorker.ts', import.meta.url), { name: 'GLTF-Worker-6' }));
-
-        const buffers = await this.parseBuffers(rootDir, json, binary);
-        const images = json.images ? await this.parseImages(rootDir, json, textureManager, binary) : [];
-
-        this.gltfWorkerPool.shutdown();
-        // @ts-ignore
-        return new GLTFParser(json, buffers, images);
-    }
-
-    private static async parseImages(rootPath: string, json: GLTFJson, textureManager: TextureManager, glbBinaryData?: ArrayBuffer, offset: number = 0): Promise<Texture[]> {
-        const promises: Promise<any>[] = [];
-        for (let i = 0; i < json.images.length; i++) {
-            const idx = i;
-            const image = json.images[i];
-            if (image.uri) {
-                const uri = rootPath + image.uri;
-                promises.push(this.gltfWorkerPool.submit({ uri })
-                    .then(({ imageBitmap }) => {
-                        return textureManager
-                            .addPreloadedToGlobalTexture(uri, imageBitmap);
-                    }));
-            } else if (image.bufferView !== undefined) {
-                const bufferView = json.bufferViews[image.bufferView];
-                const mimeType = image.mimeType!;
-                const slice = glbBinaryData!.slice(offset + bufferView.byteOffset!, offset + bufferView.byteOffset! + bufferView.byteLength);
-                // promises.push(
-                //     this.glbWorkerPool.submit(
-                //         { buffer: slice, mimeType }, [slice])
-                //         .then(({ imageBitmap }) => textureManager
-                //             .addPreloadedToGlobalTexture(bufferView.name, imageBitmap)));
-            } else {
-                console.error('Image: ', image);
-                throw new Error("Unsupported texture format");
+    // console.log(new Float32Array(this.skins[0]), JSON.stringify(new Float32Array(this.skins[0])));
+    /*    if (this.json.skins) {
+          for (let i = 0; i < this.json.skins.length; i++){
+            const skin = this.json.skins[i];
+            const rootJoint = this.json.nodes[skin.skeleton];
+            const skeleton = new Skeleton(rootJoint.name, [], this.skins[i]);
+            for (let j = 0; j < skin.joints.length; j++){
+              const joint = skin.joints[j];
+              skeleton.joints.push(entities[joint]);
+              // const transform = transforms[joint];
+              // const inverseBindMatrix  = mat4.copy(mat4.create(), new Float32Array(this.skins[i], j * 16 * 4, 16));
+              // transform.multiply(transform.worldTransform, transform.worldTransform.mat4, inverseBindMatrix);
             }
-        }
+            nodesWithSkin[i]
+          }
+        }*/
 
-        return Promise.all(promises);
+    for (let s = 0; s < skeletons.length; s++) {
+      for (let i = 0; i < skeletons[s].joints.length; i++) {
+        skeletons[s].joints[i] = entities[i];
+      }
     }
 
-    private static async parseBuffers(rootPath: string, json: GLTFJson, glbBinaryData?: ArrayBuffer, offset: number = 0): Promise<ArrayBuffer[]> {
-        // const buffers = new Map<number, ArrayBuffer>();
-        const buffers: ArrayBuffer[] = [];
+    for (let i = 0; i < transforms.length; i++) {
+      const t = transforms[i];
+      t.localTransform.position = mat4.getTranslation(t.localTransform.position, t.localTransform.mat4);
+      t.localTransform.rotation = mat4.getRotation(t.localTransform.rotation, t.localTransform.mat4);
+      t.localTransform.scale = mat4.getScaling(t.localTransform.scale, t.localTransform.mat4);
 
-        // Iterate over the buffers in the glTF JSON
-        for (let i = 0; i < json.buffers.length; i++) {
-            const buffer = json.buffers[i];
-            if (buffer.uri) {
-                // console.warn('Buffer has uri: ', buffer)
-                // Handle external or base64-encoded buffers
-                if (buffer.uri.startsWith('data:')) {
-                    console.warn('Buffer uri starts with `data:`');
-                    // Base64-encoded binary data
-                    const base64Data = buffer.uri.split(',')[1];
-                    const binaryData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
-                    buffers[i] = binaryData.buffer;
-                    // buffers.set(i, binaryData.buffer);
-                } else if (glbBinaryData) {
-                    console.log('Buffer is part of the preloaded binary')
-                    // Use the binary chunk from the GLB file
-                    buffers[i] = glbBinaryData.slice(offset);
-                    // buffers[i] = glbBinaryData;
-                    // buffers.set(i, glbBinaryData);
-                } else {
-                    console.warn('Buffer is external file: ', buffer)
-                    // External file (load it via fetch)
-                    const response = await fetch(rootPath + buffer.uri);
-                    if (!response.ok) throw new Error(`Failed to load buffer: ${buffer.uri}`);
-                    buffers[i] = await response.arrayBuffer();
-                    // buffers.set(i, await response.arrayBuffer());
-                }
-            } else if (glbBinaryData) {
-                // Use the binary chunk from the GLB file
-                buffers[i] = glbBinaryData.slice(offset);
-                // buffers.set(i, glbBinaryData);
-            } else {
-                throw new Error(`Buffer ${i} is missing data`);
-            }
-        }
+      t.worldTransform.position = mat4.getTranslation(t.worldTransform.position, t.worldTransform.mat4);
+      t.worldTransform.rotation = mat4.getRotation(t.worldTransform.rotation, t.worldTransform.mat4);
+      t.worldTransform.scale = mat4.getScaling(t.worldTransform.scale, t.worldTransform.mat4);
 
-        return buffers;
+      t.copy(t.targetTransform, t.localTransform);
+      entityManager.addComponents(entities[i], [t]);
     }
 
-    private parseOrDefault(primitive: number | undefined, defaultValue: BufferData): BufferData {
-        if (primitive === undefined) {
-            return defaultValue;
+    return entities;
+    /*const buildNode = (array: EntityId[], nodeIndex: number, parentTransform?: Transform): EntityId[] => {
+      const node = this.json.nodes[nodeIndex];
+      const entity = entityManager.createEntity(node.name);
+      nodesToEntity.set(nodeIndex, entity);
+      array.push(entity);
+      const transform = this.parseTransform(node);
+
+      transform.label = node.name;
+      if (parentTransform) {
+        transform.parent = parentTransform;
+        parentTransform.children.push(transform);
+      }
+
+      if (typeof node.mesh === 'number') {
+        const mesh = this.meshes[node.mesh];
+
+        const geometry: Geometry = geometryFactory.createGeometryFromInterleaved(mesh.name,
+          VertexShaderName.LIT_TANGENTS_VEC4,
+          new Float32Array(mesh.data),
+          new Uint32Array(mesh.indices));
+
+        const gltfMaterial = this.json.materials[mesh.material];
+        const matName = gltfMaterial.name || `unnamed-mat-${Math.random()}`;
+        if (usedMaterials.get(matName)) {
+          const usedMesh = usedMaterials.get(matName)!;
+          entityManager.addComponents(entity, [
+            new Mesh(usedMesh.pipelineId, geometry,
+              usedMesh.material, usedMesh.instanceBuffers, usedMesh.label)
+          ]);
+        } else {
+          const pbr = gltfMaterial.pbrMetallicRoughness || {};
+          const baseColorFactor = pbr.baseColorFactor || [1.0, 1.0, 1.0, 1.0];
+          const metallicFactor = pbr.metallicFactor ?? 1.0;
+          const roughnessFactor = pbr.roughnessFactor ?? 1.0;
+
+          let normal = gltfMaterial.normalTexture
+            ? this.getTextureAtIndex(gltfMaterial.normalTexture.index, textureManager)
+            : textureManager.getTexture(Texture.DEFAULT_NORMAL_MAP);
+          const albedo = pbr.baseColorTexture
+            ? this.getTextureAtIndex(pbr.baseColorTexture.index, textureManager)
+            : textureManager.getTexture(Texture.DEFAULT_ALBEDO_MAP);
+          const metallicRoughness = pbr.metallicRoughnessTexture
+            ? this.getTextureAtIndex(pbr.metallicRoughnessTexture.index, textureManager)
+            : textureManager.getTexture(Texture.DEFAULT_METALLIC_ROUGHNESS_MAP);
+          const metallicRoughnessFactor = vec2.fromValues(metallicFactor, roughnessFactor);
+
+          const blendMode = gltfMaterial.alphaMode === 'BLEND' ? BlendPresets.TRANSPARENT : undefined;
+          const pbrMaterialProperties = new PBRMaterialProperties(
+            albedo, normal, metallicRoughness, new Float32Array(baseColorFactor), metallicRoughnessFactor);
+
+          const material = materialFactory.pbrMaterial(gltfMaterial.name,
+            pbrMaterialProperties,
+            {
+              colorAttachment: { blendMode } as PipelineColorAttachment,
+              // cullFace: 'back'
+              cullFace: gltfMaterial.doubleSided ? 'none' : 'back'
+            });
+
+          const gpuMesh = new Mesh(
+            shaderManager.createPipeline(geometry, material),
+            geometry, material, [{
+              bindGroupId: bgHelper.bindGroupId,
+              bufferId: bgHelper.bufferId
+            }], mesh.name);
+          entityManager.addComponents(entity, [gpuMesh]);
+          usedMaterials.set(matName, gpuMesh);
         }
-        return this.parseAccessor(primitive);
+      }
+      // }
+
+      if (typeof node.skin === 'number') {
+        // if (!usedSkeletons.has(node.skin)) {
+        //     const skeleton = this.parseSkin(node.name, this.json.skins[node.skin]);
+        //     usedSkeletons.set(node.skin, skeleton);
+        //     entityManager.addComponents(entity, [skeleton]);
+        // }
+      }
+
+      entityManager.addComponents(entity, [transform]);
+
+      if (node.children) {
+        for (const childIndex of node.children) {
+          buildNode(array, childIndex, transform);
+        }
+      }
+
+      return array;
+    };
+
+    const startOffset = 0;
+
+    const arr: EntityId[] = [];
+    if (!this.json.scenes) {
+      console.warn('No scenes present, creating meshes from the nodes');
+      return buildNode([], startOffset);
     }
 
-    private static async toImageData(imgBuffer: ArrayBuffer, mimeType: string) {
-        // const view = imgBuffer instanceof DataView ? imgBuffer : new DataView(imgBuffer);
-        const view = new DataView(imgBuffer);
-        switch (mimeType) {
-            case 'image/png' : {
-                const width = view.getUint32(16, false);  // Read width at byte 16
-                const height = view.getUint32(20, false); // Read height at byte 20
-                const blob = new Blob([imgBuffer], { type: mimeType })
-                const bitmap = await createImageBitmap(blob);
-                const ctx = new OffscreenCanvas(width, height).getContext('2d')!;
-                ctx.drawImage(bitmap, 0, 0);
-                return ctx.getImageData(0, 0, width, height);
-            }
-            case 'image/jpeg': {
-                let i = 0;
-                while (i < imgBuffer.byteLength) {
-                    // JPEG segment marker
-                    if (view.getUint8(i) === 0xFF && view.getUint8(i + 1) === 0xC0) {
-                        // Skip the 2-byte marker and the length of the segment
-                        const length = view.getUint16(i + 2, false);
-                        // The width and height are stored at byte 5 and 6 of the segment
-                        const height = view.getUint16(i + 5, false);
-                        const width = view.getUint16(i + 7, false);
-                        const blob = new Blob([imgBuffer], { type: mimeType })
-                        const bitmap = await createImageBitmap(blob);
-                        const ctx = new OffscreenCanvas(width, height).getContext('2d')!;
-                        ctx.drawImage(bitmap, 0, 0);
-                        return ctx.getImageData(0, 0, width, height);
-                    }
-                    i++;
-                }
-                throw new Error("JPEG dimensions not found.");
-            }
-            default: {
-                throw new Error('Unmapped mime type: ' + mimeType);
-            }
-        }
+    for (const sceneNode of this.json.scenes[this.json.scene].nodes) {
+      buildNode(arr, sceneNode, rootTransform);
     }
+
+    return arr;*/
+  }
+
+  private getTextureAtIndex(texture: number, textureManager: TextureManager) {
+    const img = this.imageBitmaps[this.json.textures[texture].source];
+    return textureManager.addPreloadedToGlobalTexture(img.name, img.imageBitmaps);
+  }
+
+  private parseTransform(node: GLTFNode) {
+    if (node.matrix) {
+      return Transform.fromMat4(node.matrix);
+    }
+
+
+    if (node.rotation || node.scale || node.translation) {
+      if (node.scale && node.scale[0] > 10) {
+        // console.warn('Large scale detected', JSON.stringify(node), node);
+        node.scale = [0.01, 0.01, 0.01];
+      }
+      if (node.translation && node.translation[0] > 100) {
+        // console.warn('Large transaltion detected', JSON.stringify(node));
+        // node.translation = [0, 0, 0];
+      }
+      return new Transform(
+        node.translation || vec3.fromValues(0, 0, 0),
+        node.rotation || quat.create(),
+        node.scale || vec3.fromValues(1, 1, 1));
+    }
+
+    return defaultTransform();
+  }
+
+  static styles = [
+    'background: #12aabb; color: #223344',
+    'background: #647796; color: #223344',
+    'background: #FFFF00; color: #223344',
+  ];
+  static index = 0;
+
+  public static async parseGlb(rootDir: string, relativePath: string, textureManager: TextureManager): Promise<GLTFParser> {
+    const style = this.styles[this.index++ % 3];
+    // console.log(`%c BEGIN LOADING ${rootDir + relativePath} GLB`, style);
+    return fetch(rootDir + relativePath, { cache: 'force-cache' })
+      .then(res => res.arrayBuffer())
+      .then(buffer => {
+        // console.log(`%c LOADED ${rootDir + relativePath} ABOUT TO CALL WORKER`, style);
+        return this.glbWorkerPool.submit({ binary: buffer, name: rootDir + relativePath, style }, [buffer]);
+      })
+      .then(resp => {
+        // console.log(`%c WORKER FINISHED ${rootDir + relativePath}`, style, resp);
+        return new GLTFParser(resp.json, resp.imageBitmaps, resp.meshes, resp.nodes, resp.skins);
+      });
+  }
 }
 
 export interface GLTFJson {
-    animations: GLTFAnimation[],
-    accessors: GLTFAccessor[]
-    asset: {
-        version: string;
-        generator?: string;
-    }
-    bufferViews: GLTFBufferView[],
-    buffers: GLTFBuffer[],
-    images: GLTFImage[],
-    materials: GLTFMaterial[],
-    meshes: GLTFMesh[]
-    nodes: GLTFNode[]
-    samplers: GLTFSampler[]
-    scene: number
-    scenes: GLTFScene[]
-    textures: [{ sampler: number, source: number }]
-    skins: GltfSkin[],
+  animations: GLTFAnimation[],
+  accessors: GLTFAccessor[]
+  asset: {
+    version: string;
+    generator?: string;
+  }
+  bufferViews: GLTFBufferView[],
+  buffers: GLTFBuffer[],
+  images: GLTFImage[],
+  materials: GLTFMaterial[],
+  meshes: GLTFMesh[]
+  nodes: GLTFNode[]
+  samplers: GLTFSampler[]
+  scene: number
+  scenes: GLTFScene[]
+  textures: [{ sampler: number, source: number }]
+  skins: GltfSkin[],
 }
 
 type AccessorType = 'SCALAR' | 'VEC2' | 'VEC3' | 'VEC4' | 'MAT4';
@@ -569,186 +415,186 @@ type AccessorType = 'SCALAR' | 'VEC2' | 'VEC3' | 'VEC4' | 'MAT4';
 type AccessorComponentType = 5120 | 5121 | 5122 | 5123 | 5125 | 5126;
 
 export interface GLTFAccessor {
-    bufferView: number,
-    byteOffset: number,
-    componentType: AccessorComponentType,
-    count: number,
-    max: number[],
-    min: number[]
-    type: AccessorType,
+  bufferView: number,
+  byteOffset: number,
+  componentType: AccessorComponentType,
+  count: number,
+  max: number[],
+  min: number[]
+  type: AccessorType,
 }
 
 export interface GLTFMesh {
-    name: string,
-    primitives: GLTFMeshPrimitive[]
+  name: string,
+  primitives: GLTFMeshPrimitive[]
 }
 
 export interface GLTFPrimitiveAttribute {
-    NORMAL: number,
-    POSITION: number,
-    TANGENT: number,
-    TEXCOORD_0: number,
-    TEXCOORD_1: number,
-    TEXCOORD_2: number,
-    TEXCOORD_3: number,
-    WEIGHTS_0?: number,
-    JOINTS_0?: number,
+  NORMAL: number,
+  POSITION: number,
+  TANGENT: number,
+  TEXCOORD_0: number,
+  TEXCOORD_1: number,
+  TEXCOORD_2: number,
+  TEXCOORD_3: number,
+  WEIGHTS_0?: number,
+  JOINTS_0?: number,
 };
 
 export interface GLTFMeshPrimitive {
-    attributes: GLTFPrimitiveAttribute,
-    indices: number,
-    material: number,
-    mode: number
+  attributes: GLTFPrimitiveAttribute,
+  indices: number,
+  material: number,
+  mode: number
 }
 
 export interface GLTFScene {
-    nodes: number[];
+  nodes: number[];
 }
 
 export interface GLTFNode {
-    name: string,
-    matrix?: mat4,
-    mesh?: number;
-    skin?: number;
-    children: number[];
-    translation?: [number, number, number];
-    rotation?: [number, number, number, number];
-    scale?: [number, number, number];
+  name: string,
+  matrix?: mat4,
+  mesh?: number;
+  skin?: number;
+  children: number[];
+  translation?: [number, number, number];
+  rotation?: [number, number, number, number];
+  scale?: [number, number, number];
 }
 
 export interface GLTFBuffer {
-    uri: string;
-    byteLength: number;
+  uri: string;
+  byteLength: number;
 }
 
 export interface GLTFBufferView {
-    buffer: number;
-    byteLength: number;
-    byteOffset: number;
-    byteStride: number;
-    name: string;
-    target: GLTFBufferViewTarget;
+  buffer: number;
+  byteLength: number;
+  byteOffset: number;
+  byteStride: number;
+  name: string;
+  target: GLTFBufferViewTarget;
 }
 
 export enum GLTFBufferViewTarget {
-    ARRAY_BUFFER = 34962, // The buffer view contains vertex data (e.g., positions, normals, UVs).
-    ELEMENT_ARRAY_BUFFER = 34963 // The buffer view contains index data for drawing elements.
+  ARRAY_BUFFER         = 34962, // The buffer view contains vertex data (e.g., positions, normals, UVs).
+  ELEMENT_ARRAY_BUFFER = 34963 // The buffer view contains index data for drawing elements.
 }
 
 export interface GLTFMaterial {
-    name: string;
-    alphaMode?: 'MASK' | 'BLEND',
-    alphaCutoff?: number,
-    doubleSided?: boolean,
-    normalTexture?: GLTFTextureRef,
-    emissiveFactor?: number,
-    pbrMetallicRoughness: {
-        baseColorFactor: number[],
-        baseColorTexture: GLTFTextureRef,
-        metallicRoughnessTexture: GLTFTextureRef,
-        metallicFactor?: number,
-        roughnessFactor?: number,
-    }
+  name: string;
+  alphaMode?: 'MASK' | 'BLEND',
+  alphaCutoff?: number,
+  doubleSided?: boolean,
+  normalTexture?: GLTFTextureRef,
+  emissiveFactor?: number,
+  pbrMetallicRoughness: {
+    baseColorFactor: number[],
+    baseColorTexture: GLTFTextureRef,
+    metallicRoughnessTexture: GLTFTextureRef,
+    metallicFactor?: number,
+    roughnessFactor?: number,
+  }
 }
 
 export interface GLTFTextureRef {
-    index: number,
-    texCoord?: number,
+  index: number,
+  texCoord?: number,
 }
 
 export interface GLTFImage {
-    uri?: string;
-    bufferView?: number;
-    mimeType?: string;
+  uri?: string;
+  bufferView?: number;
+  mimeType?: string;
 }
 
 
 export interface GLTFSampler {
-    magFilter?: GLTFSamplerFilter,
-    minFilter?: GLTFSamplerFilter,
-    wrapS?: GLTFSamplerFilter,
-    wrapT?: GLTFSamplerFilter,
+  magFilter?: GLTFSamplerFilter,
+  minFilter?: GLTFSamplerFilter,
+  wrapS?: GLTFSamplerFilter,
+  wrapT?: GLTFSamplerFilter,
 }
 
 export enum GLTFSamplerFilter {
-    LINEAR = 9729,
-    MIP_MAP_LINEAR = 9987,
-    REPEAT_WRAPPING = 10497
+  LINEAR          = 9729,
+  MIP_MAP_LINEAR  = 9987,
+  REPEAT_WRAPPING = 10497
 }
 
 export interface GltfSkin {
-    joints: number[]; // Indices of nodes representing bones
-    inverseBindMatrices: number; // Bind pose matrices
-    skeleton: number; // Root bone index (if available)
+  joints: number[]; // Indices of nodes representing bones
+  inverseBindMatrices: number; // Bind pose matrices
+  skeleton: number; // Root bone index (if available)
 }
 
 export interface GLTFAnimation {
-    channels: GLTFAnimationChannel[],
-    name: string,
-    samplers: GLTFAnimationSampler[],
+  channels: GLTFAnimationChannel[],
+  name: string,
+  samplers: GLTFAnimationSampler[],
 }
 
 export interface GLTFAnimationChannel {
-    sampler: number,
-    target: { node: number, path: 'translation' | 'rotation' | 'scale' }
+  sampler: number,
+  target: { node: number, path: 'translation' | 'rotation' | 'scale' }
 }
 
 export interface GLTFAnimationSampler {
-    input: number,
-    interpolation: 'LINEAR' | 'STEP' | 'CUBICSPLINE',
-    output: number,
+  input: number,
+  interpolation: 'LINEAR' | 'STEP' | 'CUBICSPLINE',
+  output: number,
 }
 
 export interface AnimationChannel {
-    targetNode: number; // Node index affected by this animation
-    targetPath: 'translation' | 'rotation' | 'scale'; // Type of transformation
-    samplerIndex: number; // Index of the associated sampler
+  targetNode: number; // Node index affected by this animation
+  targetPath: 'translation' | 'rotation' | 'scale'; // Type of transformation
+  samplerIndex: number; // Index of the associated sampler
 }
 
 export interface AnimationSampler {
-    keyframes: number[]; // Array of keyframe times
-    values: (quat[] | vec3[]); // Corresponding transformation values
-    interpolation: 'LINEAR' | 'STEP' | 'CUBICSPLINE'; // Interpolation type
+  keyframes: number[]; // Array of keyframe times
+  values: (quat[] | vec3[]); // Corresponding transformation values
+  interpolation: 'LINEAR' | 'STEP' | 'CUBICSPLINE'; // Interpolation type
 }
 
 
 const GLTFRenderMode = {
-    POINTS: 0,
-    LINE: 1,
-    LINE_LOOP: 2,
-    LINE_STRIP: 3,
-    TRIANGLES: 4,
-    TRIANGLE_STRIP: 5,
-    // Note: fans are not supported in WebGPU, use should be
-    // an error or converted into a list/strip
-    TRIANGLE_FAN: 6,
+  POINTS: 0,
+  LINE: 1,
+  LINE_LOOP: 2,
+  LINE_STRIP: 3,
+  TRIANGLES: 4,
+  TRIANGLE_STRIP: 5,
+  // Note: fans are not supported in WebGPU, use should be
+  // an error or converted into a list/strip
+  TRIANGLE_FAN: 6,
 };
 
 const GLTFComponentType = {
-    BYTE: 5120,
-    UNSIGNED_BYTE: 5121,
-    SHORT: 5122,
-    UNSIGNED_SHORT: 5123,
-    INT: 5124,
-    UNSIGNED_INT: 5125,
-    FLOAT: 5126,
-    DOUBLE: 5130,
+  BYTE: 5120,
+  UNSIGNED_BYTE: 5121,
+  SHORT: 5122,
+  UNSIGNED_SHORT: 5123,
+  INT: 5124,
+  UNSIGNED_INT: 5125,
+  FLOAT: 5126,
+  DOUBLE: 5130,
 };
 
 const GLTFTextureFilter = {
-    NEAREST: 9728,
-    LINEAR: 9729,
-    NEAREST_MIPMAP_NEAREST: 9984,
-    LINEAR_MIPMAP_NEAREST: 9985,
-    NEAREST_MIPMAP_LINEAR: 9986,
-    LINEAR_MIPMAP_LINEAR: 9987,
+  NEAREST: 9728,
+  LINEAR: 9729,
+  NEAREST_MIPMAP_NEAREST: 9984,
+  LINEAR_MIPMAP_NEAREST: 9985,
+  NEAREST_MIPMAP_LINEAR: 9986,
+  LINEAR_MIPMAP_LINEAR: 9987,
 };
 
 const GLTFTextureWrap = {
-    REPEAT: 10497,
-    CLAMP_TO_EDGE: 33071,
-    MIRRORED_REPEAT: 33648,
+  REPEAT: 10497,
+  CLAMP_TO_EDGE: 33071,
+  MIRRORED_REPEAT: 33648,
 };
 
 

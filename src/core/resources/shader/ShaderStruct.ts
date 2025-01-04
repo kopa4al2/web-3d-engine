@@ -1,7 +1,7 @@
 import { BindGroupEntryType } from 'core/resources/BindGroup';
 import { BufferData } from 'core/resources/gpu/BufferDescription';
 import { UniformVisibility } from 'core/resources/gpu/GpuShaderData';
-import Bitmask from 'util/BitMask';
+import Bitmask from 'core/utils/BitMask';
 
 export type TextureStruct = { readonly type: 'texture-array' | 'texture' | 'cube-texture' } & {
     sampleType: | 'float' | 'unfilterable-float' | 'depth' | 'sint' | 'uint'

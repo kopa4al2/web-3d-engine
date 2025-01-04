@@ -13,7 +13,7 @@ import Texture, {
 } from "core/texture/Texture";
 import { vec3 } from 'gl-matrix';
 
-export enum SupportedGraphicsApi {
+export enum GraphicsAPI {
     WEBGL2, WEBGPU
 }
 
@@ -62,6 +62,8 @@ export default interface Graphics {
     writeToTexture?(textureId: TextureId, source: ImageData, coordinates?: vec3, sourceWidth?: number, sourceHeight?: number): void;
 
     updateTexture(textureId: TextureId, updateTexture: UpdateTexture): void;
+
+    graphicsApi(): GraphicsAPI;
 
     // ONLY FOR DEBUGGING
     _rawApi(): WebGL2RenderingContext | GPUDevice

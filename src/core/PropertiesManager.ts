@@ -1,8 +1,8 @@
 import { InputFlags, InputState, InputType } from "core/systems/InputSystem";
-import DebugUtil from '../util/debug/DebugUtil';
-import JavaMap from "util/JavaMap";
-import log from "util/Logger";
-import ObjectUtils from "util/ObjectUtils";
+import DebugUtil from '../utils/debug/DebugUtil';
+import JavaMap from "utils/JavaMap";
+import log from "utils/Logger";
+import ObjectUtils from "utils/ObjectUtils";
 
 export type PartialProperties = { [key in Property | AbsoluteProperty]?: PropertyValue };
 export type PartialNestedProperty = { [key in SubProperty]?: PropertyValue };

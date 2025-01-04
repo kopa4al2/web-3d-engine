@@ -2,7 +2,7 @@ import Geometry, { GeometryData, GeometryDescriptor } from 'core/mesh/Geometry';
 import { VertexLayout, VertexLayoutEntry, VertexShaderName } from 'core/resources/cpu/CpuShaderData';
 import { BufferData, BufferUsage } from 'core/resources/gpu/BufferDescription';
 import ResourceManager from 'core/resources/ResourceManager';
-import JavaMap from 'util/JavaMap';
+import JavaMap from 'utils/JavaMap';
 
 export type GeometryStride = [keyof GeometryData, number][];
 
@@ -14,6 +14,7 @@ SHADER_GEOMETRIES.set(VertexShaderName.UNLIT_GEOMETRY, [['vertices', 3], ['texCo
 SHADER_GEOMETRIES.set(VertexShaderName.LIT_GEOMETRY, [['vertices', 3], ['texCoords', 2], ['normals', 3], ['tangents', 3], ['bitangents', 3]])
 SHADER_GEOMETRIES.set(VertexShaderName.TERRAIN, [['vertices', 3], ['texCoords', 2], ['normals', 3]])
 SHADER_GEOMETRIES.set(VertexShaderName.LIT_TANGENTS_VEC4, [['vertices', 3], ['texCoords', 2], ['normals', 3], ['tangents', 4]])
+SHADER_GEOMETRIES.set(VertexShaderName.SKINNED_LIT, [['vertices', 3], ['texCoords', 2], ['normals', 3], ['tangents', 4], ['joints', 4], ['weights', 4]])
 
 export default class GeometryFactory {
 

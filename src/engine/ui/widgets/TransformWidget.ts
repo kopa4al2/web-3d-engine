@@ -10,7 +10,7 @@ export default class TransformWidget {
                 mode: RotationMode = 'euler',
                 units: RotationUnits = 'deg') {
 
-        this.rotationWidget = new RotationWidget(transform, mode, units);
+        this.rotationWidget = new RotationWidget(transform.targetTransform, mode, units);
     }
 
     attach(container: ContainerApi, params: Partial<BindingParams> = {}) {

@@ -22,6 +22,9 @@ struct VertexInput {
     @location(1) textureCoord: vec2<f32>,
     @location(2) normal: vec3<f32>,
     @location(3) tangent: vec4<f32>,
+    @location(4) joints: vec4<f32>,
+//    @location(4) joints: vec4<u32>,
+    @location(5) weights: vec4<f32>,
 };
 
 struct VertexOutput {
@@ -39,6 +42,7 @@ struct VertexOutput {
 @group(0) @binding(0) var<uniform> global: Camera;
 
 @group(2) @binding(0) var<storage, read> instanceData: array<InstanceData>;
+@group(2) @binding(1) var<uniform> u_jointMatrices: array<mat4x4<f32>, 256>;
 
 @vertex
 fn main(input: VertexInput) -> VertexOutput {
@@ -46,26 +50,36 @@ fn main(input: VertexInput) -> VertexOutput {
     let modelMatrix = instanceData[input.instanceID].modelMatrix;
     let inverseModel = instanceData[input.instanceID].modelMatrixInverseTranspose;
 
-    output.textureCoord = input.textureCoord;
-//    output.instanceID = input.instanceID;
 
-    output.position = global.projectionViewMatrix * modelMatrix * vec4<f32>(input.position, 1.0);
-    output.pixelPosition = (modelMatrix * vec4<f32>(input.position, 1.0)).xyz;
+    var skinMatrix = mat4x4<f32>();
+    for (var i = 0u; i < 4u; i++) {
+        skinMatrix += u_jointMatrices[u32(input.joints[i])] * input.weights[i];
+    }
+
+    // Transform position, normal, and tangent
+    let skinnedPosition = skinMatrix * vec4<f32>(input.position, 1.0);
+    let skinnedNormal = normalize((skinMatrix * vec4<f32>(input.normal, 0.0)).xyz);
+    let skinnedTangent = normalize((skinMatrix * input.tangent).xyz);
+
+    // Apply model matrix for world-space transformation
+//    let worldPosition = skinnedPosition;
+    let worldNormal = normalize((modelMatrix * vec4<f32>(skinnedNormal, 0.0)).xyz);
+    let worldTangent = normalize((modelMatrix * vec4<f32>(skinnedTangent, 0.0)).xyz);
+
 
     // COMPUTE TBN MATRIX
     let normalMatrix = extract_mat3_from_mat4(inverseModel);
-    let normal = normalize(normalMatrix * input.normal);
-    let tangent = normalize(normalMatrix * input.tangent.xyz);
-    let bitangent = cross(normal, tangent) * input.tangent.w;
+//    let normal = normalize(normalMatrix * input.normal);
+//    let tangent = normalize(normalMatrix * input.tangent.xyz);
+//    let bitangent = cross(normal, tangent) * input.tangent.w;
+    let bitangent = cross(worldNormal, worldTangent) * input.tangent.w;
 
-    output.tangent = tangent;
-    output.normal = normal;
+    output.position = global.projectionViewMatrix * modelMatrix * skinnedPosition; //global.projectionViewMatrix * modelMatrix * vec4<f32>(input.position, 1.0);
+    output.pixelPosition = (modelMatrix * skinnedPosition).xyz; // (modelMatrix * vec4<f32>(input.position, 1.0)).xyz;
+    output.tangent = worldTangent;
+    output.normal = worldNormal;
     output.bitangent = normalize(bitangent);
-    
-
-//    let lightPos = global.lightProjectionView[0] * modelMatrix * vec4<f32>(input.position, 1.0);
-//    output.shadowPos = lightPos;
-//    output.shadowPos = vec4(lightPos.xy * vec2(0.5, -0.5) + vec2(0.5, 0.5), lightPos.z, 1.0);
+    output.textureCoord = input.textureCoord;
 
     return output;
 }

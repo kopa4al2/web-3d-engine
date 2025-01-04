@@ -2,7 +2,7 @@ import TerrainGeometry from 'core/components/geometry/TerrainGeometry';
 import { BindGroupEntryType } from 'core/resources/BindGroup';
 import { UniformVisibility } from 'core/resources/gpu/GpuShaderData';
 import { ShaderStruct, TextureStruct } from 'core/resources/shader/ShaderStruct';
-import Bitmask from 'util/BitMask';
+import Bitmask from 'core/utils/BitMask';
 
 export function createStruct(name: string, type: BindGroupEntryType, binding: number, visibilities: UniformVisibility, byteLength?: number): ShaderStruct {
     return { name, type, binding, visibilityMask: visibility(visibilities), byteLength } as ShaderStruct

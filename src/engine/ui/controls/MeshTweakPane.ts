@@ -1,12 +1,11 @@
 import { ContainerApi, FolderApi } from '@tweakpane/core';
-import SdiPerformance from "core/utils/SdiPerformance";
-import TransformWidget from "engine/ui/widgets/TransformWidget";
-import { quat } from "gl-matrix";
-import { wrapArrayAsXYZ, wrapArrayAsXYZW } from "../utils";
+import SdiPerformance from 'utils/SdiPerformance';
+import DebugUtil from 'utils/debug/DebugUtil';
+import TransformWidget from 'engine/ui/widgets/TransformWidget';
+import { quat } from 'gl-matrix';
+import { wrapArrayAsXYZ, wrapArrayAsXYZW } from '../utils';
 import Transform from 'core/components/Transform';
 import Mesh from 'core/components/Mesh';
-import DebugUtil from '../../../util/debug/DebugUtil';
-import ThrottleUtil from '../../../util/ThrottleUtil';
 import RightMenu from 'engine/ui/menus/RightMenu';
 
 // type HierarchyData = { container: FolderApi, children: Transform[] };

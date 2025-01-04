@@ -1,6 +1,6 @@
 import PropertiesManager from "core/PropertiesManager";
 import { mat4 } from "gl-matrix";
-import DebugUtil from '../../../util/debug/DebugUtil';
+import DebugUtil from '../../../utils/debug/DebugUtil';
 
 export default class ProjectionMatrix {
 

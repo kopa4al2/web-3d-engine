@@ -1,6 +1,3 @@
-import { GLTFWorkerRequest, GLTFWorkerResponse } from "core/parser/gltf/workers/GLTFWorker";
-import DebugUtil from "../../util/debug/DebugUtil";
-
 interface WorkerStatus<Request, Response> {
     request?: Request,
     onFinish?: (result: Response) => void,
@@ -13,10 +10,9 @@ export default class WorkerPool<WorkerRequest,WorkerResponse> {
     private readonly workersStatus: WeakMap<Worker, WorkerStatus<WorkerRequest, WorkerResponse>>;
     private readonly queue: WorkerStatus<WorkerRequest, WorkerResponse>[] = [];
 
-    constructor(private fn?: () => Worker,
-                private workerCount: number = 0,
+    constructor(fn?: () => Worker,
+                workerCount: number = 0,
                 private workers: Worker[] = []) {
-        DebugUtil.addToWindowObject('WorkerPool', this);
         this.workersStatus = new WeakMap();
         this.workers.forEach(worker => this._addWorker(worker));
 

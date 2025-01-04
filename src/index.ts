@@ -1,29 +1,25 @@
-import { RadioGridController } from "@tweakpane/plugin-essentials";
-import Canvas from "Canvas";
-import ProjectionMatrix from "core/components/camera/ProjectionMatrix";
-import EntityManager from "core/EntityManager";
-import Graphics from "core/Graphics";
-import GLTFParser from "core/parser/gltf/GLTFParser";
-import PropertiesManager, { PartialProperties, Property, PropertyValue } from "core/PropertiesManager";
-import EntityComponentSystem from "core/systems/EntityComponentSystem";
-import SdiPerformance from "core/utils/SdiPerformance";
-import Engine, { OnRenderPlugin } from "Engine";
-import { TopMenu } from "engine/ui/menus/TopMenu";
-import { glMatrix, mat4, quat, vec2, vec3 } from "gl-matrix";
-import { enableGpuGraphicsApiSwitch, enableSplitScreenSwitch } from "html/Controls";
-import { enableWebComponentEntitySelect } from 'html/entity-select/EntitySelect';
-import { Pane } from "tweakpane";
-import DebugUtil from './util/debug/DebugUtil';
-import WebGLGraphics from "webgl/WebGLGraphics";
-import WebGPUGraphics from "webgpu/graphics/WebGPUGraphics";
+import { RadioGridController } from '@tweakpane/plugin-essentials';
+import Canvas from 'Canvas';
+import ProjectionMatrix from 'core/components/camera/ProjectionMatrix';
+import EntityManager from 'core/EntityManager';
+import Graphics from 'core/Graphics';
+import PropertiesManager, { PartialProperties, Property, PropertyValue } from 'core/PropertiesManager';
+import EntityComponentSystem from 'core/systems/EntityComponentSystem';
+import SdiPerformance from 'utils/SdiPerformance';
+import Engine, { OnRenderPlugin } from 'Engine';
+import { TopMenu } from 'engine/ui/menus/TopMenu';
+import { glMatrix, mat4, quat, vec2, vec3 } from 'gl-matrix';
+import DebugUtil from './utils/debug/DebugUtil';
 import EntityTweakPane from 'engine/ui/controls/EntityTweakPane';
-import RightMenu from "engine/ui/menus/RightMenu";
-import FpsCounter from "./engine/ui/views/FpsCounter";
+import RightMenu from 'engine/ui/menus/RightMenu';
+import FpsCounter from './engine/ui/views/FpsCounter';
 import ResourceManager from 'core/resources/ResourceManager';
 import MaterialTweakPane from 'engine/ui/controls/MaterialTweakPane';
 import MaterialFactory from 'core/factories/MaterialFactory';
-import './styles/index.scss'
-import './styles/theme.scss'
+import './styles/index.scss';
+import './styles/theme.scss';
+
+glMatrix.setMatrixArrayType(Float32Array);
 
 // OVERRIDE SYMBOL TO STRING FOR DEBUGGING
 Symbol.prototype.toString = function () {
@@ -188,41 +184,46 @@ const sharedProps: PartialProperties = {
 }
 
 async function initWebGlEngine(properties: PartialProperties) {
-    const webGl2Props = createProperties({ ...sharedProps, ...properties }, {
-        input: {
-            inputFlags: {},
-            mousePos: vec2.create(),
-            mouseDelta: vec2.create(),
-            deltaWheel: vec3.create(),
-            wheel: vec3.create(),
-        },
-        wireframe: properties.wireframe || false,
-        fieldOfView: Math.PI / 4,
-        zNear: 0.1,
-        zFar: 1000,
-        splitScreen: properties.splitScreen || false,
-        gpuApi: 'webgl2',
-        window: {
-            width: properties['window.width'] as number || window.innerWidth / 2,
-            height: window.innerHeight,
-            leftOffset: window.innerWidth / 2,
-            topOffset: 0,
-            hide: false
-        }
-    }, 'webgl2');
+    return await import('webgl/WebGLGraphics').then(async module => {
+        const WebGLGraphics = module.default;
 
-    const canvas = new Canvas(document.getElementById('webgl2-canvas') as HTMLElement,
-        webGl2Props,
-        'webgl2');
-    canvas.addToDOM();
-    const layout = new RightMenu(canvas.parent);
+        const webGl2Props = createProperties({ ...sharedProps, ...properties }, {
+            input: {
+                inputFlags: {},
+                mousePos: vec2.create(),
+                mouseDelta: vec2.create(),
+                deltaWheel: vec3.create(),
+                wheel: vec3.create(),
+            },
+            wireframe: properties.wireframe || false,
+            fieldOfView: Math.PI / 4,
+            zNear: 0.1,
+            zFar: 1000,
+            splitScreen: properties.splitScreen || false,
+            gpuApi: 'webgl2',
+            window: {
+                width: properties['window.width'] as number || window.innerWidth / 2,
+                height: window.innerHeight,
+                leftOffset: window.innerWidth / 2,
+                topOffset: 0,
+                hide: false
+            }
+        }, 'webgl2');
 
-    const graphics = new WebGLGraphics(canvas, webGl2Props);
-    const webGlEngine = await createEngine('WebGl', webGl2Props, canvas, graphics, layout);
-    return { webGl2Props, webGlEngine };
+        const canvas = new Canvas(document.getElementById('webgl2-canvas') as HTMLElement,
+          webGl2Props,
+          'webgl2');
+        canvas.addToDOM();
+        const layout = new RightMenu(canvas.parent);
+
+        const graphics = new WebGLGraphics(canvas, webGl2Props);
+        const webGlEngine = await createEngine('WebGl', webGl2Props, canvas, graphics, layout);
+        return { webGl2Props, webGlEngine };
+    });
 }
 
 async function initWebGpu(properties: PartialProperties) {
+    const WebGPUGraphics = (await import('webgpu/graphics/WebGPUGraphics')).default;
     const webGpuProps = createProperties(sharedProps, {
         input: {
             inputFlags: {},
@@ -280,8 +281,9 @@ async function createEngine(
     const fpsCounter = new FpsCounter(uiLayout);
     const entityControl = new EntityTweakPane(entityManager, uiLayout);
     const resourceManager = new ResourceManager(graphics);
-    const materialFactory = new MaterialTweakPane(new MaterialFactory(resourceManager), uiLayout);
-    const topMenu = new TopMenu(materialFactory, entityControl, entityManager, uiLayout);
+    const materialFactory = new MaterialFactory(resourceManager);
+    const materialTweakPane = new MaterialTweakPane(materialFactory, uiLayout);
+    const topMenu = new TopMenu(materialTweakPane, entityControl, entityManager, uiLayout);
 
     const engine = new Engine(
         label,
@@ -292,7 +294,8 @@ async function createEngine(
         new EntityComponentSystem(),
         projectionMatrix,
         resourceManager,
-        materialFactory,
+        materialTweakPane,
+        // materialFactory,
         [onRender, fpsCounter.tick.bind(fpsCounter)],
     );
 

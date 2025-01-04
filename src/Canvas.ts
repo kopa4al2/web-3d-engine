@@ -1,6 +1,6 @@
 import PropertiesManager, { WindowProperties } from "core/PropertiesManager";
-import MathUtil from "util/MathUtil";
-import ThrottleUtil from "util/ThrottleUtil";
+import MathUtil from "utils/MathUtil";
+import ThrottleUtil from "utils/ThrottleUtil";
 
 
 export default class Canvas {

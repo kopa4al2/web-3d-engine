@@ -1,7 +1,7 @@
 // @ts-nocheck
 import MaterialComponent, { defaultMaterialProps, MaterialProps } from "core/components/material/MaterialComponent";
 import { VertexShaderName } from 'core/resources/cpu/CpuShaderData';
-import ObjectUtils from "util/ObjectUtils";
+import ObjectUtils from "utils/ObjectUtils";
 
 export default class TerrainMaterial extends MaterialComponent {
 

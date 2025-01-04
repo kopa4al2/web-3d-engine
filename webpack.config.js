@@ -1,13 +1,14 @@
 const path = require('path');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
-const HtmlWebpackPlugin = require("html-webpack-plugin");
-
+const HtmlWebpackPlugin = require('html-webpack-plugin');
+const CircularDependencyPlugin = require('circular-dependency-plugin');
+const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer');
 
 module.exports = {
+    // mode: "production",
     entry: './src/index.ts',
     output: {
-        filename: 'bundle.js',
-        // path: path.resolve(__dirname, 'src'),
+        filename: '[name].bundle.js',
         path: path.resolve(__dirname, 'dist'),
     },
     resolve: {
@@ -15,11 +16,59 @@ module.exports = {
             core: path.resolve(__dirname, './src/core'),
             webgl: path.resolve(__dirname, './src/webgl'),
             webgpu: path.resolve(__dirname, './src/webgpu'),
-            util: path.resolve(__dirname, './src/util'),
+            utils: path.resolve(__dirname, './src/utils'),
             engine: path.resolve(__dirname, './src/engine'),
         },
         extensions: ['.ts', '.js'],
         preferRelative: true,
+    },
+    optimization: {
+        usedExports: true,
+        splitChunks: {
+            chunks: 'all',
+            cacheGroups: {
+                // sharedWorkers: {
+                //     test: /[\\/]workers[\\/]/, // Match worker files
+                //     name: 'shared-workers',
+                //     chunks: 'all',
+                // },
+                core: {
+                    test: /[\\/]src[\\/]core[\\/]/,
+                    name: 'core',
+                    chunks: 'all',
+                },
+                webgl: {
+                    test: /[\\/]src[\\/]webgl[\\/]/,
+                    name: 'webgl',
+                    chunks: 'all',
+                },
+                webgpu: {
+                    test: /[\\/]src[\\/]webgpu[\\/]/,
+                    name: 'webgpu',
+                    chunks: 'all',
+                },
+                utils: {
+                    test: /[\\/]src[\\/]utils[\\/]/,
+                    name: 'utils',
+                    chunks: 'all',
+                },
+                engine: {
+                    test: /[\\/]src[\\/]engine[\\/]/,
+                    name: 'engine',
+                    chunks: 'all',
+                },
+                // glMatrix: {
+                //     test: /[\\/]node_modules[\\/]gl-matrix[\\/]/,
+                //     name: 'gl-matrix',
+                //     chunks: 'all',
+                // },
+                // vendors: {
+                //     test: /[\\/]node_modules[\\/]/,
+                //     name: 'vendors',
+                //     chunks: 'all',
+                // },
+            }
+        },
     },
     module: {
         rules: [
@@ -47,18 +96,30 @@ module.exports = {
                 test: /\.(vert|frag|wgsl)$/i,
                 use: 'raw-loader',
                 // exclude: /node_modules/,
-            }
+            },
+            // {
+            //     test: /\.worker\.(js|ts)$/,
+            //     use: { loader: 'worker-loader', options: { inline: 'no-fallback' } },
+            // },
         ],
     },
     devServer: {
-        static: './assets',
+        // devMiddleware: {
+        //     writeToDisk: true,
+        // },
+        // static: './dist',
         hot: true,
         headers: {
+            // 'Cache-Control': 'public, max-age=3600',
             'Cross-Origin-Opener-Policy': 'same-origin',
             'Cross-Origin-Embedder-Policy': 'require-corp',
         },
     },
     plugins: [
+        new CircularDependencyPlugin({
+            exclude: /node_modules/,
+            failOnError: true,
+        }),
         new HtmlWebpackPlugin({
             template: './src/index.html',  // Your custom HTML template
             inject: 'body',                // Inject the scripts at the end of the body
@@ -66,11 +127,13 @@ module.exports = {
         new CopyWebpackPlugin({
             patterns: [
                 // { from: 'src/index.html', to: 'index.html' },
-                { from: 'assets', to: 'assets', filter: (path) => !path.includes('-hdr') },
+                { from: 'assets', to: 'assets' },
+                // { from: 'assets', to: 'assets', filter: (path) => !path.includes('-hdr') },
             ],
             options: {
                 concurrency: 2
             }
         }),
+        // new BundleAnalyzerPlugin(),
     ]
 };

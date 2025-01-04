@@ -1,5 +1,5 @@
 import PropertiesManager from "core/PropertiesManager";
-import SdiPerformance from "core/utils/SdiPerformance";
+import SdiPerformance from "utils/SdiPerformance";
 import { EntitySelectPayload } from 'html/entity-select/EntitySelect';
 import { addEventListener } from './CustomEvents';
 

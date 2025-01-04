@@ -22,10 +22,11 @@ export enum FragmentShaderName {
     PBR,
 }
 export enum VertexShaderName {
-    SKY_BOX,
+    SKY_BOX= 100,
     LIT_GEOMETRY,
     UNLIT_GEOMETRY,
     TERRAIN,
     LIT_TANGENTS_VEC4,
+    SKINNED_LIT,
     UNUSED_OLD_BASIC_INSTANCED,
 }

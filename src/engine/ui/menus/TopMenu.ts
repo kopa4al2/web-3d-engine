@@ -50,9 +50,16 @@ export class TopMenu {
     private allEntities() {
         console.log('All entities');
         for (const [entity, components] of this.entityManager._entities.entries()) {
-            if (components.has(Mesh.ID) && components.has(Transform.ID)) {
+            // if (components.has(Mesh.ID) && components.has(Transform.ID)) {
+            //     this.controls.Meshes.addMesh(entity.description!,
+            //         components.get(Mesh.ID) as Mesh,
+            //         components.get(Transform.ID) as Transform);
+            //
+            // }
+
+            if (components.has(Transform.ID) && (components.get(Transform.ID) as Transform).parent === undefined) {
                 this.controls.Meshes.addMesh(entity.description!,
-                    components.get(Mesh.ID) as Mesh,
+                    undefined as unknown as Mesh,
                     components.get(Transform.ID) as Transform);
 
             }

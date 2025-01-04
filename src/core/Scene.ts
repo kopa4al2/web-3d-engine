@@ -12,9 +12,9 @@ import BoundingSphere from 'core/physics/BoundingSphere';
 import Frustum from 'core/physics/Frustum';
 import { Blend } from 'core/resources/gpu/Blend';
 import { mat4, vec3 } from 'gl-matrix';
-import Bitmask from 'util/BitMask';
-import DebugUtil from '../util/debug/DebugUtil';
-import JavaMap from 'util/JavaMap';
+import Bitmask from 'core/utils/BitMask';
+import DebugUtil from '../utils/debug/DebugUtil';
+import JavaMap from 'utils/JavaMap';
 
 
 export default class Scene {

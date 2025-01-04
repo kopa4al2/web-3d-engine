@@ -9,7 +9,7 @@ export interface GeometryData {
     normals: number[] | BufferData;         // Flat array of normals
     texCoords: number[] | BufferData;       // Flat array of texture coordinates
     indices: number[] | BufferData;         // Flat array of indices
-    tangents: number[] | BufferData;
+    tangents?: number[] | BufferData;
     bitangents?: number[] | BufferData;
     weights?: BufferData,
     joints?: BufferData,

@@ -1,7 +1,7 @@
 import { ContainerApi } from '@tweakpane/core';
 import Transform from 'core/components/Transform';
 import { mat4, vec3 } from 'gl-matrix';
-import ThrottleUtil from "../../../util/ThrottleUtil";
+import ThrottleUtil from "../../../utils/ThrottleUtil";
 import { wrapArrayAsXYZW } from "../utils";
 
 export default class TransformControl {

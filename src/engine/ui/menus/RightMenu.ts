@@ -6,7 +6,7 @@ import * as TextareaPlugin from '@kitschpatrol/tweakpane-plugin-textarea';
 import * as TweakpanePluginInputs from '@kitschpatrol/tweakpane-plugin-inputs';
 import { Pane, TabApi, TabPageApi } from 'tweakpane';
 import { BladeApi, ContainerApi, EventListenable, FolderApi } from '@tweakpane/core';
-import DebugUtil from "util/debug/DebugUtil";
+import DebugUtil from "utils/debug/DebugUtil";
 import { LightControl } from 'engine/ui/controls/LightControl';
 
 export interface UiProperties {

@@ -4,7 +4,7 @@ import Input from "core/components/Input";
 import PropertiesManager, { WindowProperties } from "core/PropertiesManager";
 import { InputState } from "core/systems/InputSystem";
 import { mat4, vec4 } from "gl-matrix";
-import MathUtil from 'util/MathUtil';
+import MathUtil from 'utils/MathUtil';
 
 
 export function addTitle(title: string, attachTarget: HTMLElement, properties: PropertiesManager) {

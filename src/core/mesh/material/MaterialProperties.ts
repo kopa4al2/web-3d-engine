@@ -2,7 +2,7 @@ import TerrainGeometry from 'core/components/geometry/TerrainGeometry';
 import Graphics, { BindGroupId, BindGroupLayoutId } from "core/Graphics";
 import { BufferData, BufferId } from "core/resources/gpu/BufferDescription";
 import { vec2, vec4 } from 'gl-matrix';
-import BufferUtils from "../../../util/BufferUtils";
+import BufferUtils from "../../utils/BufferUtils";
 import Texture from 'core/texture/Texture';
 
 export interface TextureArrayIndex {

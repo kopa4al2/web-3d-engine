@@ -9,9 +9,9 @@ import PropertiesManager from "core/PropertiesManager";
 import { RenderSystem, UpdateSystem } from "core/systems/EntityComponentSystem";
 import { InputFlags } from "core/systems/InputSystem";
 import { glMatrix, mat4, vec2, vec3, vec4 } from "gl-matrix";
-import log, { rateLimitedLog } from "util/Logger";
-import MathUtil from "util/MathUtil";
-import ThrottleUtil from "util/ThrottleUtil";
+import log, { rateLimitedLog } from "utils/Logger";
+import MathUtil from "utils/MathUtil";
+import ThrottleUtil from "utils/ThrottleUtil";
 
 export default class ViewFrustumSystem implements UpdateSystem, RenderSystem {
 

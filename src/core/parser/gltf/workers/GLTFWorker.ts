@@ -11,26 +11,13 @@ export interface GLTFWorkerResponse {
 
 self.onmessage = (event: MessageEvent<GLTFWorkerRequest>) => {
     const { data } = event;
-    fetch(data.uri)
+    fetch(data.uri, { cache: 'force-cache'})
         .then(response => response.blob())
         .then(blob => createImageBitmap(blob))
         .then(bitmap => {
             self.postMessage({
             imageBitmap: bitmap,
             }, { transfer: [bitmap] });
-            // const canvas = getCanvasContext(width, height, self.name);
-            // const context = canvas.getContext('2d', { willReadFrequently: true })!;
-            // const width = bitmap.width;
-            // const height = bitmap.height;
-            // const context = getCanvasContext(width, height, self.name);
-            // context.drawImage(bitmap, 0, 0);
-
-            // const imageData = context.getImageData(0, 0, width, height);
-            // self.postMessage({
-                // img: bitmap,
-                // width, height,
-                // data: imageData.data.buffer
-            // }, { transfer: [imageData.data.buffer] });
         });
 }
 

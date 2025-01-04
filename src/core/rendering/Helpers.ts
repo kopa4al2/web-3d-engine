@@ -1,18 +1,18 @@
-import { BindGroupId, BindGroupLayoutId, RenderPass } from "core/Graphics";
-import { BindGroupEntry, BindGroupEntryType } from "core/resources/BindGroup";
-import { BufferId, BufferUsage } from "core/resources/gpu/BufferDescription";
-import { UniformVisibility } from "core/resources/gpu/GpuShaderData";
-import ResourceManager from "core/resources/ResourceManager";
-import { ShaderStruct, ShaderStructName } from "core/resources/shader/ShaderStruct";
-import Bitmask from "../../util/BitMask";
+import { BindGroupId, BindGroupLayoutId, RenderPass } from 'core/Graphics';
+import { BindGroupEntry, BindGroupEntryType } from 'core/resources/BindGroup';
+import { BufferData, BufferId, BufferUsage } from 'core/resources/gpu/BufferDescription';
+import { UniformVisibility } from 'core/resources/gpu/GpuShaderData';
+import ResourceManager from 'core/resources/ResourceManager';
+import { ShaderStruct, ShaderStructName } from 'core/resources/shader/ShaderStruct';
+import Bitmask from '../utils/BitMask';
 import SamplingConfig from 'core/texture/SamplingConfig';
 
 
 export type ShaderVariableType = 'vec3' | 'vec2' | 'mat4';
 
 export interface ShaderUniformVariable {
-    type: ShaderVariableType,
-    name: string,
+  type: ShaderVariableType,
+  name: string,
 }
 
 /*
@@ -72,104 +72,105 @@ export default class Helpers {
 }
 
 type BaseStruct = {
-    name: string,
-    visibility: UniformVisibility,
-    type: BindGroupEntryType,
+  name: string,
+  visibility: UniformVisibility,
+  type: BindGroupEntryType,
 }
 
 type TextureStruct = { type: 'texture' | 'texture-array' | 'cube-texture' } | {
-    sampleType?: | 'float' | 'unfilterable-float' | 'depth' | 'sint' | 'uint'
+  sampleType?: | 'float' | 'unfilterable-float' | 'depth' | 'sint' | 'uint'
 }
 
 type TextureArrayStruct = { type: 'texture-array' } & { depth: number, } & BaseStruct & TextureStruct
 type CubeTextureStruct = { type: 'cube-texture' } & BaseStruct & TextureStruct
 
 type SamplerStruct = { type: 'sampler' } & {
-    samplerType?: 'filtering' | 'non-filtering' | 'comparison',
-    config: SamplingConfig
+  samplerType?: 'filtering' | 'non-filtering' | 'comparison',
+  config: SamplingConfig
 } & BaseStruct
-type UniformStruct = { type: 'uniform' | 'storage' } & { byteLength: number } & BaseStruct
+
+type SizedStruct = { data: BufferData | ArrayBuffer, byteLength?: number } | { data?: BufferData, byteLength: number };
+type UniformStruct = { type: 'uniform' | 'storage' } & SizedStruct & BaseStruct
 
 export type ShaderStructV2 = UniformStruct | TextureArrayStruct | CubeTextureStruct | SamplerStruct;
-// export interface ShaderStructV2 {
-//     name: string,
-//     visibility: UniformVisibility,
-//     byteLength: number,
-//     type?: BindGroupEntryType,
-// }
 
 export class BindGroupHelper {
-    // public bufferId: BufferId;
-    public bindGroupId: BindGroupId;
-    public bindGroupLayoutId: BindGroupLayoutId;
+  // public bufferId: BufferId;
+  public bindGroupId: BindGroupId;
+  public bindGroupLayoutId: BindGroupLayoutId;
 
-    private buffers: BufferId[] = [];
-    private structs: ShaderStructName[] = [];
+  private buffers: BufferId[] = [];
+  private structs: ShaderStructName[] = [];
 
-    constructor(resourceManager: ResourceManager, public name: string, structs: ShaderStructV2[]) {
-        const label = name;
-        const entries: (BindGroupEntry & ShaderStruct)[] = [];
-        const byteLength = structs.reduce((acc, curr) => {
-            acc += this.getByteLength(curr);
-            return acc;
-        }, 0);
-        for (let i = 0; i < structs.length; i++) {
-            const struct = structs[i];
+  constructor(resourceManager: ResourceManager, public name: string, structs: ShaderStructV2[]) {
+    const label = name;
+    const entries: (BindGroupEntry & ShaderStruct)[] = [];
+    const byteLength = structs.reduce((acc, curr) => {
+      acc += this.getByteLength(curr);
+      return acc;
+    }, 0);
 
-            if (struct.type === 'texture-array') {
+    for (let i = 0; i < structs.length; i++) {
+      const struct = structs[i];
 
-            }
-            const bufferId = resourceManager.createBuffer({
-                byteLength,
-                usage: BufferUsage.COPY_DST | (struct.type === 'storage' ? BufferUsage.STORAGE : BufferUsage.UNIFORM),
-                label: struct.name,
-            });
-            this.buffers.push(bufferId);
-            this.structs.push(struct.name);
-            entries.push({
-                type: struct.type || 'uniform',
-                binding: i,
-                name: struct.name,
-                visibilityMask: new Bitmask(struct.visibility),
-                bufferId,
-            });
-        }
-        // const entries: ShaderStruct[] = this.structs.map((str, index) => ({
-        //     type: str.type || 'uniform',
-        //     binding: index,
-        //     name: str.name,
-        //     visibilityMask: new Bitmask(str.visibility),
-        // }));
+      if (struct.type === 'texture-array') {
+        // TODO:
+      }
 
-        const bindGroupLayoutId = resourceManager.getOrCreateLayout({ label, entries });
-        // const bufferId = resourceManager.createBuffer({
-        //     byteLength,
-        //     label: this.name,
-        //     usage: BufferUsage.COPY_DST | BufferUsage.UNIFORM
-        // });
-        const bindGroupId = resourceManager.createBindGroup(bindGroupLayoutId, { label, entries });
-        // const bindGroupId = resourceManager.createBindGroup(bindGroupLayoutId, {
-        //     label: this.name,
-        //     entries: entries.map(struct => ({
-        //         ...struct,
-        //         bufferId
-        //     }))
-        // });
+      if (struct.type === 'uniform' || struct.type === 'storage') {
+        const bufferId = resourceManager.createBuffer({
+          byteLength,
+          usage: BufferUsage.COPY_DST | (struct.type === 'storage' ? BufferUsage.STORAGE : BufferUsage.UNIFORM),
+          label: struct.name,
+        }, struct.data as BufferData);
 
-        this.bindGroupLayoutId = bindGroupLayoutId;
-        this.bindGroupId = bindGroupId;
-        // this.bufferId = bufferId;
+        this.buffers.push(bufferId);
+        this.structs.push(struct.name);
+        entries.push({
+          type: struct.type || 'uniform',
+          binding: i,
+          name: struct.name,
+          visibilityMask: new Bitmask(struct.visibility),
+          bufferId,
+        });
+      }
+    }
+    // const entries: ShaderStruct[] = this.structs.map((str, index) => ({
+    //     type: str.type || 'uniform',
+    //     binding: index,
+    //     name: str.name,
+    //     visibilityMask: new Bitmask(str.visibility),
+    // }));
+
+    const bindGroupLayoutId = resourceManager.getOrCreateLayout({ label, entries });
+    // const bufferId = resourceManager.createBuffer({
+    //     byteLength,
+    //     label: this.name,
+    //     usage: BufferUsage.COPY_DST | BufferUsage.UNIFORM
+    // });
+    const bindGroupId = resourceManager.createBindGroup(bindGroupLayoutId, { label, entries });
+    // const bindGroupId = resourceManager.createBindGroup(bindGroupLayoutId, {
+    //     label: this.name,
+    //     entries: entries.map(struct => ({
+    //         ...struct,
+    //         bufferId
+    //     }))
+    // });
+
+    this.bindGroupLayoutId = bindGroupLayoutId;
+    this.bindGroupId = bindGroupId;
+    // this.bufferId = bufferId;
+  }
+
+  get bufferId() {
+    return this.buffers[0];
+  }
+
+  private getByteLength(struct: ShaderStructV2): number {
+    if (struct.type === 'storage' || struct.type === 'uniform') {
+      return struct.byteLength ?? struct.data!.byteLength;
     }
 
-    get bufferId() {
-        return this.buffers[0];
-    }
-
-    private getByteLength(struct: ShaderStructV2): number {
-        if (struct.type === 'storage' || struct.type === 'uniform') {
-            return struct.byteLength;
-        }
-
-        return 0;
-    }
+    return 0;
+  }
 }

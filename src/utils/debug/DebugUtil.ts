@@ -47,6 +47,17 @@ export default class DebugUtil {
             window[label] = any;
         }
     }
+
+    public static getRandomColorStyle(): string {
+        const r = Math.floor(Math.random() * 255);
+        const g = Math.floor(Math.random() * 255);
+        const b = Math.floor(Math.random() * 255);
+        let color = `#ffffff`;
+        if (r + g + b > (255 * 3) / 2) {
+            color = `#000000`;
+        }
+        return `background: rgb(${r}, ${g}, ${b}); color: ${color};`;
+    }
 }
 
 const GL_DEBUG_VALUES = {

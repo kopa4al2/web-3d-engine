@@ -5,7 +5,7 @@ import { RenderPass } from 'core/Graphics';
 import { BufferId } from 'core/resources/gpu/BufferDescription';
 import { IndexBuffer } from 'core/resources/gpu/GpuShaderData';
 import { vec3 } from 'gl-matrix';
-import MathUtil from 'util/MathUtil';
+import MathUtil from 'utils/MathUtil';
 
 export interface AABBoundingBox {
     min: vec3,

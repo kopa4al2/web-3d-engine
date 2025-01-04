@@ -1,5 +1,5 @@
 import { mat4, vec2, vec3 } from "gl-matrix";
-import MathUtil from "util/MathUtil";
+import MathUtil from "utils/MathUtil";
 import Component from "./Component";
 
 export default class OrbitCamera implements Component {
