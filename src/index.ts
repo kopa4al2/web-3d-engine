@@ -3,6 +3,7 @@ import Canvas from "Canvas";
 import ProjectionMatrix from "core/components/camera/ProjectionMatrix";
 import EntityManager from "core/EntityManager";
 import Graphics from "core/Graphics";
+import GLTFParser from "core/parser/gltf/GLTFParser";
 import PropertiesManager, { PartialProperties, Property, PropertyValue } from "core/PropertiesManager";
 import EntityComponentSystem from "core/systems/EntityComponentSystem";
 import SdiPerformance from "core/utils/SdiPerformance";
@@ -40,7 +41,6 @@ SdiPerformance.begin();
 const onRender: OnRenderPlugin = () => {
     screenProps.flushBuffer()
 };
-
 
 document.body.onload = async () => {
     SdiPerformance.log('DOM loaded');

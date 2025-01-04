@@ -32,11 +32,20 @@ export interface ObjectMaterialData {
 }
 
 class ObjParser {
-    constructor(private workerPool: WorkerPool<ObjWorkerRequest, ObjWorkerResponse>) {
+    private workerPool?: WorkerPool<ObjWorkerRequest, ObjWorkerResponse>;
+    constructor(private _workerPool: () => WorkerPool<ObjWorkerRequest, ObjWorkerResponse>) {
+    }
+
+    getWorkerPool() {
+        if (!this.workerPool) {
+            this.workerPool = this._workerPool();
+        }
+
+        return this.workerPool;
     }
 
     public parseObjFile(filePath: string, mtlFilePath?: string, name: string = 'obj'): Promise<ObjFile> {
-        return this.workerPool.submit({ uri: filePath }).then(res => ({ meshes: res.objectGroups, name }));
+        return this.getWorkerPool().submit({ uri: filePath }).then(res => ({ meshes: res.objectGroups, name }));
         // if (mtlFilePath) {
         //     return Promise.all([
         //         fetch(filePath).then(file => file.text()),
@@ -293,4 +302,4 @@ class ObjParser {
     }
 }
 
-export default new ObjParser(new WorkerPool<ObjWorkerRequest, ObjWorkerResponse>(() => new Worker(new URL('./obj/ObjWorker.ts', import.meta.url), { name: 'Obj-Worker' }), 2));
+export default new ObjParser(() => new WorkerPool<ObjWorkerRequest, ObjWorkerResponse>(() => new Worker(new URL('./obj/ObjWorker.ts', import.meta.url), { name: 'Obj-Worker' }), 1));

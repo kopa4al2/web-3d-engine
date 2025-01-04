@@ -106,7 +106,7 @@ export default class Transform implements Component {
         // Check if forward is parallel to up
         if (Math.abs(vec3.dot(forward, up)) > 0.99999 && Math.abs(forward[0]) < 0.99999) {
             up = vec3.fromValues(1, 0, 0);
-            console.warn('changing UP vector to the X axis', this);
+            // console.warn('changing UP vector to the X axis', this);
         }
 
         mat4.targetTo(this.targetTransform.mat4, this.localTransform.position, target, up);

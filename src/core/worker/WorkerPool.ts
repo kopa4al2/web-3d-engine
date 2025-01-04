@@ -1,4 +1,4 @@
-import { GLTFWorkerRequest, GLTFWorkerResponse } from "core/parser/gltf/GLTFWorker";
+import { GLTFWorkerRequest, GLTFWorkerResponse } from "core/parser/gltf/workers/GLTFWorker";
 import DebugUtil from "../../util/debug/DebugUtil";
 
 interface WorkerStatus<Request, Response> {

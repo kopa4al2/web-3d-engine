@@ -37,6 +37,10 @@ export default class DebugUtil {
     }
 
     public static addToWindowObject(label: string, any: any) {
+        if (typeof window === 'undefined') {
+            return;
+        }
+
         // @ts-ignore
         if (!window[label]) {
             // @ts-ignore

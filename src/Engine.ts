@@ -246,18 +246,25 @@ export default class Engine {
         const e = this.entityManager.createEntity('TransformEntity')
         this.entityManager.addComponents(e, [skeletalTransform]);
         this.scene.addEntities(e)
+
         return Promise.all([
+            // ModelRepository.cacheables.sponzaAtriumGLB(this.resourceManager.textureManager)(),
+            // ModelRepository.cacheables.midas(this.resourceManager.textureManager)(),
             this.addScene('Skeletal', () => this.modelRepository.midas(skeletalTransform)),
             // this.addScene('Skeletal', () => this.modelRepository.newyork()),
+            // this.loadAndAddMesh('Crate1', this.modelRepository.createCrate, [-2, 2, 0], 0.005),
             // this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumGLB),
-            this.loadAndAddMesh('Crate1', this.modelRepository.createCrate, [-2, 2, 0], 0.005),
         ])
+            // .then(([sponza, midas]) => {
+            //     this.addScene('sponza', () => Promise.resolve(sponza.createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager, this.entityManager)))
+            //     this.addScene('midas', () => Promise.resolve(midas.createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager, this.entityManager)))
+            // })
             // .then(() => this.addScene('Skeletal', () => this.modelRepository.finalWarsMonster(skeletalTransform)))
             // .then(() => this.addScene('Monster', this.modelRepository.monster, defaultTransform().translate([3, 3, 0]).lookAt([0, 1, 0])))
             // .then(() => this.addScene('MonkeyHead', this.modelRepository.monkeyHead, defaultTransform().translate([-3, 3, 0])))
             // .then(() => this.loadAndAddMesh('Crate2', this.modelRepository.createCrate, [0, 0, 0], 0.005),)
             // .then(() => this.addScene('Porsche', this.modelRepository.test))
-            .then(() => this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumScene))
+            // .then(() => this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumGLB))
             .then(() => {
                 this.ecs.registerUpdateSystems(
                     new SceneSystem(this.entityManager),
@@ -270,6 +277,10 @@ export default class Engine {
                     new Renderer(this.graphicsApi, this.entityManager, this.resourceManager, this.shaderManager),
                     new ViewFrustumSystem(this.entityManager, this.graphicsApi, this.properties),
                     new TerrainSystem(this.graphicsApi));
+
+                // this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumGLB);
+
+                this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumScene);
             });
 
         // worldCoordinates(this.properties, this.freeCameraComponent, this.projectionMatrix, this.input, this.canvas.parent);

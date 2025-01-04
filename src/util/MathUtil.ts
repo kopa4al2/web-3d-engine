@@ -420,7 +420,11 @@ class MathUtil {
         return { vertices, normals, texCoords, indices, tangents };
     }
 
-    calculateTangentsVec4({ vertices, normals, texCoords, indices }: GeometryData): GeometryData {
+    calculateTangentsVec4(geometryData: GeometryData): GeometryData {
+        const vertices = geometryData.vertices,
+            normals = geometryData.normals,
+            texCoords = geometryData.texCoords,
+            indices = geometryData.indices;
         const tangents = new Float32Array(vertices.length * 4 / 3); // 4 components per vertex
         const bitangents = new Float32Array(vertices.length); // Temporary storage for bitangents
 
@@ -501,10 +505,12 @@ class MathUtil {
             tangents[i * 4 + 3] = handedness; // Append w
         }
 
-        return { vertices, normals, texCoords, indices, tangents };
+        geometryData.tangents = tangents;
+        return geometryData;
+        // return { vertices, normals, texCoords, indices, tangents };
     }
-    
-    
+
+
     calculateTBNV({ vertices, normals, texCoords, indices }: GeometryData): GeometryData {
         const tangents = new Float32Array(vertices.length); // Tangents
         const bitangents = new Float32Array(vertices.length); // Bitangents

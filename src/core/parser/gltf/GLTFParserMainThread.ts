@@ -6,11 +6,7 @@ import MaterialFactory from "core/factories/MaterialFactory";
 import Geometry, { GeometryData } from "core/mesh/Geometry";
 import { PBRMaterialProperties } from "core/mesh/material/MaterialProperties";
 import Skeleton from "core/mesh/Skeleton";
-import {
-    GlbJsonParserRequest,
-    GlbJsonParserResponse, GlbWorkerImage,
-    GlbWorkerMesh
-} from "core/parser/gltf/workers/GLBJsonParserWorker";
+import GLTFParser from "core/parser/gltf/GLTFParser";
 import { GLBWorkerRequest, GLBWorkerResponse } from "core/parser/gltf/workers/GLBWorker";
 import { GLTFWorkerRequest, GLTFWorkerResponse } from "core/parser/gltf/workers/GLTFWorker";
 // import { Attribute } from "core/parser/gltf/workers/GLBJsonParserWorker";
@@ -39,24 +35,11 @@ enum Attribute {
     UV_0 = 6,
     UV_1 = 7,
 }
-
-// const glbWorkerPool = new WorkerPool<GlbJsonParserRequest, GlbJsonParserResponse>(
-//     () => new Worker(new URL('./workers/GLBJsonParserWorker.ts', import.meta.url), { name: 'GLB-Parser-Worker' }),
-//     1
-// );
-export default class GLTFParser {
+export default class GLTFParserMainThread {
     private static readonly gltfWorkerPool = new WorkerPool<GLTFWorkerRequest, GLTFWorkerResponse>();
-    public static readonly glbWorkerPool = new WorkerPool<GlbJsonParserRequest, GlbJsonParserResponse>(
-        () => new Worker(new URL('./workers/GLBJsonParserWorker.ts', import.meta.url), { name: 'GLB-Parser-Worker' }),
-        1
-    );
+    private static readonly glbWorkerPool = new WorkerPool<GLBWorkerRequest, GLBWorkerResponse>();
 
-    public buffers: ArrayBuffer[] = [];
-
-    constructor(public json: GLTFJson,
-                public imageBitmaps: GlbWorkerImage[],
-                public meshes: GlbWorkerMesh[]) {
-        // public meshes: Record<number, Record<Attribute, ArrayBuffer>>) {
+    constructor(public json: GLTFJson, public buffers: ArrayBuffer[], public images: Texture[], public meshes?: Record<number, Record<Attribute, ArrayBuffer>>) {
         DebugUtil.addToWindowObject('gltf', this);
         console.log('GLTF JSON', json)
     }
@@ -103,7 +86,7 @@ export default class GLTFParser {
         const usedSkeletons = new JavaMap<number, Skeleton>();
         const usedMaterials = new JavaMap<string, Mesh>();
         const nodesToEntity = new JavaMap<number, EntityId>();
-        console.time('Create meshes')
+        console.time('Create meshes MAIN THREAD')
         const buildNode = (array: EntityId[], nodeIndex: number, parentTransform?: Transform): EntityId[] => {
             const node = this.json.nodes[nodeIndex];
             const entity = entityManager.createEntity(node.name);
@@ -118,22 +101,23 @@ export default class GLTFParser {
             }
 
             if (typeof node.mesh === 'number') {
-                const mesh = this.meshes[node.mesh];
+                const mesh = this.json.meshes[node.mesh];
+                if (mesh.primitives.length > 1) {
+                    console.warn('MORE than one PRIMITIVES', mesh)
+                }
+                for (const primitive of mesh.primitives) {
+                    const geometry = this.createGeometry(mesh.name, primitive, geometryFactory);
 
-                const geometry: Geometry = geometryFactory.createGeometryFromInterleaved(mesh.name,
-                    VertexShaderName.LIT_TANGENTS_VEC4,
-                    new Float32Array(mesh.data),
-                    new Uint32Array(mesh.indices));
-
-                const gltfMaterial = this.json.materials[mesh.material];
-                const matName = gltfMaterial.name || `unnamed-mat-${Math.random()}`;
-                if (usedMaterials.get(matName)) {
-                    const usedMesh = usedMaterials.get(matName)!
-                    entityManager.addComponents(entity, [
-                        new Mesh(usedMesh.pipelineId, geometry,
-                            usedMesh.material, usedMesh.instanceBuffers, usedMesh.label)
-                    ]);
-                } else {
+                    const gltfMaterial = this.json.materials[primitive.material];
+                    const matName = gltfMaterial.name || `unnamed-mat-${Math.random()}`;
+                    if (usedMaterials.get(matName)) {
+                        const usedMesh = usedMaterials.get(matName)!
+                        entityManager.addComponents(entity, [
+                            new Mesh(usedMesh.pipelineId, geometry,
+                                usedMesh.material, usedMesh.instanceBuffers, usedMesh.label)
+                        ]);
+                        continue;
+                    }
                     const pbr = gltfMaterial.pbrMetallicRoughness || {};
                     const baseColorFactor = pbr.baseColorFactor || [1.0, 1.0, 1.0, 1.0];
                     const metallicFactor = pbr.metallicFactor ?? 1.0;
@@ -171,8 +155,8 @@ export default class GLTFParser {
                     entityManager.addComponents(entity, [gpuMesh]);
                     usedMaterials.set(matName, gpuMesh);
                 }
+
             }
-            // }
 
             if (typeof node.skin === 'number') {
                 // if (!usedSkeletons.has(node.skin)) {
@@ -205,14 +189,12 @@ export default class GLTFParser {
             buildNode(arr, sceneNode, rootTransform);
         }
 
-        console.timeEnd('Create meshes');
+        console.timeEnd('Create meshes MAIN THREAD');
         return arr;
     }
 
     private getTextureAtIndex(texture: number, textureManager: TextureManager) {
-        // return this.images[this.json.textures[texture].source];
-        const img = this.imageBitmaps[this.json.textures[texture].source];
-        return textureManager.addPreloadedToGlobalTexture(img.name, img.imageBitmaps);
+        return this.images[this.json.textures[texture].source];
     }
 
     private parseTransform(node: GLTFNode) {
@@ -284,7 +266,7 @@ export default class GLTFParser {
 
         // console.log('start', (bufferView.byteOffset || 0), (accessor.byteOffset || 0), (bufferView.byteOffset || 0) + (accessor.byteOffset || 0))
         // console.log(`Start: ${start};componentType:${componentSize};elementsPerVertex: ${elementsPerVertex}; totalVertices: ${totalVertices}; stride: ${stride}`, accessor, bufferView,
-        // sourceBuffer.byteLength, targetBuffer.byteLength);
+            // sourceBuffer.byteLength, targetBuffer.byteLength);
 
         for (let i = 0; i < totalVertices; i++) {
             const offset = start + i * stride;
@@ -376,32 +358,65 @@ export default class GLTFParser {
         }
     }
 
-    public static async parseGlb(rootDir: string, relativePath: string, textureManager: TextureManager): Promise<GLTFParser> {
-        console.log(`LOADING ${rootDir + relativePath} GLB`)
-        return fetch(rootDir + relativePath)
-            .then(res => res.arrayBuffer())
-            .then(buffer => this.glbWorkerPool.submit({ binary: buffer }, [buffer]))
-            .then(resp => new GLTFParser(resp.json, resp.imageBitmaps, resp.meshes));
-        // return glbWorkerPool.submit({ rootDir, relativePath })
-        // return this.glbWorkerPool.submit({ rootDir, relativePath })
-        //     .then(response => {
-        //         console.log(`LOADING ${rootDir + relativePath} GLB`)
-        //         return new GLTFParser(response.json, response.imageBitmaps, response.meshes);
-        //     });
-        // const worker = new Worker(new URL('./workers/GLBJsonParserWorker.ts', import.meta.url), { name: 'GLB-Parser-Worker-1' });
-        // worker.postMessage({ rootDir, relativePath });
-        // const workerPromise = new Promise(resolve => worker.onmessage = res => resolve(res.data));
+    public static async parseGlb(rootDir: string, relativePath: string, textureManager: TextureManager): Promise<GLTFParserMainThread> {
+        const fileArrayBuffer = await fetch(rootDir + relativePath).then(res => res.arrayBuffer());
+        const dataView = new DataView(fileArrayBuffer);
 
-        // return workerPromise.then(result => {
-        //     console.timeEnd(`LOADING ${rootDir + relativePath} GLB`)
-        //     console.log('RECEIVE MESSAGE: ', performance.now())
-        //
-        //     // @ts-ignore
-        //     return new GLTFParser(result.json, result.imageBitmaps, result.meshes)
-        // });
+        // read headers
+        const magic = dataView.getUint32(0, true);
+        if (magic !== 0x46546C67) { // "glTF"
+            throw new Error('Invalid GLB file');
+        }
+
+        const version = dataView.getUint32(4, true);
+        if (version !== 2) {
+            throw new Error('Unsupported GLB version');
+        }
+
+        const length = dataView.getUint32(8, true);
+
+        // Read JSON chunk
+        const jsonChunkLength = dataView.getUint32(12, true);
+        const jsonChunkType = dataView.getUint32(16, true);
+        if (jsonChunkType !== 0x4E4F534A) { // "JSON"
+            throw new Error('Expected JSON chunk in GLB');
+        }
+        const jsonChunk = new Uint8Array(fileArrayBuffer, 20, jsonChunkLength);
+        const json = JSON.parse(new TextDecoder().decode(jsonChunk));
+
+        // Read binary chunk
+        const binaryChunkOffset = 20 + jsonChunkLength;
+        const binaryChunkType = dataView.getUint32(binaryChunkOffset + 4, true);
+        if (binaryChunkType !== 0x004E4942) { // "BIN"
+            throw new Error('Expected BIN chunk in GLB');
+        }
+
+        // const buffer = fileArrayBuffer.slice(binaryChunkOffset + 8)
+
+        this.glbWorkerPool.addWorker(new Worker(new URL('./workers/GLBWorker.ts', import.meta.url), { name: 'GLB-Worker-1' }))
+        this.glbWorkerPool.addWorker(new Worker(new URL('./workers/GLBWorker.ts', import.meta.url), { name: 'GLB-Worker-2' }))
+        this.glbWorkerPool.addWorker(new Worker(new URL('./workers/GLBWorker.ts', import.meta.url), { name: 'GLB-Worker-3' }))
+        this.glbWorkerPool.addWorker(new Worker(new URL('./workers/GLBWorker.ts', import.meta.url), { name: 'GLB-Worker-4' }))
+
+        // this.glbWorkerPool.addWorker(new Worker(new URL('./workers/GLBWorker.ts', import.meta.url), { name: 'GLB-Worker-5' }))
+        // this.glbWorkerPool.addWorker(new Worker(new URL('./workers/GLBWorker.ts', import.meta.url), { name: 'GLB-Worker-6' }))
+        // this.glbWorkerPool.addWorker(new Worker(new URL('./workers/GLBWorker.ts', import.meta.url), { name: 'GLB-Worker-7' }))
+        // this.glbWorkerPool.addWorker(new Worker(new URL('./workers/GLBWorker.ts', import.meta.url), { name: 'GLB-Worker-8' }))
+
+        console.log('GLB JSON: ', json);
+        return Promise.all([
+            this.parseBuffers(rootDir, json, fileArrayBuffer, binaryChunkOffset + 8),
+            json.images
+                ? this.parseImages(rootDir, json, textureManager, fileArrayBuffer, binaryChunkOffset + 8)
+                : Promise.resolve([]),
+        ])
+            .then(([buffers, textures]) => {
+                this.glbWorkerPool.shutdown();
+                return new GLTFParserMainThread(json, buffers, textures);
+            });
     }
 
-    public static async parseGltf(rootDir: string, gltfPath: string, binaryPath: string, textureManager: TextureManager): Promise<GLTFParser> {
+    public static async parseGltf(rootDir: string, gltfPath: string, binaryPath: string, textureManager: TextureManager): Promise<GLTFParserMainThread> {
         const [json, binary] = await Promise.all([
             fetch(rootDir + gltfPath).then(res => res.json()),
             fetch(rootDir + binaryPath).then(res => res.arrayBuffer())
@@ -421,7 +436,7 @@ export default class GLTFParser {
 
         this.gltfWorkerPool.shutdown();
         // @ts-ignore
-        return new GLTFParser(json, buffers, images);
+        return new GLTFParserMainThread(json, buffers, images);
     }
 
     private static async parseImages(rootPath: string, json: GLTFJson, textureManager: TextureManager, glbBinaryData?: ArrayBuffer, offset: number = 0): Promise<Texture[]> {
@@ -440,11 +455,11 @@ export default class GLTFParser {
                 const bufferView = json.bufferViews[image.bufferView];
                 const mimeType = image.mimeType!;
                 const slice = glbBinaryData!.slice(offset + bufferView.byteOffset!, offset + bufferView.byteOffset! + bufferView.byteLength);
-                // promises.push(
-                //     this.glbWorkerPool.submit(
-                //         { buffer: slice, mimeType }, [slice])
-                //         .then(({ imageBitmap }) => textureManager
-                //             .addPreloadedToGlobalTexture(bufferView.name, imageBitmap)));
+                promises.push(
+                    this.glbWorkerPool.submit(
+                        { buffer: slice, mimeType }, [slice])
+                        .then(({ imageBitmap }) => textureManager
+                            .addPreloadedToGlobalTexture(bufferView.name, imageBitmap)));
             } else {
                 console.error('Image: ', image);
                 throw new Error("Unsupported texture format");
