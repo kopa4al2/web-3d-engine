@@ -2,7 +2,7 @@ import CameraComponent from 'core/components/camera/CameraComponent';
 import Component from 'core/components/Component';
 import BoundingSphere from 'core/physics/BoundingSphere';
 import { mat3, mat4, vec3, vec4 } from 'gl-matrix';
-import DebugUtil from 'util/DebugUtil';
+import DebugUtil from '../../util/debug/DebugUtil';
 
 export class FrustumPlane {
     constructor(public normal: vec3,

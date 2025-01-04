@@ -1,19 +1,25 @@
-import UILayout from "../UILayout";
+// @ts-nocheck
+import RightMenu from "../RightMenu";
 
 export default class FpsCounter {
 
-    private counter;
+    public static counter;
 
-    constructor(private layout: UILayout) {
-        const folder = layout.addFolder('FPS', true);
-        // const folder = layout.newPane('FPS');
-        this.counter = folder.addBlade({ view: 'fpsgraph', label: 'fps', rows: 1 })
+    static begin() {
+        this.counter.begin();
+    }
+
+    static end() {
+        this.counter.end();
+    }
+
+    constructor(layout: RightMenu) {
+        // this.counter = layout.getTopLevelContainer('FPS')
+        //     .addBlade({ view: 'fpsgraph', label: 'fps', rows: 1 })
     }
 
     tick() {
-        // @ts-ignore
-        this.counter.end();
-        // @ts-ignore
-        this.counter.begin();
+        // this.counter.end();
+        // this.counter.begin();
     }
 }

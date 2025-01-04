@@ -11,11 +11,14 @@ export interface GeometryData {
     indices: number[] | BufferData;         // Flat array of indices
     tangents: number[] | BufferData;
     bitangents?: number[] | BufferData;
+    weights?: BufferData,
+    joints?: BufferData,
 }
 
 export interface GeometryDescriptor {
     vertexLayout: VertexLayout,
-    vertexShader: VertexShaderName
+    vertexShader: VertexShaderName,
+    data?: any,
 }
 
 export default class Geometry {

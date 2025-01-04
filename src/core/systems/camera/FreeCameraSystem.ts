@@ -47,8 +47,7 @@ export default class FreeCameraSystem implements UpdateSystem {
                 camera.targetOrientation,
                 camera.lerpFactor * deltaTime
             );
-            // const smoothFactor = 10.0;
-            // vec3.lerp(camera.euler.asVec3(), camera.euler.asVec3(), camera.targetEuler.asVec3(), smoothFactor * deltaTime);
+            
             this.updateCameraVectors(camera);
             const accelerationVector = vec3.create();
 
@@ -65,10 +64,10 @@ export default class FreeCameraSystem implements UpdateSystem {
                 vec3.scaleAndAdd(accelerationVector, accelerationVector, camera.right, camera.acceleration * deltaTime);
             }
             if (input[' ']) {
-                vec3.scaleAndAdd(camera.position, camera.position, camera.up, camera.acceleration * deltaTime * 0.75);
+                vec3.scaleAndAdd(camera.position, camera.position, camera.up, camera.acceleration * deltaTime * 0.25);
             }
             if (input['shift']) {
-                vec3.scaleAndAdd(camera.position, camera.position, camera.up, -camera.acceleration * deltaTime * 0.75);
+                vec3.scaleAndAdd(camera.position, camera.position, camera.up, -camera.acceleration * deltaTime * 0.25);
             }
 
 

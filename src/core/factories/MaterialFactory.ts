@@ -1,16 +1,17 @@
-import Graphics, {RenderPass} from "core/Graphics";
-import Material, {MaterialDescriptor} from 'core/mesh/material/Material';
-import MaterialProperties, {NOOP_MATERIAL, TerrainMaterialProperties} from 'core/mesh/material/MaterialProperties';
-import {FragmentShaderName} from 'core/resources/cpu/CpuShaderData';
+import Graphics, { RenderPass } from "core/Graphics";
+import Material, { MaterialDescriptor } from 'core/mesh/material/Material';
+import MaterialProperties, { NOOP_MATERIAL, TerrainMaterialProperties } from 'core/mesh/material/MaterialProperties';
+import { FragmentShaderName } from 'core/resources/cpu/CpuShaderData';
 import {
     PBR_MATERIAL_STRUCT,
     PHONG_MATERIAL_STRUCT,
     TERRAIN_MATERIAL_STRUCT,
     UNLIT_MATERIAL_STRUCT
 } from 'core/resources/shader/DefaultBindGroupLayouts';
-import {BufferData, BufferUsage} from "core/resources/gpu/BufferDescription";
-import {PipelineOptions} from 'core/resources/gpu/GpuShaderData';
+import { BufferData, BufferUsage } from "core/resources/gpu/BufferDescription";
+import { PipelineOptions } from 'core/resources/gpu/GpuShaderData';
 import ResourceManager from "core/resources/ResourceManager";
+import Globals from '../../engine/Globals';
 
 export interface MaterialBehaviour {
     setBindGroup: (renderPass: RenderPass) => void,
@@ -19,37 +20,81 @@ export interface MaterialBehaviour {
 
 export default class MaterialFactory {
 
-    constructor(private resourceManager: ResourceManager) {
+    protected readonly materialLabels = new Map<string, Material>();
+
+    constructor(protected resourceManager: ResourceManager) {
     }
 
     public skybox() {
-        return new Material('SkyBox', {
-            bindGroupLayouts: [],
-            properties: {
-                cullFace: 'none',
-                depthAttachment: {
-                    depthWriteEnabled: false,
-                    disabled: true,
-                    // TODO: Boilerplate
-                    format: "depth24plus",
-                    depthCompare: 'less'
-                }
-            },
-            fragmentShader: FragmentShaderName.SKY_BOX
-        }, NOOP_MATERIAL);
+        if (!this.materialLabels.has('skybox')) {
+            this.materialLabels.set('skybox', new Material('SkyBox', {
+                bindGroupLayouts: [],
+                properties: {
+                    cullFace: 'none',
+                    depthAttachment: {
+                        depthWriteEnabled: false,
+                        disabled: false,
+                        format: Globals.DEFAULT_DEPTH_FORMAT,
+                        depthCompare: 'less'
+                    }
+                },
+                fragmentShader: FragmentShaderName.SKY_BOX
+            }, NOOP_MATERIAL));
+        }
+
+        return this.materialLabels.get('skybox')!;
     }
 
-    public terrainMaterial(label: string = 'TerrainMaterial',
-                           data: TerrainMaterialProperties,
-                           overrides: Partial<PipelineOptions> = {}) {
-        return new Material(label,
-            {
-                ...MaterialFactory.TERRAIN_MATERIAL_DESCRIPTOR,
+    public pbrMaterial(label: string,
+                       data: MaterialProperties,
+                       overrides: Partial<PipelineOptions> = {}) {
+
+        if (!this.materialLabels.has(label)) {
+
+            const descriptor: MaterialDescriptor = {
+                ...MaterialFactory.PBR_MATERIAL_DESCRIPTOR,
                 properties: {
-                    ...MaterialFactory.TERRAIN_MATERIAL_DESCRIPTOR,
+                    ...MaterialFactory.PBR_MATERIAL_DESCRIPTOR.properties,
                     ...overrides
                 }
-            }, data);
+            };
+
+            const fns: MaterialBehaviour[] = [];
+            for (const bindGroupLayout of descriptor.bindGroupLayouts) {
+                const layoutId = this.resourceManager.getOrCreateLayout(bindGroupLayout);
+                const bufferData = data.getBufferData();
+
+                const buffer = this.resourceManager.createBuffer({
+                    byteLength: bufferData.byteLength,
+                    label: 'Material',
+                    usage: BufferUsage.UNIFORM | BufferUsage.COPY_DST,
+                }, bufferData)
+
+                const bindGroup = this.resourceManager.createBindGroup(layoutId, {
+                    label: 'PBR',
+                    entries: bindGroupLayout.entries.map((entry, index) => ({
+                        binding: index,
+                        name: entry.name,
+                        type: entry.type,
+                        bufferId: buffer
+                    }))
+                });
+
+                fns.push({
+                    setBindGroup: (renderPass: RenderPass) => {
+                        // TODO: If more bind groups are needed this shouldn't be hardcoded
+                        renderPass.setBindGroup(1, bindGroup);
+                    },
+                    updateBuffer: (graphics: Graphics, data: BufferData) => {
+                        graphics.writeToBuffer(buffer, data);
+                    }
+                });
+            }
+
+            this.materialLabels.set(label, new Material(label, descriptor, data, fns));
+        }
+
+        return this.materialLabels.get(label)!;
     }
 
     public litMaterial(label: string = 'LitMaterial',
@@ -100,6 +145,19 @@ export default class MaterialFactory {
         return new Material(label, descriptor, data, fns);
     }
 
+    public terrainMaterial(label: string = 'TerrainMaterial',
+                           data: TerrainMaterialProperties,
+                           overrides: Partial<PipelineOptions> = {}) {
+        return new Material(label,
+            {
+                ...MaterialFactory.TERRAIN_MATERIAL_DESCRIPTOR,
+                properties: {
+                    ...MaterialFactory.TERRAIN_MATERIAL_DESCRIPTOR,
+                    ...overrides
+                }
+            }, data);
+    }
+
     // public unlit(label: string, pipelineOptions: Partial<PipelineOptions>, materialProperties: MaterialProperties) {
     //     return new Material(label,
     //         {
@@ -127,71 +185,25 @@ export default class MaterialFactory {
     //     })
     // }
 
-    public pbrMaterial(label: string = 'PBRMaterial',
-                       data: MaterialProperties,
-                       overrides: Partial<PipelineOptions> = {}) {
-        const descriptor: MaterialDescriptor = {
-            ...MaterialFactory.PBR_MATERIAL_DESCRIPTOR,
-            properties: {
-                ...MaterialFactory.PBR_MATERIAL_DESCRIPTOR.properties,
-                ...overrides
-            }
-        };
-
-        const fns: MaterialBehaviour[] = [];
-        for (const bindGroupLayout of descriptor.bindGroupLayouts) {
-            const layoutId = this.resourceManager.getOrCreateLayout(bindGroupLayout);
-            const bufferData = data.getBufferData();
-
-            const buffer = this.resourceManager.createBuffer({
-                byteLength: bufferData.byteLength,
-                label: 'Material',
-                usage: BufferUsage.UNIFORM | BufferUsage.COPY_DST,
-            }, bufferData)
-
-            const bindGroup = this.resourceManager.createBindGroup(layoutId, {
-                label: 'PBR',
-                entries: bindGroupLayout.entries.map((entry, index) => ({
-                    binding: index,
-                    name: entry.name,
-                    type: entry.type,
-                    bufferId: buffer
-                }))
-            });
-
-            fns.push({
-                setBindGroup: (renderPass: RenderPass) => {
-                    // TODO: If more bind groups are needed this shouldn't be hardcoded
-                    renderPass.setBindGroup(1, bindGroup);
-                },
-                updateBuffer: (graphics: Graphics, data: BufferData) => {
-                    graphics.writeToBuffer(buffer, data);
-                }
-            });
-        }
-
-        return new Material(label, descriptor, data, fns);
-    }
-
     public static readonly UNLIT_MATERIAL_DESCRIPTOR: MaterialDescriptor = {
-        bindGroupLayouts: [{label: 'UnlitMaterial', entries: [UNLIT_MATERIAL_STRUCT]}],
+        bindGroupLayouts: [{ label: 'UnlitMaterial', entries: [UNLIT_MATERIAL_STRUCT] }],
         properties: {},
         fragmentShader: FragmentShaderName.UNLIT
     };
     public static readonly TERRAIN_MATERIAL_DESCRIPTOR: MaterialDescriptor = {
-        bindGroupLayouts: [{label: 'TerrainMaterial', entries: [TERRAIN_MATERIAL_STRUCT]}],
+        bindGroupLayouts: [{ label: 'TerrainMaterial', entries: [TERRAIN_MATERIAL_STRUCT] }],
         properties: {},
         fragmentShader: FragmentShaderName.TERRAIN
     }
     public static readonly PHONG_MATERIAL_DESCRIPTOR: MaterialDescriptor = {
-        bindGroupLayouts: [{label: 'PhongMaterial', entries: [PHONG_MATERIAL_STRUCT]}],
+        bindGroupLayouts: [{ label: 'PhongMaterial', entries: [PHONG_MATERIAL_STRUCT] }],
         properties: {},
         fragmentShader: FragmentShaderName.PHONG_LIT
     }
 
     public static readonly PBR_MATERIAL_DESCRIPTOR: MaterialDescriptor = {
         bindGroupLayouts: [
-            {label: 'PBRMaterial', entries: [PBR_MATERIAL_STRUCT]},
+            { label: 'PBRMaterial', entries: [PBR_MATERIAL_STRUCT] },
         ],
         properties: {},
         fragmentShader: FragmentShaderName.PBR,

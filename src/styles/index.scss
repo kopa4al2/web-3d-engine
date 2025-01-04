@@ -1,0 +1,176 @@
+@use '@tweakpane/core/lib/sass/tp';
+
+:root {
+  --gpu-api-width: 250px;
+  --top-menu-height: 50px;
+  --top-menu-width: max(min(70%, 500px), 30%);
+}
+
+body {
+  overflow: hidden;
+}
+
+.top-menu {
+  @extend %tp-theming;
+  position: relative;
+  margin: auto;
+  z-index: 999;
+  display: flex;
+  width: var(--top-menu-width);
+  height: var(--top-menu-height);
+  justify-content: center;
+
+  & .center {
+    display: flex;
+    gap: 24px;
+
+
+    & .menu-item {
+      position: relative;
+      width: calc(#{tp.cssVar('container-unit-size')} * 5);
+      height: calc(#{tp.cssVar('container-unit-size')} * 2);
+      padding: 0 tp.cssVar('blade-h-padding') 0 tp.cssVar('blade-h-padding');
+      align-items: center;
+      justify-content: center;
+      display: flex;
+      background: tp.cssVar('button-bg');
+
+      &:hover {
+        cursor: pointer;
+        background: tp.cssVar('button-bg-hover');
+
+        & .body {
+          transform: translateY(40%);
+          transition: transform ease-out 0.25s;
+        }
+      }
+
+      & .drop-down-toggle {
+        color: tp.cssVar('button-fg');
+      }
+
+      & .body {
+        z-index: 10;
+        background: tp.cssVar('container-bg-hover');
+        box-shadow: tp.cssVar('base-shadow');
+        border-radius: tp.cssVar('base-border-radius');
+        position: absolute;
+        top: 0;
+        left: 0;
+        margin: 0;
+        padding: 0px;
+        width: 150%;
+        height: max-content;
+        transform: translateY(-100%);
+        transition: transform ease-in 0.125s;
+
+        display: flex;
+        flex-direction: column;
+
+        list-style: none;
+
+        & > li.body-item {
+          cursor: pointer;
+          text-align: center;
+          padding: calc(#{tp.cssVar('blade-h-padding')} * 2);
+          background: tp.cssVar('button-bg');
+          color: tp.cssVar('button-fg');
+
+          &:hover {
+            background: tp.cssVar('button-bg-hover');
+          }
+        }
+      }
+    }
+  }
+
+  & .right {
+
+  }
+}
+
+.gpu-api-switch {
+  z-index: 9999;
+  position: absolute;
+  width: var(--gpu-api-width);
+}
+
+
+html, body {
+  margin: 0 !important;
+  padding: 0;
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  background: #222222;
+  zoom: 1 !important;
+}
+
+.canvas-wrapper {
+  /*position: absolute;*/
+  left: 0;
+  top: 0;
+  width: 100vw;
+  /*height: 100vh;*/
+  max-width: 100vw;
+  /*max-height: 100vh;*/
+
+  background: #FF121255;
+  overflow: hidden;
+  display: none;
+}
+
+canvas {
+  z-index: 1;
+  background: #00000000;
+}
+
+.menu {
+  position: absolute;
+  z-index: 999;
+  /*display: flex;*/
+  /*flex-direction: row;*/
+  /*gap: 10px;*/
+}
+
+.menu.vertical {
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-height: 99vh;
+  top: 4px;
+  right: 4px;
+}
+
+.menu.horizontal {
+  top: 4px;
+  left: 400px;
+  display: flex;
+  gap: 5px;
+}
+
+.menu [class^='tp-'] {
+  user-select: none;
+  /*font-size: 1.2rem;*/
+}
+
+.meta {
+  position: absolute;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: #FFFFFFAA;
+  top: 0;
+  right: 0;
+  width: max-content;
+  height: max-content;
+}
+
+
+//#global-controls {
+//  position: absolute;
+//  z-index: 9999;
+//  left: 0;
+//  top: 0;
+//  background: rgba(255, 255, 255, 150);
+//}

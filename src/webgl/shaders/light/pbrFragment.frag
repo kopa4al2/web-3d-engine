@@ -46,7 +46,7 @@ struct TextureMap {
     vec2 uv_scale;
     uint texture_layer;
     float _padding;
-    //    vec3 _padding;
+//    vec3 _padding;
 };
 
 layout (std140) uniform PBRMaterial {
@@ -94,11 +94,14 @@ in vec3 vBitangent;
 out vec4 fragColor;
 
 vec3 calculateSpotlight(SpotLight spotlight, vec3 fragPosition, vec3 normal,
-                        vec3 viewDir, vec3 baseColor, float roughnessSquared, float metallic, vec3 F0);
+vec3 viewDir, vec3 baseColor, float roughnessSquared, float metallic, vec3 F0);
 
 void main() {
-    vec2 uv = albedo_map.uv_scale * vTextureCoord + albedo_map.uv_offset;
-    vec4 baseColor = texture(TexturesArray, vec3(uv, albedo_map.texture_layer)) * base_color;
+    highp vec2 normalizedUv = fract(vTextureCoord);
+
+    vec2 albedoUv = albedo_map.uv_scale * normalizedUv + albedo_map.uv_offset;
+    albedoUv = clamp(albedoUv, albedo_map.uv_offset, albedo_map.uv_offset + albedo_map.uv_scale - vec2(EPSILON));
+    vec4 baseColor = texture(TexturesArray, vec3(albedoUv, albedo_map.texture_layer)) * base_color;
 
     // TODO: Hard coded alpha mask, by default enabled for all
     if (baseColor.a <= 0.5) {
@@ -106,14 +109,16 @@ void main() {
     }
 
     // --- Metallic and Roughness ---
-    vec2 metallicRoughtnessUv = metallic_map.uv_scale * vTextureCoord + metallic_map.uv_offset;
+    vec2 metallicRoughtnessUv = metallic_map.uv_scale * normalizedUv + metallic_map.uv_offset;
+    metallicRoughtnessUv = clamp(metallicRoughtnessUv, metallic_map.uv_offset, metallic_map.uv_offset + metallic_map.uv_scale - vec2(EPSILON));
     vec3 metallicRoughness = texture(TexturesArray, vec3(metallicRoughtnessUv, metallic_map.texture_layer)).rgb;
     float metallic = metallicRoughness.b;
     float roughness = metallicRoughness.g;
 
     // --- Normal Mapping ---
     mat3 TBN = mat3(vTangent, vBitangent, vNormal);
-    vec2 normalUv = normal_map.uv_scale * vTextureCoord + normal_map.uv_offset;
+    vec2 normalUv = normal_map.uv_scale * normalizedUv + normal_map.uv_offset;
+    normalUv = clamp(normalUv, normal_map.uv_offset, normal_map.uv_offset + normal_map.uv_scale - vec2(EPSILON));
     vec3 normalTangent = texture(TexturesArray, vec3(normalUv, normal_map.texture_layer)).rgb;
     normalTangent = normalize(normalTangent * 2.0 - 1.0);
     vec3 normalWorld = normalize(TBN * normalTangent);
@@ -136,7 +141,7 @@ void main() {
     for (uint i = 0u; i < numSpotLights; i++) {
         SpotLight spotLight = spotLights[i];
         finalColor += calculateSpotlight(spotLight, vFragPosition, normalWorld,
-                        viewDir, baseColor.rgb, roughnessSquared, metallic, F0);
+        viewDir, baseColor.rgb, roughnessSquared, metallic, F0);
     }
 
     // --- Point Lights ---
@@ -221,11 +226,14 @@ void main() {
     vec3 ambient = vec3(0.1);
     finalColor += ambient * (1.0 - metallic);
 
-    //    fragColor = baseColor;
-    fragColor = vec4(finalColor, base_color.a);
+    fragColor = vec4(finalColor, baseColor.a);
+    //    fragColor = texture(TexturesArray, vec3(albedoUv, albedo_map.texture_layer));
+    //    vec2 normalizedUv = fract(normalizedUv);
+    //    vec2 uv = albedo_map.uv_scale * normalizedUv + albedo_map.uv_offset;
+    //    vec2 subRegionEnd = albedo_map.uv_offset + vec2(2048, 2048) * albedo_map.uv_scale;
+    //    uv = clamp(uv, albedo_map.uv_offset, subRegionEnd);
+    //    fragColor = texture(TexturesArray, vec3(uv, albedo_map.texture_layer));
     //    fragColor = vec4(normalWorld, base_color.a);
-    //    fragColor = vec4(float(numDirectionalLights) / float(MAX_DIRECTIONAL_LIGHTS) , float(numPointLights) / float(MAX_POINT_LIGHTS), 0.0, 1.0);
-    //    fragColor = texture(TexturesArray, vec3(vTextureCoord, normal_map.texture_layer));
 }
 
 

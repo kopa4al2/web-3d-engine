@@ -1,6 +1,6 @@
 import Component from 'core/components/Component';
 import { mat4, quat, vec2, vec3, vec4 } from "gl-matrix";
-import DebugUtil from 'util/DebugUtil';
+import DebugUtil from '../../../util/debug/DebugUtil';
 import logger from 'util/Logger';
 import MathUtil from 'util/MathUtil';
 

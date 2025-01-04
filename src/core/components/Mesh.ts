@@ -44,23 +44,12 @@ class Mesh implements Component {
     constructor(public pipelineId: PipelineId,
                 public geometry: Geometry,
                 public material: Material,
-                public transform: Transform = defaultTransform(),
                 public instanceBuffers?: InstanceBuffer[],
-                public subMesh: Mesh[] = []) {
+                public label = 'N/A') {
     }
 
     public setBindGroup(graphics: Graphics, renderPass: RenderPass) {
         this.material.setBindGroups(graphics, renderPass);
-    }
-}
-
-export class MeshGraph extends Mesh {
-    constructor(pipelineId: PipelineId,
-                geometry: Geometry,
-                material: Material,
-                modelMatrix: Transform = defaultTransform(),
-                instanceBuffers?: InstanceBuffer[]) {
-        super(pipelineId, geometry, material, modelMatrix, instanceBuffers);
     }
 }
 

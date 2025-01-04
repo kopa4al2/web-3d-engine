@@ -1,16 +1,15 @@
 import Component, { ComponentId } from 'core/components/Component';
 import { DefaultCacheable } from 'core/components/Cacheable';
 import { SdiColor, SdiDirection } from "../../types/engine-types/EngineTypes";
+import { quat, vec3, vec4 } from 'gl-matrix';
 
 export interface DirectionalLightProps {
-    direction: SdiDirection,
-    // direction: [number, number, number, number],
+    direction: vec4,
     color: SdiColor,
-    // color: [number, number, number, number],
     intensity: number,
 }
 
-class DirectionalLight extends DefaultCacheable<DirectionalLightProps> implements Component {
+class DirectionalLight implements Component {
     public static readonly ID = Symbol('DirectionalLight');
     public static readonly MAX_DIRECTION_LIGHTS = 2;
 
@@ -24,21 +23,34 @@ class DirectionalLight extends DefaultCacheable<DirectionalLightProps> implement
 
     public hasChanged: boolean = false;
 
-    constructor(public props: DirectionalLightProps) {
-        super(props);
+    private readonly _data: Float32Array;
+
+    constructor(props: DirectionalLightProps) {
         this.hasChanged = true;
+        this._data = new Float32Array(9);
+        this._data.set(props.direction, 0);
+        this._data.set(props.color.toArray(), 4);
+        this._data[8] = props.intensity;
+    }
+
+    get data() {
+        return this._data;
     }
 
     get direction() {
-        return this.get('direction');
+        return this._data.subarray(0, 4);
     }
 
     get color() {
-        return this.get('color');
+        return this._data.subarray(4, 8);
     }
 
     get intensity() {
-        return this.get('intensity');
+        return this._data[8];
+    }
+
+    set intensity(newIntensity: number) {
+        this._data[8] = newIntensity;
     }
 }
 

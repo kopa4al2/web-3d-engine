@@ -1,14 +1,6 @@
-import * as CamerakitPlugin from '@tweakpane/plugin-camerakit';
-import * as EssentialsPlugin from '@tweakpane/plugin-essentials';
-import DirectionalLight from "core/light/DirectionalLight";
-import directionalLight from "core/light/DirectionalLight";
-import PointLight from "core/light/PointLight";
 import PropertiesManager from "core/PropertiesManager";
 import SdiPerformance from "core/utils/SdiPerformance";
-import { vec3 } from "gl-matrix";
 import { EntitySelectPayload } from 'html/entity-select/EntitySelect';
-import { Pane } from "tweakpane";
-import { SdiColor } from "../types/engine-types/EngineTypes";
 import { addEventListener } from './CustomEvents';
 
 export function enableWireframeSwitch(properties: PropertiesManager, attachTarget?: Element) {
@@ -102,47 +94,6 @@ export function enableGpuGraphicsApiSwitch(properties: PropertiesManager, attach
     });
 }
 
-export function createLightSourceControl(properties: PropertiesManager) {
-    const parent = document.querySelector('.controls') as Element;
-    const element = document.createElement('div');
-    element.innerHTML = `
-        <div>
-            <div>Light source</div>
-            <div style="display: flex">
-                <div class="group">
-                    <label for="light-source-x" id="label-x">X:</label>
-                    <input type="text" id="light-source-x" />
-                </div>
-                <div class="group">
-                    <label for="light-source-y" id="label-y">Y:</label>
-                    <input type="text" id="light-source-y" /> 
-                </div>
-                <div class="group">
-                    <label for="light-source-z" id="label-z">Z:</label>
-                    <input type="text" id="light-source-z" />
-                </div>                
-            </div>
-        </div>
-    `;
-
-    parent.append(element);
-    const [xLabel, xInput] = [...element.querySelectorAll('#label-x, #light-source-x')] as [HTMLLabelElement, HTMLInputElement];
-    const [yLabel, yInput] = [...element.querySelectorAll('#label-y, #light-source-y')] as [HTMLLabelElement, HTMLInputElement];
-    const [zLabel, zInput] = [...element.querySelectorAll('#label-z, #light-source-z')] as [HTMLLabelElement, HTMLInputElement];
-
-    [xInput, yInput, zInput].forEach((el, i) => {
-        el.addEventListener('change', (e: Event) => {
-
-            const sourceX = Number(xInput.value);
-            const sourceY = Number(yInput.value);
-            const sourceZ = Number(zInput.value);
-            xLabel.textContent = `X: ${ sourceX }`;
-            yLabel.textContent = `Y: ${ sourceY }`;
-            zLabel.textContent = `Z: ${ sourceZ }`;
-            properties.updateNestedProperty('light', { sourceX, sourceY, sourceZ, });
-        })
-    });
-}
 
 // export function enableEntitySelect(attachTarget: Element, entities: string[], onAdd: (entity: string) => void) {
 export function enableEntitySelect(attachTarget: Element, entities: string[], onAdd: (entitySelect: EntitySelectPayload) => void) {
