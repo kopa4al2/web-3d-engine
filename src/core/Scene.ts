@@ -111,9 +111,9 @@ export default class Scene {
         if (!transform) {
           // console.log(`Entity: ${entity.description} does not have transform`, mesh);
         } else {
-          // console.log(`Entity: ${entity.description} has position: ${mat4.getTranslation(vec3.create(), transform.getMatrix())}`, mesh);
+          entitiesByMesh.get(mesh).push([entity, transform.worldMatrix]);
+          // console.log(`Entity: ${entity.description} has position: ${mat4.getTranslation(vec3.create(), transform.worldMatrix())}`, mesh);
         }
-        entitiesByMesh.get(mesh).push([entity, transform ? transform.getMatrix() : mat4.create()]);
       } else {
         // console.log('No mesh or pipeline: ', transform, mesh);
       }

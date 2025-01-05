@@ -92,10 +92,10 @@ fn main(input: VertexInput) -> VertexOutput {
     let worldBitangent = normalize(cross(worldNormal, worldTangent) * input.tangent.w);
 
     // Transform position into world space
-    let worldPosition = modelMatrix * skinnedPosition;
+//    let worldPosition = modelMatrix * skinnedPosition;
 
-    output.position = global.projectionViewMatrix * worldPosition; //modelMatrix * skinnedPosition; //global.projectionViewMatrix * modelMatrix * vec4<f32>(input.position, 1.0);
-    output.pixelPosition = (worldPosition).xyz; // (modelMatrix * vec4<f32>(input.position, 1.0)).xyz;
+    output.position = global.projectionViewMatrix * skinnedPosition;
+    output.pixelPosition = (skinnedPosition).xyz;
     output.tangent = worldTangent;
     output.normal = worldNormal;
     output.bitangent = worldTangent;

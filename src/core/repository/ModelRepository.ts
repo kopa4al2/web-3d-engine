@@ -22,8 +22,8 @@ const cacheablePromise = <T>(promise: Promise<T>): () => Promise<T> => {
   let data: T | null = null;
   let i = 0;
   return () => data
-    ? Promise.resolve(data)
-    : promise.then(result => {
+               ? Promise.resolve(data)
+               : promise.then(result => {
       data = result;
       return data;
     });
@@ -52,13 +52,13 @@ class ModelRepository {
     // return this.resourceManager.textureManager.loadCubeMap('assets/environment-map/puresky-2k-hdr/', ['px.hdr', 'nx.hdr', 'py.hdr', 'ny.hdr', 'pz.hdr', 'nz.hdr'], true)
     return this.resourceManager.textureManager.loadCubeMap('assets/environment-map/old-theater-png/', ['px.png', 'nx.png', 'py.png', 'ny.png', 'pz.png', 'nz.png'])
       // return this.resourceManager.textureManager.loadCubeMap('assets/environment-map/forest-4k-png/', ['px.png', 'nx.png', 'py.png', 'ny.png', 'pz.png', 'nz.png'])
-      .then(() => {
-        const geometry = this.geometryFactory.createGeometry('skybox', VertexShaderName.SKY_BOX, Cube.geometry);
-        const material = this.materialFactory.skybox();
-        const pipeline = this.shaderManager.createPipeline(geometry, material, 'SKYBOX');
+               .then(() => {
+                 const geometry = this.geometryFactory.createGeometry('skybox', VertexShaderName.SKY_BOX, Cube.geometry);
+                 const material = this.materialFactory.skybox();
+                 const pipeline = this.shaderManager.createPipeline(geometry, material, 'SKYBOX');
 
-        return new Mesh(pipeline, geometry, material);
-      });
+                 return new Mesh(pipeline, geometry, material);
+               });
   }
 
   async createCrate(cache: boolean = true): Promise<Mesh> {
@@ -69,16 +69,20 @@ class ModelRepository {
     const obj = await cacheablePromise(ObjParser.parseObjFile('assets/advanced/crate/crate.obj'))();
     const geometryData = MathUtil.calculateTangentsVec4(obj.meshes[0]);
     const geometry = this.geometryFactory.createGeometry(`crate-geometry`, VertexShaderName.LIT_TANGENTS_VEC4, geometryData);
-    const [metallicRoughnessMap, albedo, normal] = await Promise.all([
+    const [metallicRoughnessMap, albedo, normal, emissiveMap] = await Promise.all([
       this.resourceManager.textureManager.create1x1Texture(Texture.DEFAULT_METALLIC_ROUGHNESS_MAP,
         new Uint8ClampedArray([255,
           Math.floor(255), // G = Roughness
           Math.floor(255), // B = Metallic
           255,])),
       this.resourceManager.textureManager.addToGlobalTexture('assets/advanced/crate/crate.png'),
-      this.resourceManager.textureManager.addToGlobalTexture('assets/advanced/crate/crateNormal.png')]);
+      this.resourceManager.textureManager.addToGlobalTexture('assets/advanced/crate/crateNormal.png'),
+      this.resourceManager.textureManager.create1x1Texture(Texture.DEFAULT_EMISSIVE_MAP, new Uint8ClampedArray([0, 0, 0, 255]))
+    ]);
     const material = this.materialFactory.pbrMaterial('CrateMaterial',
-      new PBRMaterialProperties(albedo, normal, metallicRoughnessMap, vec4.fromValues(1, 1, 1, 1), vec2.fromValues(1.0, 1.0)));
+      new PBRMaterialProperties({ texture: albedo, alphaCutoff: 0.0, baseColor: vec4.fromValues(1, 1, 1, 1) }, normal,
+        { texture: emissiveMap, strength: 1.0, factor: [0.0, 0.0, 0.0] },
+        metallicRoughnessMap, vec2.fromValues(1.0, 1.0)));
 
     const vertexInstancedBuffer = this.resourceManager.createBuffer({
       label: `crate-vertex-instance`,
@@ -236,11 +240,11 @@ class ModelRepository {
 
     console.time('[Sponza]');
     const sponzaScene = await ModelRepository.cacheables.sponzaAtrium(this.resourceManager.textureManager)()
-      .then(gltf => {
-        console.timeLog('[Sponza]', 'json and loaded textures');
-        return gltf
-          .createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager, this.entityManager);
-      });
+                                             .then(gltf => {
+                                               console.timeLog('[Sponza]', 'json and loaded textures');
+                                               return gltf
+                                                 .createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager, this.entityManager);
+                                             });
     console.timeEnd('[Sponza]');
     this.sceneCache.set('sponza', sponzaScene);
     return sponzaScene;
@@ -252,12 +256,12 @@ class ModelRepository {
     }
 
     console.time('[Sponza GLB]');
-    const sponzaScene = await ModelRepository.cacheables.sponzaAtriumGLB(transform?.localTransform.mat4)()
-      .then(gltf => {
-        console.timeLog('[Sponza GLB]', 'json and loaded textures');
-        return gltf
-          .createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager, this.entityManager);
-      });
+    const sponzaScene = await ModelRepository.cacheables.sponzaAtriumGLB(transform?.localMatrix)()
+                                             .then(gltf => {
+                                               console.timeLog('[Sponza GLB]', 'json and loaded textures');
+                                               return gltf
+                                                 .createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager, this.entityManager);
+                                             });
     console.timeEnd('[Sponza GLB]');
     this.sceneCache.set('sponza', sponzaScene);
     return sponzaScene;
@@ -270,11 +274,11 @@ class ModelRepository {
 
     console.time('[test]');
     const scene = await ModelRepository.cacheables.test(this.resourceManager.textureManager)()
-      .then(gltf => {
-        console.timeLog('[test]', 'json and loaded textures');
-        return gltf
-          .createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager, this.entityManager);
-      });
+                                       .then(gltf => {
+                                         console.timeLog('[test]', 'json and loaded textures');
+                                         return gltf
+                                           .createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager, this.entityManager);
+                                       });
     console.timeEnd('[test]');
     this.sceneCache.set('monkeyHead', scene);
     return scene;
@@ -288,11 +292,11 @@ class ModelRepository {
 
     console.time('[test]');
     const scene = await ModelRepository.cacheables.porche(this.resourceManager.textureManager)()
-      .then(gltf => {
-        console.timeLog('[test]', 'json and loaded textures');
-        return gltf
-          .createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager, this.entityManager);
-      });
+                                       .then(gltf => {
+                                         console.timeLog('[test]', 'json and loaded textures');
+                                         return gltf
+                                           .createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager, this.entityManager);
+                                       });
     console.timeEnd('[test]');
     this.sceneCache.set('test', scene);
     return scene;
@@ -305,11 +309,11 @@ class ModelRepository {
 
     console.time('[Warehouse]');
     const scene = await ModelRepository.cacheables.monster(this.resourceManager.textureManager)()
-      .then(gltf => {
-        console.timeLog('[Warehouse]', 'json and loaded textures');
-        return gltf
-          .createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager, this.entityManager);
-      });
+                                       .then(gltf => {
+                                         console.timeLog('[Warehouse]', 'json and loaded textures');
+                                         return gltf
+                                           .createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager, this.entityManager);
+                                       });
     console.timeEnd('[Warehouse]');
     this.sceneCache.set('Warehouse', scene);
     return scene;
@@ -320,8 +324,8 @@ class ModelRepository {
       return this.sceneCache.get('Midas')!;
     }
 
-    const scene = await ModelRepository.cacheables.midas(transform?.localTransform.mat4)()
-      .then(gltf => gltf.createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager, this.entityManager, transform));
+    const scene = await ModelRepository.cacheables.midas(transform?.localMatrix)()
+                                       .then(gltf => gltf.createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager, this.entityManager, transform));
     this.sceneCache.set('Midas', scene);
     return scene;
   }
@@ -332,12 +336,12 @@ class ModelRepository {
     }
 
     console.time('[FinalWarsMonster]');
-    const scene = await ModelRepository.cacheables.newyork(transform?.localTransform.mat4)()
-      .then(gltf => {
-        console.timeLog('[FinalWarsMonster]', 'json and loaded textures');
-        return gltf
-          .createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager, this.entityManager, transform);
-      });
+    const scene = await ModelRepository.cacheables.newyork(transform?.localMatrix)()
+                                       .then(gltf => {
+                                         console.timeLog('[FinalWarsMonster]', 'json and loaded textures');
+                                         return gltf
+                                           .createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager, this.entityManager, transform);
+                                       });
     console.timeEnd('[FinalWarsMonster]');
     this.sceneCache.set('FinalWarsMonster', scene);
     return scene;
@@ -348,11 +352,10 @@ class ModelRepository {
       return this.sceneCache.get('Scourger')!;
     }
 
-    console.log('Sending mat4 to scourger: ', transform?.localTransform?.mat4);
-    const scene = await ModelRepository.cacheables.scourger(transform?.localTransform.mat4)()
-      .then(gltf =>
-        gltf
-          .createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager, this.entityManager, transform));
+    const scene = await ModelRepository.cacheables.scourger(transform?.localMatrix)()
+                                       .then(gltf =>
+                                         gltf
+                                           .createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager, this.entityManager, transform));
     this.sceneCache.set('Scourger', scene);
     return scene;
   }

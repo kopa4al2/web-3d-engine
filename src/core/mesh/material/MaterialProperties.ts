@@ -1,7 +1,7 @@
 import TerrainGeometry from 'core/components/geometry/TerrainGeometry';
 import Graphics, { BindGroupId, BindGroupLayoutId } from "core/Graphics";
 import { BufferData, BufferId } from "core/resources/gpu/BufferDescription";
-import { vec2, vec4 } from 'gl-matrix';
+import { vec2, vec3, vec4 } from 'gl-matrix';
 import BufferUtils from "../../utils/BufferUtils";
 import Texture from 'core/texture/Texture';
 
@@ -46,42 +46,63 @@ export class PhongMaterialProperties implements MaterialProperties {
  *                 public baseColorFactor: vec4) {
  *     }
  */
+export interface AlbedoProperties {
+    texture: Texture,
+    baseColor?: vec4,
+    alphaCutoff: number
+}
+export interface EmissiveProperties {
+    texture: Texture,
+    factor: vec3,
+    strength: number
+}
+
 export class PBRMaterialProperties implements MaterialProperties {
-    constructor(public albedo: Texture,
+    constructor(public albedo: AlbedoProperties,
                 public normalMap: Texture,
+                public emissive: EmissiveProperties,
                 public metallicRoughnessMap: Texture,
-                public baseColorFactor: vec4,
                 public metallicRoughnessFactor: vec2,
                 ) {
     }
 
     getBufferData(): BufferData {
-        const bufferData = new ArrayBuffer(128);
+        const bufferData = new ArrayBuffer(256);
         const dataView = new DataView(bufferData);
-        
-        let byteOffset = this.setTextureData(dataView, 0, this.albedo.index);
-        // console.log(`Albedo byte offset. Expected: ${32}, Actual: ${byteOffset}`)
+
+        let byteOffset = this.setTextureData(dataView, 0, this.albedo.texture.index, this.albedo.baseColor, this.albedo.alphaCutoff);
+        // console.log(`Albedo byte offset. Expected: ${64}, Actual: ${byteOffset}`)
         byteOffset = this.setTextureData(dataView, byteOffset, this.normalMap.index);
-        // console.log(`normal byte offset. Expected: ${64}, Actual: ${byteOffset}`)
-        byteOffset = this.setTextureData(dataView, byteOffset, this.metallicRoughnessMap.index);
-        // console.log(`metallic roughness byte offset. Expected: ${96}, Actual: ${byteOffset}`)
-        byteOffset = BufferUtils.writeFloatArray(dataView, byteOffset, this.baseColorFactor);
-        byteOffset = BufferUtils.writeFloatArray(dataView, byteOffset, this.metallicRoughnessFactor);
-        // console.log(`metallic roughness factor byte offset. Expected: ${128}, Actual: ${byteOffset}`)
+        // console.log(`normal byte offset. Expected: ${64 * 2}, Actual: ${byteOffset}`)
+        byteOffset = this.setTextureData(dataView, byteOffset, this.emissive.texture.index, vec4.fromValues(this.emissive.factor[0], this.emissive.factor[1], this.emissive.factor[2], this.emissive.strength));
+        // console.log(`Emissive byte offset. Expected: ${64 * 3}, Actual: ${byteOffset}`)
+        byteOffset = this.setTextureData(dataView, byteOffset, this.metallicRoughnessMap.index, vec4.fromValues(this.metallicRoughnessFactor[0], this.metallicRoughnessFactor[1], 1, 1));
+        // console.log(`metallic roughness byte offset. Expected: ${64 * 4}, Actual: ${byteOffset}`)
 
         return new Uint8Array(bufferData);
     }
 
-    private setTextureData(dataView: DataView<ArrayBuffer>, byteOffset: number, textureData: TextureArrayIndex): number {
+    private setTextureData(dataView: DataView<ArrayBuffer>,
+                           byteOffset: number,
+                           textureData: TextureArrayIndex,
+                           colorFactor: vec4 = vec4.fromValues(1, 1, 1, 1),
+                           alphaCutoff: number = 0.0): number {
         byteOffset = BufferUtils.writeFloatArray(dataView, byteOffset, [...textureData.textureUvOffset, ...textureData.textureUvScale]);
-        // return BufferUtils.writeUint32Array(dataView, byteOffset, [textureData.textureLayer, 0, 0, 0])
+
         dataView.setUint32(byteOffset, textureData.textureLayer, true);
         byteOffset += 4;
-        dataView.setUint32(byteOffset, 0, true);
+        if (alphaCutoff > 0) {
+            console.log(`Writing alpha cutoff: ${alphaCutoff} offset: ${byteOffset}`);
+        }
+        dataView.setFloat32(byteOffset, alphaCutoff, true);
         byteOffset += 4;
-        dataView.setUint32(byteOffset, 0, true);
-        byteOffset += 4;
-        byteOffset += 4;
+        byteOffset += 8;
+        byteOffset = BufferUtils.writeFloatArray(dataView, byteOffset, colorFactor)
+        // dataView.setFloat32(byteOffset, colorFactor[0], true);
+        // dataView.setFloat32(byteOffset, colorFactor[1], true);
+        // dataView.setFloat32(byteOffset, colorFactor[2], true);
+        // dataView.setFloat32(byteOffset, colorFactor[3], true);
+        byteOffset += 16;
 
         return byteOffset;
     }

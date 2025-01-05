@@ -85,8 +85,9 @@ export default class Texture {
     public static readonly SHADOW_MAP: string = 'shadow_map';
 
     public static readonly DEFAULT_ALBEDO_MAP: string = 'default_albedo'
-    public static readonly DEFAULT_METALLIC_ROUGHNESS_MAP: string = 'default_metallic_roughness'
     public static readonly DEFAULT_NORMAL_MAP: string = 'default_normal'
+    public static readonly DEFAULT_METALLIC_ROUGHNESS_MAP: string = 'default_metallic_roughness'
+    public static readonly DEFAULT_EMISSIVE_MAP: string = 'default_emissive'
 
 
     constructor(public id: TextureId,

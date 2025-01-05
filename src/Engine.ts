@@ -186,37 +186,42 @@ export default class Engine {
     }, TransformBuilder.position(vec3.fromValues(5, 3, 1)).lookAt([1, 4, 0]).build());
 
     const skeletalTransform = new TransformBuilder()
-      // .reorient()
-      .translate([-4, 2, 0])
+      .translate([0, 2, 0])
       .lookAt([-4, 4, 0])
       .label('MidasRoot')
-      // .scaleBy(0.5)
+      .scaleBy(0.0005)
       .build();
 
     // const skeletalTransform = Transform.fromMat4(lookAtWithOffset(vec3.fromValues(4, 2, 2), vec3.fromValues(2, 2, 0), Transform.UP));
 
-    // const e = this.entityManager.createEntity('Midas');
-    // this.entityManager.addComponents(e, [skeletalTransform]);
-    // this.scene.addEntities(e);
+    const e = this.entityManager.createEntity('Midas');
+    this.entityManager.addComponents(e, [skeletalTransform]);
+    this.scene.addEntities(e);
 
     const scourgeTransform = new TransformBuilder()
-      // .reorient()
-      // .translate([-4, 2, 0])
-      // .lookAt([-4, 4, 0])
+      .translate([-4, 2, 0])
+      .scaleBy(0.05)
+      .lookAt([-6, 2, 0])
       .label('ScourgeRoot')
-      .scaleBy(0.25)
       .build();
-    // const scourgeEntity = this.entityManager.createEntity('Scourge');
-    // this.entityManager.addComponents(scourgeEntity, [scourgeTransform]);
-    // this.scene.addEntities(scourgeEntity);
+    const scourgeEntity = this.entityManager.createEntity('Scourge');
+    this.entityManager.addComponents(scourgeEntity, [scourgeTransform]);
+    this.scene.addEntities(scourgeEntity);
+
+    const sponzaTransform = new TransformBuilder()
+      .scaleBy(2.5)
+      .label('ScourgeRoot')
+      .build();
+    const sponzaEntity = this.entityManager.createEntity('SponzaAtrium');
+    this.entityManager.addComponents(sponzaEntity, [sponzaTransform]);
+    this.scene.addEntities(sponzaEntity);
 
     return Promise.all([
-      // this.addScene('Skeletal', () => this.modelRepository.midas(skeletalTransform)),
+      // this.addScene('Midas', this.modelRepository.midas, skeletalTransform),
       this.addScene('Scourge', this.modelRepository.scourger, scourgeTransform),
       // this.addScene('Skeletal', () => this.modelRepository.newyork()),
       // this.loadAndAddMesh('Crate1', this.modelRepository.createCrate, [-2, 2, 0], 0.005),
-      // this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumGLB),
-      this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumScene),
+      // this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumScene),
     ])
       // .then(() => this.addScene('Skeletal', () => this.modelRepository.finalWarsMonster(skeletalTransform)))
       // .then(() => this.addScene('Monster', this.modelRepository.monster, defaultTransform().translate([3, 3, 0]).lookAt([0, 1, 0])))
@@ -238,10 +243,11 @@ export default class Engine {
           new ViewFrustumSystem(this.entityManager, this.graphicsApi, this.properties),
           new TerrainSystem(this.graphicsApi));
 
-        // this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumScene)
-        //     .then(() => this.loadAndAddMesh('Crate2', this.modelRepository.createCrate, [2, 3, 2], 0.004));
 
-        // skeletalTransform.lookAt(vec3.fromValues(0, 0, 0));
+        // this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumGLB, sponzaTransform);
+
+        this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumScene, TransformBuilder.scale(vec3.fromValues(20.0, 20.0, 20.0)).build())
+          .then(() => this.loadAndAddMesh('Crate2', this.modelRepository.createCrate, [2, 3, 0], 0.005));
       });
 
     // worldCoordinates(this.properties, this.freeCameraComponent, this.projectionMatrix, this.input, this.canvas.parent);
@@ -252,6 +258,17 @@ export default class Engine {
     console.log(`%c Begin loading ${label}`, color);
     // @ts-ignore
     const entities = await scene.bind(this.modelRepository)(transform);
+    if (transform) {
+      let entityTransform = this.entityManager.getComponent<Transform>(entities[0], Transform.ID);
+      while (entityTransform.parent) {
+        entityTransform = entityTransform.parent;
+      }
+
+      entityTransform.parent = transform;
+      transform.children.push(entityTransform);
+      transform.needsCalculate = true;
+    }
+
     this.scene.addEntities(...entities);
     console.log(`%c Finished loading ${label}`, color);
   }
@@ -466,11 +483,17 @@ export default class Engine {
   //     this.scene.addEntity(this.createEntity(`${name}-bounding_sphere`), meshBoundingBox, transform.createModelMatrix())
   // }
   private async loadAndAddMesh(label: string, meshCreator: (cache?: boolean) => Promise<Mesh>, translate: number[] = [0, 0, 0], scaleFactor: number = 1) {
-    console.time(`Loading ${label} took:`);
+    // console.time(`Loading ${label} took:`);
     const mesh = await meshCreator.bind(this.modelRepository)();
     const entity = this.entityManager.createEntity(label);
-    const transform = defaultTransform().scaleBy(scaleFactor).translate(translate);
+    // console.warn('Scaling and translating the mesh is not supported yet, so we are using the default transform');
+    const transform = new Transform(
+      vec3.fromValues(translate[0], translate[1], translate[2]),
+      quat.set(quat.create(), 0, 0, 0, 1),
+      vec3.set(vec3.create(), scaleFactor, scaleFactor, scaleFactor));
+    // const transform = defaultTransform().scale.scaleBy(scaleFactor).translate(translate);
     this.entityManager.addComponents(entity, [mesh, transform]);
+    // this.entityManager.addComponents(entity, [mesh]);
     this.scene.addEntities(entity);
     console.timeEnd(`Loading ${label} took:`);
   }

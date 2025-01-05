@@ -54,7 +54,7 @@ export default class LightRenderer {
         for (let i = 0; i < pointLights.length; i++) {
             const [pointLight, transform] = pointLights[i];
             const { x, y, z } = pointLight.position.xyz;
-            const position = vec4.transformMat4(vec4.create(), vec4.fromValues(x, y, z, 1.0), transform.getMatrix());
+            const position = vec4.transformMat4(vec4.create(), vec4.fromValues(x, y, z, 1.0), transform.worldMatrix);
             this.pointLightsView.set(
                 [...position, ...pointLight.color, pointLight.intensity, pointLight.constantAttenuation, pointLight.linearAttenuation, pointLight.quadraticAttenuation],
                 this.elementsPerPointLight * i);
@@ -66,7 +66,7 @@ export default class LightRenderer {
             vec4.normalize(direction, direction);
 
             const offset = i * this.elementsPerSpotLight;
-            this.spotLightsView.set([...transform.worldTransform.position, 1.0, ...direction], offset);
+            this.spotLightsView.set([...transform.worldTransform.translation, 1.0, ...direction], offset);
             this.spotLightsView.set([
                 ...spotLight.color, spotLight.data.innerCutoff, spotLight.data.outerCutoff, spotLight.intensity,
                 spotLight.constantAttenuation, spotLight.linearAttenuation, spotLight.quadraticAttenuation,

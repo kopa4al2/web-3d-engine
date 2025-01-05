@@ -55,7 +55,7 @@ export default class AnimationSystem implements UpdateSystem {
           let interpolatedValue;
 
           if (track.property === AnimationProperty.translation || track.property === AnimationProperty.scale) {
-            interpolatedValue = vec3.clone(track.property === AnimationProperty.scale ? transform.localTransform.scale : transform.localTransform.position);
+            interpolatedValue = vec3.clone(track.property === AnimationProperty.scale ? transform.localTransform.scale : transform.localTransform.translation);
             // interpolatedValue = vec3.create();
             vec3.lerp(
               interpolatedValue,
@@ -76,13 +76,10 @@ export default class AnimationSystem implements UpdateSystem {
 
           // Apply the interpolated value to the target entity
           if (track.property === AnimationProperty.translation) {
-            vec3.copy(transform.targetTransform.position, interpolatedValue as vec3);
-            vec3.copy(transform.localTransform.position, interpolatedValue as vec3);
+            vec3.copy(transform.localTransform.translation, interpolatedValue as vec3);
           } else if (track.property === AnimationProperty.rotation) {
-            quat.copy(transform.targetTransform.rotation, interpolatedValue as quat);
             quat.copy(transform.localTransform.rotation, interpolatedValue as quat);
           } else if (track.property === AnimationProperty.scale) {
-            vec3.copy(transform.targetTransform.scale, interpolatedValue as vec3);
             vec3.copy(transform.localTransform.scale, interpolatedValue as vec3);
           }
 

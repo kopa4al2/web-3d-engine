@@ -5,7 +5,7 @@ import { Rotation } from '@0b5vr/tweakpane-plugin-rotation/dist/types/Rotation';
 
 export interface Transform {
   rotation: quat;
-  position: vec3;
+  // translation: vec3;
 }
 
 export type RotationMode = 'quaternion' | 'euler';

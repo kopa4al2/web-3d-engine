@@ -32,6 +32,7 @@ export default class ResourceManager {
             this.textureManager.create1x1Texture(Texture.DEFAULT_ALBEDO_MAP, new Uint8ClampedArray([255, 255, 255, 255])),
             this.textureManager.create1x1Texture(Texture.DEFAULT_NORMAL_MAP, new Uint8ClampedArray([128, 128, 255, 255])),
             this.textureManager.create1x1Texture(Texture.DEFAULT_METALLIC_ROUGHNESS_MAP, new Uint8ClampedArray([255, 255, 255, 255])),
+            this.textureManager.create1x1Texture(Texture.DEFAULT_EMISSIVE_MAP, new Uint8ClampedArray([0, 0, 0, 255])),
         ]).then(() => {
             this.globalBindGroup = this.createGlobalBindGroup()
         });

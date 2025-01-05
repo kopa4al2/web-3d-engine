@@ -40,14 +40,15 @@ struct TextureMap {
     uv_offset: vec2<f32>,
     uv_scale: vec2<f32>,
     texture_layer: u32,
+    alphaCutoff: f32, // only albedo has this
+    color_factor: vec4<f32>, // empty for normals as theyd ont have factor
 }
 
 struct PBRMaterial {
     @align(32) albedo_map: TextureMap,
     @align(32) normal_map: TextureMap,
+    @align(32) emissive_map: TextureMap,
     @align(32) metallic_map: TextureMap,
-    base_color: vec4<f32>,
-    metallicRoughnessFactor: vec2<f32>,
 };
 
 struct PointLight {
@@ -106,34 +107,45 @@ struct FragmentInput {
 fn main(input: FragmentInput) -> @location(0) vec4<f32> {
     var normalizedUv = fract(input.textureCoord);
 //    normalizedUv.y = 1.0 - normalizedUv.y;
-    
-    let uv = material.albedo_map.uv_scale * normalizedUv + material.albedo_map.uv_offset;
-    let baseColor = textureSample(globalTextures, globalSampler, uv, material.albedo_map.texture_layer) * material.base_color;
 
-    // TODO: Hard coded alpha mask, by default enabled for all
-    if (baseColor.a <= 0.5) {
+    // --- Albedo and alpha cutoff ---
+    let uv = material.albedo_map.uv_scale * normalizedUv + material.albedo_map.uv_offset;
+    let textureLayer = material.albedo_map.texture_layer;
+    let alphaCutoff = material.albedo_map.alphaCutoff;
+    let baseColor = textureSample(globalTextures, globalSampler, uv, textureLayer) * material.albedo_map.color_factor;
+
+    if (baseColor.a < alphaCutoff) {
         discard;
     }
 
     // --- Metallic and Roughness ---
     let metallicRoughtnessUv = material.metallic_map.uv_scale * normalizedUv + material.metallic_map.uv_offset;
-    let metallicRoughness = textureSample(globalTextures, globalSampler, metallicRoughtnessUv, material.metallic_map.texture_layer).rgb;
-    let metallic = metallicRoughness.b * material.metallicRoughnessFactor.x;
-    let roughness = metallicRoughness.g * material.metallicRoughnessFactor.y;
+    let metallicRoughnessTextureLayer =  material.metallic_map.texture_layer;
+    let metallicRoughness = textureSample(globalTextures, globalSampler, metallicRoughtnessUv, metallicRoughnessTextureLayer).rgb;
+    let metallic = metallicRoughness.b * material.metallic_map.color_factor.x;
+    let roughness = metallicRoughness.g * material.metallic_map.color_factor.y;
 
     // --- Normal Mapping ---
     let TBN: mat3x3<f32> = mat3x3<f32>(input.tangent, input.bitangent, input.normal);
-    let normalUv = material.normal_map.uv_scale * normalizedUv + material.normal_map.uv_offset ;
-    var normalTangent = textureSample(globalTextures, globalSampler, normalUv, material.normal_map.texture_layer).rgb;
+    let normalUv = material.normal_map.uv_scale * normalizedUv + material.normal_map.uv_offset;
+    let normalTextureLayer = material.normal_map.texture_layer;
+    var normalTangent = textureSample(globalTextures, globalSampler, normalUv, normalTextureLayer).rgb;
     normalTangent = normalize(normalTangent * 2.0 - 1.0);
     let normalWorld: vec3<f32> = normalize(TBN * normalTangent);
+
+    // --- Emissive ---
+    let emissiveUv = material.emissive_map.uv_scale * normalizedUv + material.emissive_map.uv_offset;
+    let emissiveTextureLayer =  material.emissive_map.texture_layer;
+    let emissiveStrength = material.emissive_map.color_factor.a; // KHR_materials_emissive_strength
+    var emissiveColor = textureSample(globalTextures, globalSampler, emissiveUv, emissiveTextureLayer).rgb * material.emissive_map.color_factor.rgb;
+    emissiveColor = emissiveColor * emissiveStrength;
 
     // --- View Direction ---
     let viewDir: vec3<f32> = normalize(camera.position.xyz - input.fragPosition);
     let reflectedDir = reflect(-viewDir, normalWorld);
     let envColor = textureSample(envMap, envSampler, reflectedDir).rgb;
 
-    // Fresnel Reflectance at Normal Incidence
+    // -- Fresnel Reflectance at Normal Incidence ---
     let F0 = mix(vec3<f32>(0.04), baseColor.rgb, metallic);
     let roughnessSquared = roughness * roughness;
     let envNdotL = max(dot(normalWorld, reflectedDir), EPSILON);
@@ -142,6 +154,7 @@ fn main(input: FragmentInput) -> @location(0) vec4<f32> {
 
     var finalColor: vec3<f32> = vec3<f32>(0.0);
 
+    // --- Shadows calculations ---
     var size = f32(textureDimensions(shadowMap).x);
     var oneOverSize = 1.0 / size;
     var shadowFactor = 0.0;
@@ -248,18 +261,19 @@ fn main(input: FragmentInput) -> @location(0) vec4<f32> {
     let envSpecular = fresnelEnv * envNdotL * envColor;
     let envDiffuse = fresnelEnv * envNdotL  * (1.0 - metallic) * (1.0 - fresnelEnv);
 
-    finalColor += envDiffuse + envSpecular;
+    finalColor += envDiffuse + envSpecular + emissiveColor;
 
     // Ambient Light
     let ambient = vec3<f32>(0.1);
-    finalColor += ambient;
-//    finalColor += ambient * (1.0 - metallic);
+//    finalColor += ambient;
+    finalColor += ambient * (1.0 - metallic);
     
   
-
+//        return vec4<f32>(emissiveColor, 1.0);
 //      return baseColor;
       return vec4<f32>(finalColor, baseColor.a);
 //      return vec4<f32>(normalWorld, baseColor.a);
+//      return vec4<f32>(alphaCutoff, emissiveStrength - 1.0, 0.0, 1.0);
 }
 
 fn calculateSpotlight(

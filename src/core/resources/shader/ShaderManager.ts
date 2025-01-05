@@ -184,7 +184,6 @@ export default class ShaderManager {
         this.resourceManager.getOrCreateLayout(ShaderManager.GLOBAL_BIND_GROUP),
         ...materialDescriptor.bindGroupLayouts.map(l => this.resourceManager.getOrCreateLayout(l)),
         layoutId,
-        // this.resourceManager.getOrCreateLayout(ShaderManager.INSTANCE_BUFFER_GROUP)
       ];
     if (!this.pipelinesCache[uniqueId]) {
       this.pipelinesCache[uniqueId] = this.graphics.initPipeline({
@@ -298,18 +297,18 @@ export default class ShaderManager {
                     @group(0) @binding(0) var<uniform> global : Global;
                     //@group(0) @binding(1) var<uniform> modelMatrix: mat4x4<f32>;
                     @group(1) @binding(0) var<storage, read> modelMatrices: array<mat4x4<f32>>;
-                    @group(1) @binding(1) var<uniform> jointMatrices: array<mat4x4<f32>, 256>;
+                    @group(1) @binding(1) var<uniform> jointMatrices: array<mat4x4<f32>, 160>;
                     
                     @vertex
                     fn main(input : VertexInput) -> VertexOutput {
                         var output: VertexOutput;
-                        let modelMatrix = modelMatrices[input.instanceID];
+                        //let modelMatrix = modelMatrices[input.instanceID];
                         let worldPosition =
                             input.jointWeights.x * (jointMatrices[u32(input.jointIndices.x)] * vec4<f32>(input.position, 1.0)) +
                             input.jointWeights.y * (jointMatrices[u32(input.jointIndices.y)] * vec4<f32>(input.position, 1.0)) +
                             input.jointWeights.z * (jointMatrices[u32(input.jointIndices.z)] * vec4<f32>(input.position, 1.0)) +
                             input.jointWeights.w * (jointMatrices[u32(input.jointIndices.w)] * vec4<f32>(input.position, 1.0));
-                        output.position = global.lightViewProjectionMatrix * modelMatrix * worldPosition; 
+                        output.position = global.lightViewProjectionMatrix * worldPosition; 
                         return output;
                     }
             `,

@@ -83,24 +83,45 @@ export default class GLTFParserMainThread {
             continue;
           }
           const pbr = gltfMaterial.pbrMetallicRoughness || {};
+          const alphaCutoff = gltfMaterial.alphaMode === 'MASK'
+                              ? gltfMaterial.alphaCutoff ?? 0.5
+                              : 0.0;
           const baseColorFactor = pbr.baseColorFactor || [1.0, 1.0, 1.0, 1.0];
           const metallicFactor = pbr.metallicFactor ?? 1.0;
           const roughnessFactor = pbr.roughnessFactor ?? 1.0;
+          const emissiveFactor = gltfMaterial.emissiveFactor ?? [0.0, 0.0, 0.0];
+          // @ts-ignore
+          const emissiveStrength = gltfMaterial.extensions?.KHR_materials_emissive_strength?.emissiveStrength || 1.0;
 
           let normal = gltfMaterial.normalTexture
-            ? this.getTextureAtIndex(gltfMaterial.normalTexture.index, textureManager)
-            : textureManager.getTexture(Texture.DEFAULT_NORMAL_MAP);
+                       ? this.getTextureAtIndex(gltfMaterial.normalTexture.index, textureManager)
+                       : textureManager.getTexture(Texture.DEFAULT_NORMAL_MAP);
           const albedo = pbr.baseColorTexture
-            ? this.getTextureAtIndex(pbr.baseColorTexture.index, textureManager)
-            : textureManager.getTexture(Texture.DEFAULT_ALBEDO_MAP);
+                         ? this.getTextureAtIndex(pbr.baseColorTexture.index, textureManager)
+                         : textureManager.getTexture(Texture.DEFAULT_ALBEDO_MAP);
+          const emissiveTexture = gltfMaterial.emissiveTexture
+                                  ? this.getTextureAtIndex(gltfMaterial.emissiveTexture.index, textureManager)
+                                  : textureManager.getTexture(Texture.DEFAULT_EMISSIVE_MAP);
+
           const metallicRoughness = pbr.metallicRoughnessTexture
-            ? this.getTextureAtIndex(pbr.metallicRoughnessTexture.index, textureManager)
-            : textureManager.getTexture(Texture.DEFAULT_METALLIC_ROUGHNESS_MAP);
+                                    ? this.getTextureAtIndex(pbr.metallicRoughnessTexture.index, textureManager)
+                                    : textureManager.getTexture(Texture.DEFAULT_METALLIC_ROUGHNESS_MAP);
           const metallicRoughnessFactor = vec2.fromValues(metallicFactor, roughnessFactor);
 
+          if (gltfMaterial.alphaMode || gltfMaterial.alphaCutoff || gltfMaterial.doubleSided) {
+            console.log('Material', gltfMaterial);
+          }
           const blendMode = gltfMaterial.alphaMode === 'BLEND' ? BlendPresets.TRANSPARENT : undefined;
-          const pbrMaterialProperties = new PBRMaterialProperties(
-            albedo, normal, metallicRoughness, new Float32Array(baseColorFactor), metallicRoughnessFactor);
+          const pbrMaterialProperties = new PBRMaterialProperties({
+              texture: albedo,
+              baseColor: new Float32Array(baseColorFactor),
+              alphaCutoff,
+            }, normal, {
+              texture: emissiveTexture,
+              factor: emissiveFactor,
+              strength: emissiveStrength
+            },
+            metallicRoughness, metallicRoughnessFactor);
 
           const material = materialFactory.pbrMaterial(gltfMaterial.name,
             pbrMaterialProperties,
@@ -195,8 +216,8 @@ export default class GLTFParserMainThread {
     const vertices = this.parseAccessor(primitive.attributes.POSITION);
     const normals = this.parseAccessor(primitive.attributes.NORMAL);
     const texCoords = name === 'material_11'
-      ? this.parseAccessor(primitive.attributes.TEXCOORD_2)
-      : this.parseAccessor(primitive.attributes.TEXCOORD_0);
+                      ? this.parseAccessor(primitive.attributes.TEXCOORD_2)
+                      : this.parseAccessor(primitive.attributes.TEXCOORD_0);
 
     if (primitive.attributes.TANGENT === undefined) {
       return geometryFactory.createGeometry(
@@ -372,13 +393,13 @@ export default class GLTFParserMainThread {
     return Promise.all([
       this.parseBuffers(rootDir, json, fileArrayBuffer, binaryChunkOffset + 8),
       json.images
-        ? this.parseImages(rootDir, json, textureManager, fileArrayBuffer, binaryChunkOffset + 8)
-        : Promise.resolve([]),
+      ? this.parseImages(rootDir, json, textureManager, fileArrayBuffer, binaryChunkOffset + 8)
+      : Promise.resolve([]),
     ])
-      .then(([buffers, textures]) => {
-        this.glbWorkerPool.shutdown();
-        return new GLTFParserMainThread(json, buffers, textures);
-      });
+                  .then(([buffers, textures]) => {
+                    this.glbWorkerPool.shutdown();
+                    return new GLTFParserMainThread(json, buffers, textures);
+                  });
   }
 
   public static async parseGltf(rootDir: string, gltfPath: string, binaryPath: string, textureManager: TextureManager): Promise<GLTFParserMainThread> {
@@ -410,10 +431,10 @@ export default class GLTFParserMainThread {
       if (image.uri) {
         const uri = rootPath + image.uri;
         promises.push(this.gltfWorkerPool.submit({ uri })
-          .then(({ imageBitmap }) => {
-            return textureManager
-              .addPreloadedToGlobalTexture(uri, imageBitmap);
-          }));
+                          .then(({ imageBitmap }) => {
+                            return textureManager
+                              .addPreloadedToGlobalTexture(uri, imageBitmap);
+                          }));
       } else if (image.bufferView !== undefined) {
         const bufferView = json.bufferViews[image.bufferView];
         const mimeType = image.mimeType!;
@@ -421,8 +442,8 @@ export default class GLTFParserMainThread {
         promises.push(
           this.glbWorkerPool.submit(
             { buffer: slice, mimeType }, [slice])
-            .then(({ imageBitmap }) => textureManager
-              .addPreloadedToGlobalTexture(bufferView.name, imageBitmap)));
+              .then(({ imageBitmap }) => textureManager
+                .addPreloadedToGlobalTexture(bufferView.name, imageBitmap)));
       } else {
         console.error('Image: ', image);
         throw new Error('Unsupported texture format');
@@ -610,7 +631,7 @@ export interface GLTFBufferView {
 }
 
 export enum GLTFBufferViewTarget {
-  ARRAY_BUFFER         = 34962, // The buffer view contains vertex data (e.g., positions, normals, UVs).
+  ARRAY_BUFFER = 34962, // The buffer view contains vertex data (e.g., positions, normals, UVs).
   ELEMENT_ARRAY_BUFFER = 34963 // The buffer view contains index data for drawing elements.
 }
 
@@ -620,7 +641,8 @@ export interface GLTFMaterial {
   alphaCutoff?: number,
   doubleSided?: boolean,
   normalTexture?: GLTFTextureRef,
-  emissiveFactor?: number,
+  emissiveFactor?: vec3,
+  emissiveTexture?: GLTFTextureRef,
   pbrMetallicRoughness: {
     baseColorFactor: number[],
     baseColorTexture: GLTFTextureRef,
@@ -650,8 +672,8 @@ export interface GLTFSampler {
 }
 
 export enum GLTFSamplerFilter {
-  LINEAR          = 9729,
-  MIP_MAP_LINEAR  = 9987,
+  LINEAR = 9729,
+  MIP_MAP_LINEAR = 9987,
   REPEAT_WRAPPING = 10497
 }
 

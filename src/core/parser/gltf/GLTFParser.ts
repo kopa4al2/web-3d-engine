@@ -51,7 +51,87 @@ export default class GLTFParser {
               public animations: SerializedAnimation[]) {
     DebugUtil.addToWindowObject('gltf', this);
     console.log('ANIMATIONS: ', animations);
-    console.log('GLTF JSON', json);
+    console.log('%c GLTF JSON', 'background: yellow;', json);
+    this.nodes.reduce((previousValue, currentValue, currentIndex, array) => ({
+      ...previousValue,
+      [currentIndex]: {
+        name: currentValue.name,
+        parent: currentValue.parent,
+        worldTransform: new Float32Array(currentValue.worldTransform),
+        localTransform: new Float32Array(currentValue.localTransform)
+      }
+    }), {});
+
+    for (let i = 0; i < this.nodes.length; i++) {
+      const parsed = this.nodes[i];
+      const original = this.json.nodes[i];
+
+      if (parsed.name !== original.name || parsed.mesh !== original.mesh) {
+        console.groupCollapsed(`${i} [PARSED - ORIGINAL] [${parsed.name} - ${original.name}] [${parsed.mesh} - ${original.mesh}]`);
+        console.log('parsed', parsed, 'original', original);
+        console.groupEnd();
+      }
+
+      // if (!mat4.equals(mat4.create(), new Float32Array(parsed.worldTransform))) {
+      //   console.groupCollapsed(`${i} WORLD TRANSFORM IS NOT IDENTITY [${parsed.name} - ${original.name}] [${parsed.mesh} - ${original.mesh}]`);
+      //   console.log('parsed', parsed, 'original', original);
+      //   console.groupEnd();
+      // }
+
+      const parsedMat4 = new Float32Array(parsed.localTransform) as mat4;
+      if (original.matrix) {
+        const originalMat4 = new Float32Array(original.matrix) as mat4;
+        if (!mat4.equals(parsedMat4, originalMat4)) {
+          console.groupCollapsed(`${i} MATRIX MISMATCH [PARSED - ORIGINAL] [${parsed.name} - ${original.name}] [${parsed.mesh} - ${original.mesh}]`);
+          console.log('parsed', parsedMat4, 'original', originalMat4);
+          console.groupEnd();
+        }
+      }
+
+      if (original.rotation) {
+        const originalQuat = new Float32Array(original.rotation) as quat;
+        if (!quat.equals(mat4.getRotation(quat.create(), parsedMat4), originalQuat)) {
+          if (mat4.equals(parsedMat4, mat4.fromRotationTranslationScale(mat4.create(), originalQuat, original.translation || [0, 0, 0], original.scale || [1, 1, 1] as vec3))) {
+
+          } else {
+            console.warn('Rotation and Matrix are wrong');
+            console.groupCollapsed(`${i} ROTATION MISMATCH [${parsed.name} - ${original.name}] [${parsed.mesh} - ${original.mesh}]`);
+            console.log('Parsed local: ', parsedMat4);
+            console.log('Parsed rotation: ', mat4.getRotation(quat.create(), parsedMat4));
+            console.log('Original rotation: ', originalQuat);
+            console.log(parsed);
+            console.log(original);
+            console.groupEnd();
+          }
+        }
+      }
+
+      if (original.scale) {
+        const originalVec3 = new Float32Array(original.scale) as vec3;
+        if (!vec3.equals(mat4.getScaling(vec3.create(), parsedMat4), originalVec3)) {
+          console.groupCollapsed(`${i} SCALE MISMATCH [${parsed.name} - ${original.name}] [${parsed.mesh} - ${original.mesh}]`);
+          console.log('parsed', parsedMat4, 'original', originalVec3);
+          console.groupEnd();
+        }
+      }
+
+      if (original.translation) {
+        const originalVec3 = new Float32Array(original.translation) as vec3;
+        if (!vec3.equals(mat4.getTranslation(vec3.create(), parsedMat4), originalVec3)) {
+          console.groupCollapsed(`${i} TRANSLATION MISMATCH [${parsed.name} - ${original.name}] [${parsed.mesh} - ${original.mesh}]`);
+          console.log(originalVec3, mat4.getTranslation(vec3.create(), parsedMat4));
+          console.groupEnd();
+        }
+      }
+
+      if (!original.translation && !original.rotation && !original.scale && !original.matrix) {
+        if (!mat4.equals(parsedMat4, mat4.create())) {
+          console.groupCollapsed(`${i} MATRIX MISMATCH [${parsed.name} - ${original.name}] [${parsed.mesh} - ${original.mesh}]`);
+          console.log('parsed', parsedMat4, 'original', mat4.create());
+          console.groupEnd();
+        }
+      }
+    }
   }
 
   public createMeshes(shaderManager: ShaderManager,
@@ -62,12 +142,6 @@ export default class GLTFParser {
                       rootTransform?: Transform): EntityId[] {
     const textureManager: TextureManager = resourceManager.textureManager;
 
-    const bgHelper = new BindGroupHelper(resourceManager, 'VERTEX-INSTANCE', [{
-      type: 'storage',
-      byteLength: 8096,
-      name: 'InstanceData',
-      visibility: UniformVisibility.VERTEX | UniformVisibility.FRAGMENT
-    }]);
 
     const skinBindGroupHelpers: BindGroupHelper[] = [];
     const skeletons = [];
@@ -80,7 +154,7 @@ export default class GLTFParser {
           [
             {
               type: 'storage',
-              byteLength: 8096,
+              byteLength: 4096,
               name: 'InstanceData',
               visibility: UniformVisibility.VERTEX
             },
@@ -100,34 +174,30 @@ export default class GLTFParser {
 
     }
 
-    const usedMaterials = new JavaMap<string, Mesh>();
+    const usedMaterials = new Map<string, Mesh>();
     const entities: EntityId[] = new Array(this.nodes.length);
     const transforms: Transform[] = new Array(this.nodes.length);
     for (let nodeIndex = 0; nodeIndex < this.nodes.length; nodeIndex++) {
       const node = this.nodes[nodeIndex];
-      const transform = Transform.fromMat4(new Float32Array(node.localTransform));
-      transform.fromMat4(transform.worldTransform, new Float32Array(node.worldTransform));
+      // const transform = Transform.fromMat4(this.getTransform(this.json.nodes[nodeIndex]));
+      // const transform = Transform.fromMat4(new Float32Array(node.localTransform));
+      const transform = Transform.fromLocalAndWorldMatrix(
+        new Float32Array(node.localTransform),
+        new Float32Array(node.worldTransform));
       // transform.needsCalculate = false;
       transform.label = node.name;
       const entity = entityManager.createEntity(node.name);
 
       entities[nodeIndex] = entity;
       transforms[nodeIndex] = transform;
-
-      if (nodeIndex === 0) {
-        transform.scaleBy(0.01);
-      }
+      entityManager.addComponents(entity, [transform]);
       if (typeof node.parent !== 'number' && rootTransform) {
-        transform.parent = rootTransform;
-        transform.multiply(transform.worldTransform, rootTransform.worldTransform.mat4, transform.localTransform.mat4);
-        rootTransform.children.push(transform);
+        // transform.parent = rootTransform;
+        // rootTransform.children.push(transform);
       } else if (typeof node.parent === 'number') {
         const parentT = transforms[node.parent];
         transform.parent = parentT;
         parentT.children.push(transform);
-        // transform.multiply(transform.worldTransform, parentT.worldTransform.mat4, transform.localTransform.mat4);
-      } else {
-        console.warn('Edge case', node);
       }
 
       if (this.json.nodes[nodeIndex].skin !== undefined) {
@@ -145,7 +215,6 @@ export default class GLTFParser {
         const gltfMaterial = this.json.materials[mesh.material];
         const matName = gltfMaterial.name || `unnamed-mat-${Math.random()}`;
         if (usedMaterials.get(matName)) {
-          console.warn('Duplicate material', matName);
           const usedMesh = usedMaterials.get(matName)!;
           entityManager.addComponents(entity, [
             new Mesh(usedMesh.pipelineId, geometry,
@@ -154,6 +223,13 @@ export default class GLTFParser {
         } else {
           const material = this.parseMaterial(gltfMaterial, textureManager, materialFactory);
 
+          const bgHelper = new BindGroupHelper(resourceManager, 'VERTEX-INSTANCE', [{
+            type: 'storage',
+            byteLength: 4096,
+            // byteLength: 8096,
+            name: 'InstanceData',
+            visibility: UniformVisibility.VERTEX | UniformVisibility.FRAGMENT
+          }]);
           const bindGroupHelper = this.json.nodes[nodeIndex].skin !== undefined
                                   ? skinBindGroupHelpers[this.json.nodes[nodeIndex].skin!]
                                   : bgHelper;
@@ -177,21 +253,11 @@ export default class GLTFParser {
       }
     }
 
-    for (let i = 0; i < transforms.length; i++) {
-      const t = transforms[i];
-      t.localTransform.position = mat4.getTranslation(t.localTransform.position, t.localTransform.mat4);
-      t.localTransform.rotation = mat4.getRotation(t.localTransform.rotation, t.localTransform.mat4);
-      t.localTransform.scale = mat4.getScaling(t.localTransform.scale, t.localTransform.mat4);
+    // for (let i = 0; i < transforms.length; i++) {
+    //   entityManager.addComponents(entities[i], [transforms[i]]);
+    // }
 
-      // t.worldTransform.position = mat4.getTranslation(t.worldTransform.position, t.worldTransform.mat4);
-      // t.worldTransform.rotation = mat4.getRotation(t.worldTransform.rotation, t.worldTransform.mat4);
-      // t.worldTransform.scale = mat4.getScaling(t.worldTransform.scale, t.worldTransform.mat4);
-
-      t.copy(t.targetTransform, t.localTransform);
-      entityManager.addComponents(entities[i], [t]);
-    }
-
-    if (this.animations) {
+    if (this.animations && this.animations.length > 0) {
       const animations: Record<string, Animation> = {};
       for (let i = 0; i < this.animations.length; i++) {
         const animation: Animation = {
@@ -237,6 +303,7 @@ export default class GLTFParser {
           animations[gltfAnimation.name] = animation;
         }
       }
+
       const animationComponent = new AnimationComponent(animations, Object.keys(animations)[0], 0, 1.0, true);
       // const animationComponent = new AnimationComponent(animations, Object.keys(animations)[1], 0, 1.0, true);
       const animEntity = entityManager.createEntity('animations');
@@ -244,130 +311,74 @@ export default class GLTFParser {
     }
 
     return entities;
-    /*const buildNode = (array: EntityId[], nodeIndex: number, parentTransform?: Transform): EntityId[] => {
-      const node = this.json.nodes[nodeIndex];
-      const entity = entityManager.createEntity(node.name);
-      nodesToEntity.set(nodeIndex, entity);
-      array.push(entity);
-      const transform = this.parseTransform(node);
+  }
 
-      transform.label = node.name;
-      if (parentTransform) {
-        transform.parent = parentTransform;
-        parentTransform.children.push(transform);
-      }
-
-      if (typeof node.mesh === 'number') {
-        const mesh = this.meshes[node.mesh];
-
-        const geometry: Geometry = geometryFactory.createGeometryFromInterleaved(mesh.name,
-          VertexShaderName.LIT_TANGENTS_VEC4,
-          new Float32Array(mesh.data),
-          new Uint32Array(mesh.indices));
-
-        const gltfMaterial = this.json.materials[mesh.material];
-        const matName = gltfMaterial.name || `unnamed-mat-${Math.random()}`;
-        if (usedMaterials.get(matName)) {
-          const usedMesh = usedMaterials.get(matName)!;
-          entityManager.addComponents(entity, [
-            new Mesh(usedMesh.pipelineId, geometry,
-              usedMesh.material, usedMesh.instanceBuffers, usedMesh.label)
-          ]);
-        } else {
-          const pbr = gltfMaterial.pbrMetallicRoughness || {};
-          const baseColorFactor = pbr.baseColorFactor || [1.0, 1.0, 1.0, 1.0];
-          const metallicFactor = pbr.metallicFactor ?? 1.0;
-          const roughnessFactor = pbr.roughnessFactor ?? 1.0;
-
-          let normal = gltfMaterial.normalTexture
-            ? this.getTextureAtIndex(gltfMaterial.normalTexture.index, textureManager)
-            : textureManager.getTexture(Texture.DEFAULT_NORMAL_MAP);
-          const albedo = pbr.baseColorTexture
-            ? this.getTextureAtIndex(pbr.baseColorTexture.index, textureManager)
-            : textureManager.getTexture(Texture.DEFAULT_ALBEDO_MAP);
-          const metallicRoughness = pbr.metallicRoughnessTexture
-            ? this.getTextureAtIndex(pbr.metallicRoughnessTexture.index, textureManager)
-            : textureManager.getTexture(Texture.DEFAULT_METALLIC_ROUGHNESS_MAP);
-          const metallicRoughnessFactor = vec2.fromValues(metallicFactor, roughnessFactor);
-
-          const blendMode = gltfMaterial.alphaMode === 'BLEND' ? BlendPresets.TRANSPARENT : undefined;
-          const pbrMaterialProperties = new PBRMaterialProperties(
-            albedo, normal, metallicRoughness, new Float32Array(baseColorFactor), metallicRoughnessFactor);
-
-          const material = materialFactory.pbrMaterial(gltfMaterial.name,
-            pbrMaterialProperties,
-            {
-              colorAttachment: { blendMode } as PipelineColorAttachment,
-              // cullFace: 'back'
-              cullFace: gltfMaterial.doubleSided ? 'none' : 'back'
-            });
-
-          const gpuMesh = new Mesh(
-            shaderManager.createPipeline(geometry, material),
-            geometry, material, [{
-              bindGroupId: bgHelper.bindGroupId,
-              bufferId: bgHelper.bufferId
-            }], mesh.name);
-          entityManager.addComponents(entity, [gpuMesh]);
-          usedMaterials.set(matName, gpuMesh);
-        }
-      }
-      // }
-
-      if (typeof node.skin === 'number') {
-        // if (!usedSkeletons.has(node.skin)) {
-        //     const skeleton = this.parseSkin(node.name, this.json.skins[node.skin]);
-        //     usedSkeletons.set(node.skin, skeleton);
-        //     entityManager.addComponents(entity, [skeleton]);
-        // }
-      }
-
-      entityManager.addComponents(entity, [transform]);
-
-      if (node.children) {
-        for (const childIndex of node.children) {
-          buildNode(array, childIndex, transform);
-        }
-      }
-
-      return array;
-    };
-
-    const startOffset = 0;
-
-    const arr: EntityId[] = [];
-    if (!this.json.scenes) {
-      console.warn('No scenes present, creating meshes from the nodes');
-      return buildNode([], startOffset);
+  private getTransform(node: GLTFNode) {
+    if (node.matrix) {
+      return mat4.copy(mat4.create(), node.matrix);
     }
 
-    for (const sceneNode of this.json.scenes[this.json.scene].nodes) {
-      buildNode(arr, sceneNode, rootTransform);
+    if (node.rotation || node.scale || node.translation) {
+      const scale = vec3.copy(vec3.create(), node.scale || vec3.fromValues(1, 1, 1));
+      if (node.scale && node.scale[0] > 10) {
+        console.warn('Large scale detected', node.name, node);
+        scale[0] = 0.1;
+        scale[1] = 0.1;
+        scale[2] = 0.1;
+        // node.scale = [0.01, 0.01, 0.01];
+      }
+      return mat4.fromRotationTranslationScale(mat4.create(),
+        node.rotation || quat.create(),
+        node.translation || vec3.create(),
+        scale || vec3.fromValues(1, 1, 1));
     }
 
-    return arr;*/
+    return mat4.create();
   }
 
   private parseMaterial(gltfMaterial: GLTFMaterial, textureManager: TextureManager, materialFactory: MaterialFactory) {
     const pbr = gltfMaterial.pbrMetallicRoughness || {};
+    const alphaCutoff = gltfMaterial.alphaMode === 'MASK'
+                        ? gltfMaterial.alphaCutoff ?? 0.5
+                        : 0.0;
     const baseColorFactor = pbr.baseColorFactor || [1.0, 1.0, 1.0, 1.0];
     const metallicFactor = pbr.metallicFactor ?? 1.0;
     const roughnessFactor = pbr.roughnessFactor ?? 1.0;
-
+    let emissiveFactor = gltfMaterial.emissiveFactor ?? [0.0, 0.0, 0.0];
+    const emissiveStrength = gltfMaterial.extensions?.KHR_materials_emissive_strength?.emissiveStrength || 1.0;
     let normal = gltfMaterial.normalTexture
                  ? this.getTextureAtIndex(gltfMaterial.normalTexture.index, textureManager)
                  : textureManager.getTexture(Texture.DEFAULT_NORMAL_MAP);
     const albedo = pbr.baseColorTexture
                    ? this.getTextureAtIndex(pbr.baseColorTexture.index, textureManager)
                    : textureManager.getTexture(Texture.DEFAULT_ALBEDO_MAP);
+    const emissiveTexture = gltfMaterial.emissiveTexture
+                            ? this.getTextureAtIndex(gltfMaterial.emissiveTexture.index, textureManager)
+                            : textureManager.getTexture(Texture.DEFAULT_EMISSIVE_MAP);
+
     const metallicRoughness = pbr.metallicRoughnessTexture
                               ? this.getTextureAtIndex(pbr.metallicRoughnessTexture.index, textureManager)
                               : textureManager.getTexture(Texture.DEFAULT_METALLIC_ROUGHNESS_MAP);
     const metallicRoughnessFactor = vec2.fromValues(metallicFactor, roughnessFactor);
 
+    if (gltfMaterial.emissiveTexture || gltfMaterial.emissiveFactor || gltfMaterial.extensions) {
+      console.log('Material', gltfMaterial);
+      if ((!gltfMaterial.emissiveFactor && gltfMaterial.emissiveTexture) || (gltfMaterial.emissiveTexture && !gltfMaterial.emissiveTexture)) {
+        console.error('Emissives will cancel out check this')
+      }
+    }
+
     const blendMode = gltfMaterial.alphaMode === 'BLEND' ? BlendPresets.TRANSPARENT : undefined;
-    const pbrMaterialProperties = new PBRMaterialProperties(
-      albedo, normal, metallicRoughness, new Float32Array(baseColorFactor), metallicRoughnessFactor);
+    const pbrMaterialProperties = new PBRMaterialProperties({
+        texture: albedo,
+        baseColor: new Float32Array(baseColorFactor),
+        alphaCutoff,
+      }, normal, {
+        texture: emissiveTexture,
+        factor: emissiveFactor,
+        strength: emissiveStrength
+      },
+      metallicRoughness, metallicRoughnessFactor);
 
     return materialFactory.pbrMaterial(gltfMaterial.name,
       pbrMaterialProperties,
@@ -397,7 +408,12 @@ export default class GLTFParser {
       .then(res => res.arrayBuffer())
       .then(buffer => {
         // console.log(`%c LOADED ${rootDir + relativePath} ABOUT TO CALL WORKER`, style);
-        return this.glbWorkerPool.submit({ binary: buffer, name: rootDir + relativePath, style, rootTransform: rootBuffer }, [buffer, rootBuffer]);
+        return this.glbWorkerPool.submit({
+          binary: buffer,
+          name: rootDir + relativePath,
+          style,
+          rootTransform: rootBuffer
+        }, [buffer, rootBuffer]);
       })
       .then(resp => {
         // console.log(`%c WORKER FINISHED ${rootDir + relativePath}`, style, resp);
@@ -504,13 +520,19 @@ export interface GLTFMaterial {
   alphaCutoff?: number,
   doubleSided?: boolean,
   normalTexture?: GLTFTextureRef,
-  emissiveFactor?: number,
+  emissiveTexture?: GLTFTextureRef,
+  emissiveFactor?: vec3,
   pbrMetallicRoughness: {
     baseColorFactor: number[],
     baseColorTexture: GLTFTextureRef,
     metallicRoughnessTexture: GLTFTextureRef,
     metallicFactor?: number,
     roughnessFactor?: number,
+  },
+  extensions?: {
+    KHR_materials_emissive_strength: {
+      emissiveStrength: number
+    },
   }
 }
 

@@ -176,20 +176,19 @@ export default class Renderer implements System {
       for (let j = 0; j < skeletons[i].joints.length; j++) {
         const entity = skeletons[i].joints[j];
         const transform = this.entityManager.getComponent(entity, Transform.ID) as Transform;
-        mat4.multiply(jointMatrixView.subarray(j * 16, (j + 1) * 16),
-          transform.getMatrix(),
-          inverseBindMatrixView.subarray(j * 16, (j + 1) * 16));
+        // mat4.multiply(jointMatrixView.subarray(j * 16, (j + 1) * 16),
+        //   transform.worldMatrix,
+        //   inverseBindMatrixView.subarray(j * 16, (j + 1) * 16));
+
         // const byteOffset = j * 16 * 4;
-        // const inverseBindMatrix = new Float32Array(skeletons[i].inverseBindMatrices, byteOffset, 16) as mat4;
         // mat4.multiply(new Float32Array(jointMatrices, byteOffset, 16), transform.getMatrix(), inverseBindMatrix);
-        // mat4.multiply(new Float32Array(jointMatrices, byteOffset, 16), transform.getMatrix(), inverseBindMatrix);
-        // const multipliedMatrix = mat4.multiply(mat4.create(), transform.worldTransform.mat4, inverseBindMatrix);
-        // transform.worldTransform.mat4 = multipliedMatrix;
-        // new Float32Array(jointMatrices).set(multipliedMatrix, j * 16);
+        const multipliedMatrix = mat4.multiply(mat4.create(), transform.worldMatrix, inverseBindMatrixView.subarray(j * 16, (j + 1) * 16));
+        jointMatrixView.set(multipliedMatrix, j * 16);
       }
 
       this.graphics.writeToBuffer(skeletons[i].bindGroup.getBuffer(1), new Float32Array(jointMatrices));
     }
+
     for (const [pipeline, meshes] of entitiesToRender) {
       renderPass.usePipeline(pipeline);
       for (const [mesh, entities] of meshes) {
@@ -272,7 +271,7 @@ export default class Renderer implements System {
 
         const rotationMatrix = mat4.fromQuat(mat4.create(), transform.worldTransform.rotation);
         mat4.transpose(rotationMatrix, rotationMatrix);
-        const translationMatrix = mat4.fromTranslation(mat4.create(), vec3.negate(vec3.create(), transform.worldTransform.position));
+        const translationMatrix = mat4.fromTranslation(mat4.create(), vec3.negate(vec3.create(), transform.worldTransform.translation));
         const viewMat = mat4.multiply(mat4.create(), rotationMatrix, translationMatrix);
         const lightViewProjMatrix = mat4.multiply(mat4.create(), projectionMatrix, viewMat);
 
