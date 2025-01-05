@@ -166,6 +166,10 @@ export class BindGroupHelper {
     return this.buffers[0];
   }
 
+  getBuffer(index: number) {
+    return this.buffers[index];
+  }
+
   private getByteLength(struct: ShaderStructV2): number {
     if (struct.type === 'storage' || struct.type === 'uniform') {
       return struct.byteLength ?? struct.data!.byteLength;

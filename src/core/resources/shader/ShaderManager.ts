@@ -55,11 +55,11 @@ import Globals from '../../../engine/Globals';
 // import glTerrainFragmentShader from 'webgl/shaders/terrain/terrainFragmentShader.frag';
 // import glTerrainVertexShader from 'webgl/shaders/terrain/terrainVertexShader.vert';
 export enum ShaderTemplate {
-  UNLIT       = 'UNLIT',
-  PHONG       = 'PHONG',
-  PBR         = 'PBR',
-  TERRAIN     = 'TERRAIN',
-  SKYBOX      = 'SKYBOX',
+  UNLIT = 'UNLIT',
+  PHONG = 'PHONG',
+  PBR = 'PBR',
+  TERRAIN = 'TERRAIN',
+  SKYBOX = 'SKYBOX',
   SHADOW_PASS = 'SHADOW_PASS'
 }
 
@@ -70,7 +70,7 @@ export default class ShaderManager {
 
 
   // @ts-ignore
-  private shaderContents: Record<(VertexShaderName | FragmentShaderName), string> = {}
+  private shaderContents: Record<(VertexShaderName | FragmentShaderName), string> = {};
 
   public static GLOBAL_BIND_GROUP = {
     label: 'GLOBAL',
@@ -104,8 +104,11 @@ export default class ShaderManager {
 
   }
 
-  public createShadowPass(...shaderLayoutIds: BindGroupLayoutId[]) {
+  public createShadowPass(staticMeshLayoutIds: BindGroupLayoutId[], skinnedMeshLayoutIds: BindGroupLayoutId[]): [PipelineId, PipelineId] {
     const uniqueId = ShaderTemplate.SHADOW_PASS;
+    if (this.pipelinesCache[uniqueId]) {
+      return [this.pipelinesCache[uniqueId], this.pipelinesCache[`${uniqueId}_SKINNED`]];
+    }
 
     const properties: PipelineOptions = {
       drawMode: 'triangle-list',
@@ -122,39 +125,36 @@ export default class ShaderManager {
       }
     };
 
-    const [vertexShaderSource] = this.getShadowPassShaders();
-    if (!this.pipelinesCache[uniqueId]) {
-      this.pipelinesCache[uniqueId] = this.graphics.initPipeline({
-        label: 'Shadow Pass',
-        shaderLayoutIds,
+    const [staticMeshVertex, skinnedMeshVertex] = this.getShadowPassShaders();
+    this.pipelinesCache[uniqueId] = this.graphics.initPipeline({
+      label: 'Shadow Pass Static',
+      shaderLayoutIds: staticMeshLayoutIds,
 
-        options: properties,
-        // fragmentShaderSource,
+      options: properties,
 
-        vertexShaderSource,
-        vertexShaderLayout: this.createVertexShaderLayout([
-          {
-            'dataType': 'float32',
-            'elementsPerVertex': 3
-          },
-          {
-            'dataType': 'float32',
-            'elementsPerVertex': 2
-          },
-          {
-            'dataType': 'float32',
-            'elementsPerVertex': 3
-          },
-          {
-            'dataType': 'float32',
-            'elementsPerVertex': 4
-          }
-        ]),
-        vertexShaderStride: 48,
-      } as ShaderProgramDescription);
-    }
+      vertexShaderSource: staticMeshVertex,
+      vertexShaderLayout: this.createVertexShaderLayout([3, 2, 3, 4].map(elementsPerVertex => ({
+        elementsPerVertex,
+        dataType: 'float32'
+      }))),
+      vertexShaderStride: 48
+    });
 
-    return this.pipelinesCache[uniqueId];
+    this.pipelinesCache[`${uniqueId}_SKINNED`] = this.graphics.initPipeline({
+      label: 'Shadow Pass Skinned',
+      shaderLayoutIds: skinnedMeshLayoutIds,
+
+      options: properties,
+
+      vertexShaderSource: skinnedMeshVertex,
+      vertexShaderLayout: this.createVertexShaderLayout([3, 2, 3, 4, 4, 4].map(elementsPerVertex => ({
+        elementsPerVertex,
+        dataType: 'float32'
+      }))),
+      vertexShaderStride: 80
+    });
+
+    return [this.pipelinesCache[uniqueId], this.pipelinesCache[`${uniqueId}_SKINNED`]];
   }
 
   public createPipeline(geometry: Geometry,
@@ -176,11 +176,11 @@ export default class ShaderManager {
     const isSkybox = geometryDescriptor.vertexShader === VertexShaderName.SKY_BOX;
 
     const shaderLayoutIds = isSkybox
-      ? [
+                            ? [
         this.resourceManager.getOrCreateLayout(ShaderManager.GLOBAL_BIND_GROUP),
         ...materialDescriptor.bindGroupLayouts.map(l => this.resourceManager.getOrCreateLayout(l)),
       ]
-      : [
+                            : [
         this.resourceManager.getOrCreateLayout(ShaderManager.GLOBAL_BIND_GROUP),
         ...materialDescriptor.bindGroupLayouts.map(l => this.resourceManager.getOrCreateLayout(l)),
         layoutId,
@@ -238,9 +238,9 @@ export default class ShaderManager {
     return ObjectUtils.mergePartial(pipelineOptions, DEFAULT_PIPELINE_OPTIONS);
   }
 
-  private getShadowPassShaders(): [string, string?] {
+  private getShadowPassShaders(): [string, string] {
     if (this.graphics.graphicsApi() === GraphicsAPI.WEBGPU) {
-      const vertexInput = `
+      const staticVertexInput = `
                 struct VertexInput {
                     @builtin(instance_index) instanceID: u32,
                     @location(0) position: vec3<f32>,
@@ -249,26 +249,35 @@ export default class ShaderManager {
                     @location(3) tangent: vec4<f32>,
                 };
             `;
+      const skinnedVertexInput = `
+                struct VertexInput {
+                    @builtin(instance_index) instanceID: u32,
+                    @location(0) position: vec3<f32>,
+                    @location(1) textureCoord: vec2<f32>,
+                    @location(2) normal: vec3<f32>,
+                    @location(3) tangent: vec4<f32>,
+                    @location(4) jointIndices: vec4<f32>,
+                    //    @location(4) joints: vec4<u32>,
+                    @location(5) jointWeights: vec4<f32>,
+                };
+            `;
       const vertexOutput = `
                 struct VertexOutput {
                     @builtin(position) position: vec4<f32>,
                 }
             `;
       return [`
-                    ${vertexInput}
+                    ${staticVertexInput}
 
                     ${vertexOutput}
                     
                     struct Global {
                         lightViewProjectionMatrix : mat4x4<f32>,
                     }
-                    struct Model {
-                        modelMatrix : mat4x4<f32>,
-                    };
                     
                     @group(0) @binding(0) var<uniform> global : Global;
+                    //@group(0) @binding(1) var<uniform> modelMatrix: mat4x4<f32>;
                     @group(1) @binding(0) var<storage, read> modelMatrices: array<mat4x4<f32>>;
-                    @group(1) @binding(1) var<uniform> u_jointMatrices: array<mat4x4<f32>, 256>;
                     
                     @vertex
                     fn main(input : VertexInput) -> VertexOutput {
@@ -277,16 +286,33 @@ export default class ShaderManager {
                         output.position = global.lightViewProjectionMatrix * modelMatrix * vec4<f32>(input.position, 1.0); 
                         return output;
                     }
+            `, `
+                    ${skinnedVertexInput}
+
+                    ${vertexOutput}
+                    
+                    struct Global {
+                        lightViewProjectionMatrix : mat4x4<f32>,
+                    }
+                    
+                    @group(0) @binding(0) var<uniform> global : Global;
+                    //@group(0) @binding(1) var<uniform> modelMatrix: mat4x4<f32>;
+                    @group(1) @binding(0) var<storage, read> modelMatrices: array<mat4x4<f32>>;
+                    @group(1) @binding(1) var<uniform> jointMatrices: array<mat4x4<f32>, 256>;
+                    
+                    @vertex
+                    fn main(input : VertexInput) -> VertexOutput {
+                        var output: VertexOutput;
+                        let modelMatrix = modelMatrices[input.instanceID];
+                        let worldPosition =
+                            input.jointWeights.x * (jointMatrices[u32(input.jointIndices.x)] * vec4<f32>(input.position, 1.0)) +
+                            input.jointWeights.y * (jointMatrices[u32(input.jointIndices.y)] * vec4<f32>(input.position, 1.0)) +
+                            input.jointWeights.z * (jointMatrices[u32(input.jointIndices.z)] * vec4<f32>(input.position, 1.0)) +
+                            input.jointWeights.w * (jointMatrices[u32(input.jointIndices.w)] * vec4<f32>(input.position, 1.0));
+                        output.position = global.lightViewProjectionMatrix * modelMatrix * worldPosition; 
+                        return output;
+                    }
             `,
-        // `
-        //     ${vertexOutput}
-        //
-        //     @fragment
-        //     fn main(input: VertexOutput) -> @location(0) vec4<f32> {
-        //         let depth = input.position.z;
-        //         return vec4<f32>(input.position.xyz, 1.0);
-        //     }
-        // `
       ];
     } else {
       return [
@@ -499,11 +525,20 @@ export default class ShaderManager {
       // import ('webgl/shaders/basic/basicFragmentShader.frag').then(module => ({ content: module.default, shader: FragmentShaderName.BASIC })),
       // import ('webgl/shaders/basic/basicVertexShader.vert').then(module => ({ content: module.default, shader: VertexShaderName.UNUSED_OLD_BASIC_INSTANCED })),
       // import ('webgl/shaders/basic/basicVertexShaderInstanced.vert').then(module => ({ content: module.default, shader: VertexShaderName.UNUSED_OLD_BASIC_INSTANCED })),
-      import ('webgl/shaders/debug/outlinedShapeFragmentShader.frag').then(module => ({ content: module.default, shader: FragmentShaderName.UNLIT })),
-      import ('webgl/shaders/debug/outlinedShapeVertexShader.vert').then(module => ({ content: module.default, shader: VertexShaderName.UNLIT_GEOMETRY })),
+      import ('webgl/shaders/debug/outlinedShapeFragmentShader.frag').then(module => ({
+        content: module.default,
+        shader: FragmentShaderName.UNLIT
+      })),
+      import ('webgl/shaders/debug/outlinedShapeVertexShader.vert').then(module => ({
+        content: module.default,
+        shader: VertexShaderName.UNLIT_GEOMETRY
+      })),
       import ('webgl/shaders/light/pbrFragment.frag').then(module => ({ content: module.default, shader: FragmentShaderName.PBR })),
       import ('webgl/shaders/light/phongFragment.frag').then(module => ({ content: module.default, shader: FragmentShaderName.PHONG_LIT })),
-      import ('webgl/shaders/light/vertexShader.vert').then(module => ({ content: module.default, shader: VertexShaderName.LIT_TANGENTS_VEC4 })),
+      import ('webgl/shaders/light/vertexShader.vert').then(module => ({
+        content: module.default,
+        shader: VertexShaderName.LIT_TANGENTS_VEC4
+      })),
       import ('webgl/shaders/skybox-fragment.frag').then(module => ({ content: module.default, shader: FragmentShaderName.SKY_BOX })),
       import ('webgl/shaders/skybox-vertex.vert').then(module => ({ content: module.default, shader: VertexShaderName.SKY_BOX })),
       // import ('webgl/shaders/terrain/terrainFragmentShader.frag').then(module => ({ content: module.default, shader: FragmentShaderName.TERRAIN })),
@@ -519,14 +554,29 @@ export default class ShaderManager {
       // import ('webgpu/shaders/basic/basicFragmentShader.wgsl').then(module => ({ content: module.default, shader: FragmentShaderName.BASIC })),
       // import ('webgpu/shaders/basic/basicVertexShader.wgsl').then(module => ({ content: module.default, shader: VertexShaderName.UNUSED_OLD_BASIC_INSTANCED })),
       // import ('webgpu/shaders/basic/basicVertexShaderInstanced.wgsl').then(module => ({ content: module.default, shader: VertexShaderName.UNUSED_OLD_BASIC_INSTANCED })),
-      import ('webgpu/shaders/debug/sphereFragmentShader.wgsl').then(module => ({ content: module.default, shader: FragmentShaderName.UNLIT })),
-      import ('webgpu/shaders/debug/sphereVertexShader.wgsl').then(module => ({ content: module.default, shader: VertexShaderName.UNLIT_GEOMETRY })),
+      import ('webgpu/shaders/debug/sphereFragmentShader.wgsl').then(module => ({
+        content: module.default,
+        shader: FragmentShaderName.UNLIT
+      })),
+      import ('webgpu/shaders/debug/sphereVertexShader.wgsl').then(module => ({
+        content: module.default,
+        shader: VertexShaderName.UNLIT_GEOMETRY
+      })),
       import ('webgpu/shaders/light/pbrFragment.wgsl').then(module => ({ content: module.default, shader: FragmentShaderName.PBR })),
-      import ('webgpu/shaders/light/phongFragment.wgsl').then(module => ({ content: module.default, shader: FragmentShaderName.PHONG_LIT })),
-      import ('webgpu/shaders/light/vertexShader.wgsl').then(module => ({ content: module.default, shader: VertexShaderName.LIT_TANGENTS_VEC4 })),
+      import ('webgpu/shaders/light/phongFragment.wgsl').then(module => ({
+        content: module.default,
+        shader: FragmentShaderName.PHONG_LIT
+      })),
+      import ('webgpu/shaders/light/vertexShader.wgsl').then(module => ({
+        content: module.default,
+        shader: VertexShaderName.LIT_TANGENTS_VEC4
+      })),
       import ('webgpu/shaders/skybox-fragment.wgsl').then(module => ({ content: module.default, shader: FragmentShaderName.SKY_BOX })),
       import ('webgpu/shaders/skybox-vertex.wgsl').then(module => ({ content: module.default, shader: VertexShaderName.SKY_BOX })),
-      import ('webgpu/shaders/light/skeletalVertexShader.wgsl').then(module => ({ content: module.default, shader: VertexShaderName.SKINNED_LIT })),
+      import ('webgpu/shaders/light/skeletalVertexShader.wgsl').then(module => ({
+        content: module.default,
+        shader: VertexShaderName.SKINNED_LIT
+      })),
       // import ('webgpu/shaders/terrain/terrainFragmentShader.wgsl').then(module => ({ content: module.default, shader: FragmentShaderName.TERRAIN })),
       // import ('webgpu/shaders/terrain/terrainVertexShader.wgsl').then(module => ({ content: module.default, shader: VertexShaderName.TERRAIN })),
     ]).then(res => res.forEach(({ content, shader }) => this.shaderContents[shader] = content));

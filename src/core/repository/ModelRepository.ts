@@ -14,7 +14,7 @@ import ResourceManager from 'core/resources/ResourceManager';
 import ShaderManager from 'core/resources/shader/ShaderManager';
 import TextureManager from 'core/resources/TextureManager';
 import Texture from 'core/texture/Texture';
-import { vec2, vec4 } from 'gl-matrix';
+import { mat4, vec2, vec4 } from 'gl-matrix';
 import MathUtil from 'utils/MathUtil';
 
 
@@ -246,13 +246,13 @@ class ModelRepository {
     return sponzaScene;
   }
 
-  async sponzaAtriumGLB(cache: boolean = true): Promise<EntityId[]> {
+  async sponzaAtriumGLB(transform?: Transform, cache: boolean = true): Promise<EntityId[]> {
     if (cache && this.models.has('sponza')) {
       return this.sceneCache.get('sponza')!;
     }
 
     console.time('[Sponza GLB]');
-    const sponzaScene = await ModelRepository.cacheables.sponzaAtriumGLB(this.resourceManager.textureManager)()
+    const sponzaScene = await ModelRepository.cacheables.sponzaAtriumGLB(transform?.localTransform.mat4)()
       .then(gltf => {
         console.timeLog('[Sponza GLB]', 'json and loaded textures');
         return gltf
@@ -320,7 +320,7 @@ class ModelRepository {
       return this.sceneCache.get('Midas')!;
     }
 
-    const scene = await ModelRepository.cacheables.midas(this.resourceManager.textureManager)()
+    const scene = await ModelRepository.cacheables.midas(transform?.localTransform.mat4)()
       .then(gltf => gltf.createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager, this.entityManager, transform));
     this.sceneCache.set('Midas', scene);
     return scene;
@@ -332,7 +332,7 @@ class ModelRepository {
     }
 
     console.time('[FinalWarsMonster]');
-    const scene = await ModelRepository.cacheables.newyork(this.resourceManager.textureManager)()
+    const scene = await ModelRepository.cacheables.newyork(transform?.localTransform.mat4)()
       .then(gltf => {
         console.timeLog('[FinalWarsMonster]', 'json and loaded textures');
         return gltf
@@ -343,17 +343,32 @@ class ModelRepository {
     return scene;
   }
 
+  async scourger(transform?: Transform, cache: boolean = true): Promise<EntityId[]> {
+    if (cache && this.models.has('Scourger')) {
+      return this.sceneCache.get('Scourger')!;
+    }
+
+    console.log('Sending mat4 to scourger: ', transform?.localTransform?.mat4);
+    const scene = await ModelRepository.cacheables.scourger(transform?.localTransform.mat4)()
+      .then(gltf =>
+        gltf
+          .createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager, this.entityManager, transform));
+    this.sceneCache.set('Scourger', scene);
+    return scene;
+  }
+
   static cacheables = {
     sponzaAtrium: (textureManager: TextureManager) => cacheablePromise(GLTFParserMainThread.parseGltf('assets/scene/sponza_atrium/gltf/', 'scene.gltf', 'scene.bin', textureManager)),
     sponzaAtriumGLBMainThread: (textureManager: TextureManager) => cacheablePromise(GLTFParserMainThread.parseGlb('assets/scene/sponza_atrium/', 'sponza_atrium_3.glb', textureManager)),
-    sponzaAtriumGLB: (textureManager: TextureManager) => cacheablePromise(GLTFParser.parseGlb('assets/scene/sponza_atrium/', 'sponza_atrium_3.glb', textureManager)),
+    sponzaAtriumGLB: (rootTransform?: mat4) => cacheablePromise(GLTFParser.parseGlb('assets/scene/sponza_atrium/', 'sponza_atrium_3.glb', rootTransform)),
+    newyork: (rootTransform?: mat4) => cacheablePromise(GLTFParser.parseGlb('assets/scene/', 'fixed_new_york_highway_interstate_95.glb', rootTransform)),
+    scourger: (rootTransform?: mat4) => cacheablePromise(GLTFParser.parseGlb('assets/scene/scourger/', 'scourger-1k.glb', rootTransform)),
+    midas: (rootTransform?: mat4) => cacheablePromise(GLTFParser.parseGlb('assets/scene/final_wars_monster/', 'midas.glb', rootTransform)),
     toyCar: (textureManager: TextureManager) => cacheablePromise(GLTFParserMainThread.parseGltf('assets/scene/ToyCar/glTF/', 'ToyCar.gltf', 'ToyCar.bin', textureManager)),
     test: (textureManager: TextureManager) => cacheablePromise(GLTFParserMainThread.parseGltf('assets/scene/glTF/', 'Suzanne.gltf', 'Suzanne.bin', textureManager)),
     porche: (textureManager: TextureManager) => cacheablePromise(GLTFParserMainThread.parseGltf('assets/scene/porsche/', 'scene-2.gltf', 'scene-2.bin', textureManager)),
     monster: (textureManager: TextureManager) => cacheablePromise(GLTFParserMainThread.parseGltf('assets/scene/monster/', 'scene.gltf', 'scene.bin', textureManager)),
-    midas: (textureManager: TextureManager) => cacheablePromise(GLTFParser.parseGlb('assets/scene/final_wars_monster/', 'midas.glb', textureManager)),
     midasMainThread: (textureManager: TextureManager) => cacheablePromise(GLTFParserMainThread.parseGlb('assets/scene/final_wars_monster/', 'midas.glb', textureManager)),
-    newyork: (textureManager: TextureManager) => cacheablePromise(GLTFParser.parseGlb('assets/scene/', 'fixed_new_york_highway_interstate_95.glb', textureManager)),
   };
 
   static wavefrontFiles = {

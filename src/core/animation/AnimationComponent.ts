@@ -1,6 +1,18 @@
 import Component, { ComponentId } from "core/components/Component";
+import { EntityId } from 'core/EntityManager';
 import { quat, vec3 } from "gl-matrix";
 
+export enum AnimationProperty {
+    rotation,
+    translation,
+    scale,
+}
+
+export enum AnimationStep {
+    LINEAR,
+    STEP,
+    CUBICSPLINE,
+}
 export default class AnimationComponent implements Component {
     public static readonly ID = Symbol('AnimationComponent');
     readonly id: ComponentId = AnimationComponent.ID;
@@ -21,13 +33,13 @@ export interface Animation {
 }
 
 export interface AnimationTrack {
-    targetEntity: number; // Entity ID of the target (e.g., a joint or object)
-    property: 'translation' | 'rotation' | 'scale'; // Property to animate
-    keyframes: Keyframe[]; // Array of keyframes
+    targetEntity: EntityId; // Entity ID of the target (e.g., a joint or object)
+    property: AnimationProperty; //'translation' | 'rotation' | 'scale'; // Property to animate
+    keyframes: AnimationKeyframe[]; // Array of keyframes
 }
 
-export interface Keyframe {
+export interface AnimationKeyframe {
     time: number; // Time of the keyframe
     value: vec3 | quat; // Value at this keyframe
-    interpolation: 'LINEAR' | 'STEP' | 'CUBICSPLINE'; // Interpolation method
+    interpolation: AnimationStep; //'LINEAR' | 'STEP' | 'CUBICSPLINE'; // Interpolation method
 }

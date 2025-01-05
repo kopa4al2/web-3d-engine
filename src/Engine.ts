@@ -1,4 +1,5 @@
 import Canvas from 'Canvas';
+import AnimationSystem from 'core/animation/AnimationSystem';
 import CameraComponent from 'core/components/camera/CameraComponent';
 import ProjectionMatrix from 'core/components/camera/ProjectionMatrix';
 import Component from 'core/components/Component';
@@ -179,30 +180,43 @@ export default class Engine {
       color: vec4.fromValues(0.7, 0.85, 1.0, 1),
       intensity: 2.5,
       innerCutoff: Math.cos(glMatrix.toRadian(25.0)),
-      outerCutoff: Math.cos(glMatrix.toRadian(25.0)),
+      outerCutoff: Math.cos(glMatrix.toRadian(35.0)),
       linearAttenuation: 0.1,
       quadraticAttenuation: 0.0032
-    }, TransformBuilder.position(vec3.fromValues(0, 3, -1)).lookAt([0, 0, 0]).build());
+    }, TransformBuilder.position(vec3.fromValues(5, 3, 1)).lookAt([1, 4, 0]).build());
 
     const skeletalTransform = new TransformBuilder()
-      .reorient()
-      .translate([4, 2, 0])
-      .lookAt([4, 4, 0])
-      .scaleBy(0.5)
+      // .reorient()
+      .translate([-4, 2, 0])
+      .lookAt([-4, 4, 0])
+      .label('MidasRoot')
+      // .scaleBy(0.5)
       .build();
 
     // const skeletalTransform = Transform.fromMat4(lookAtWithOffset(vec3.fromValues(4, 2, 2), vec3.fromValues(2, 2, 0), Transform.UP));
 
-    const e = this.entityManager.createEntity('TransformEntity');
-    this.entityManager.addComponents(e, [skeletalTransform]);
-    this.scene.addEntities(e);
+    // const e = this.entityManager.createEntity('Midas');
+    // this.entityManager.addComponents(e, [skeletalTransform]);
+    // this.scene.addEntities(e);
+
+    const scourgeTransform = new TransformBuilder()
+      // .reorient()
+      // .translate([-4, 2, 0])
+      // .lookAt([-4, 4, 0])
+      .label('ScourgeRoot')
+      .scaleBy(0.25)
+      .build();
+    // const scourgeEntity = this.entityManager.createEntity('Scourge');
+    // this.entityManager.addComponents(scourgeEntity, [scourgeTransform]);
+    // this.scene.addEntities(scourgeEntity);
 
     return Promise.all([
-      this.addScene('Skeletal', () => this.modelRepository.midas(skeletalTransform)),
+      // this.addScene('Skeletal', () => this.modelRepository.midas(skeletalTransform)),
+      this.addScene('Scourge', this.modelRepository.scourger, scourgeTransform),
       // this.addScene('Skeletal', () => this.modelRepository.newyork()),
-      this.loadAndAddMesh('Crate1', this.modelRepository.createCrate, [-2, 2, 0], 0.005),
+      // this.loadAndAddMesh('Crate1', this.modelRepository.createCrate, [-2, 2, 0], 0.005),
       // this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumGLB),
-      // this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumScene),
+      this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumScene),
     ])
       // .then(() => this.addScene('Skeletal', () => this.modelRepository.finalWarsMonster(skeletalTransform)))
       // .then(() => this.addScene('Monster', this.modelRepository.monster, defaultTransform().translate([3, 3, 0]).lookAt([0, 1, 0])))
@@ -212,10 +226,11 @@ export default class Engine {
       // .then(() => this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumGLB))
       .then(() => {
         this.ecs.registerUpdateSystems(
-          new SceneSystem(this.entityManager),
           new InputSystem(this.entityManager, this.properties, this.canvas.htmlElement),
+          new FreeCameraSystem(this.entityManager, this.properties),
+          new AnimationSystem(this.entityManager),
           new TransformSystem(this.entityManager),
-          new FreeCameraSystem(this.entityManager, this.properties)
+          new SceneSystem(this.entityManager),
         );
 
         this.ecs.registerSystems(
@@ -223,8 +238,10 @@ export default class Engine {
           new ViewFrustumSystem(this.entityManager, this.graphicsApi, this.properties),
           new TerrainSystem(this.graphicsApi));
 
-        // this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumGLB);
+        // this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumScene)
+        //     .then(() => this.loadAndAddMesh('Crate2', this.modelRepository.createCrate, [2, 3, 2], 0.004));
 
+        // skeletalTransform.lookAt(vec3.fromValues(0, 0, 0));
       });
 
     // worldCoordinates(this.properties, this.freeCameraComponent, this.projectionMatrix, this.input, this.canvas.parent);
@@ -233,11 +250,8 @@ export default class Engine {
   private async addScene(label = 'scene', scene: () => Promise<EntityId[]>, transform?: Transform): Promise<void> {
     const color = DebugUtil.getRandomColorStyle();
     console.log(`%c Begin loading ${label}`, color);
-    const entities = await scene.bind(this.modelRepository)();
-    if (transform) {
-      const component = this.entityManager.getComponents<[Transform]>(entities[0], Transform.ID)[0];
-      component.transformBy(transform);
-    }
+    // @ts-ignore
+    const entities = await scene.bind(this.modelRepository)(transform);
     this.scene.addEntities(...entities);
     console.log(`%c Finished loading ${label}`, color);
   }

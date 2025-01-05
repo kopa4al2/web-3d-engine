@@ -12,15 +12,15 @@ export default class Skeleton implements Component {
 
   constructor(public name: string,
               public joints: EntityId[],
-              private _inverseBindMatrices: ArrayBuffer,
-              public bindGroup?: BindGroupHelper) {
+              public inverseBindMatrices: ArrayBuffer,
+              public bindGroup: BindGroupHelper) {
   }
 
-  set inverseBindMatrices(inverseBindMatrices: ArrayBuffer) {
-    this._inverseBindMatrices = inverseBindMatrices;
-  }
-
-  get inverseBindMatrices(): ArrayBuffer {
-    return this._inverseBindMatrices!;
-  }
+  // set inverseBindMatrices(inverseBindMatrices: ArrayBuffer) {
+  //   this._inverseBindMatrices = inverseBindMatrices;
+  // }
+  //
+  // get inverseBindMatrices(): ArrayBuffer {
+  //   return this._inverseBindMatrices!;
+  // }
 }

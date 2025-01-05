@@ -18,7 +18,6 @@ export interface GeometryData {
 export interface GeometryDescriptor {
     vertexLayout: VertexLayout,
     vertexShader: VertexShaderName,
-    data?: any,
 }
 
 export default class Geometry {

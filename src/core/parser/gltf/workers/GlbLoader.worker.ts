@@ -1,3 +1,4 @@
+import { AnimationProperty, AnimationStep } from 'core/animation/AnimationComponent';
 import { GeometryData } from 'core/mesh/Geometry';
 import { GLTFJson, GLTFNode } from 'core/parser/gltf/GLTFParser';
 import { GLBWorkerRequest, GLBWorkerResponse } from 'core/parser/gltf/workers/GlbImageLoader.worker';
@@ -9,6 +10,7 @@ import { VertexShaderName } from 'core/resources/cpu/CpuShaderData';
 
 export interface GlbJsonParserRequest {
   binary: ArrayBuffer,
+  rootTransform: ArrayBuffer,
   name: string,
   style: string,
 }
@@ -19,6 +21,7 @@ export interface GlbJsonParserResponse {
   json: GLTFJson,
   nodes: GlbWorkerNode[],
   skins: ArrayBuffer[],
+  animations: SerializedAnimation[],
 }
 
 export interface GlbWorkerImage {
@@ -42,24 +45,39 @@ export interface GlbWorkerNode {
   worldTransform: ArrayBuffer,
 }
 
+export interface SerializedAnimation {
+  name: string,
+  channels: ArrayBuffer,
+  samplers: SerializedSampler[],
+}
+
+export interface SerializedSampler {
+  interpolation: AnimationStep,
+  inputs: ArrayBuffer,
+  output: ArrayBuffer,
+}
+
 export enum Attribute {
-  INDICES   = 0,
+  INDICES = 0,
   POSITIONS = 1,
-  NORMALS   = 2,
-  TANGENT   = 3,
-  JOINTS    = 4,
-  WEIGHTS   = 5,
-  UV_0      = 6,
-  UV_1      = 7,
-  UV_2      = 8,
-  SKIN      = 9,
+  NORMALS = 2,
+  TANGENT = 3,
+  JOINTS = 4,
+  WEIGHTS = 5,
+  UV_0 = 6,
+  UV_1 = 7,
+  UV_2 = 8,
+  SKIN = 9,
+  SAMPLER_INPUT,
+  SAMPLER_OUTPUT,
 }
 
 interface Accessor {
   data: number[],
   attribute: Attribute,
   mesh: number,
-  accessor: any,
+  index?: number,
+  // accessor: any,
 }
 
 const typeToSize: Record<string, number> = {
@@ -86,7 +104,7 @@ function deleteUnneededJsonProperties(json: GLTFJson) {
 }
 
 
-function parseNodes(json: GLTFJson, buffersToTransfer: Transferable[]) {
+function parseNodes(json: GLTFJson, buffersToTransfer: Transferable[], rootTransform: mat4) {
   const rootNode = json.scene;
   const nodes: GlbWorkerNode[] = Array(json.nodes.length);
 
@@ -94,19 +112,20 @@ function parseNodes(json: GLTFJson, buffersToTransfer: Transferable[]) {
     const node = json.nodes[nodeIdx];
     const localTransform = getTransform(node);
     const worldTransform = parentTransform
-      ? mat4.multiply(mat4.create(), parentTransform, localTransform)
+                           ? mat4.multiply(mat4.create(), parentTransform, localTransform)
       // ? mat4.copy(mat4.create(), localTransform)
-      : mat4.copy(mat4.create(), localTransform);
-
-    if (nodes[nodeIdx]) {
-      console.warn(`Node ${nodeIdx} has a node property. This is not supported yet.`);
-      alert('GRESKA');
-    }
+                           : mat4.copy(mat4.create(), localTransform);
 
     const worldTransformBuffer: ArrayBuffer = (worldTransform as Float32Array).buffer as ArrayBuffer;
     const localTransformBuffer: ArrayBuffer = (localTransform as Float32Array).buffer as ArrayBuffer;
     buffersToTransfer.push(worldTransformBuffer, localTransformBuffer);
-    nodes[nodeIdx] = { name: node.name, parent, mesh: node.mesh, worldTransform: worldTransformBuffer, localTransform: localTransformBuffer };
+    nodes[nodeIdx] = {
+      name: node.name,
+      parent,
+      mesh: node.mesh,
+      worldTransform: worldTransformBuffer,
+      localTransform: localTransformBuffer
+    };
     if (node.children) {
       for (const child of node.children) {
         traverse(child, worldTransform, nodeIdx);
@@ -122,6 +141,7 @@ function parseNodes(json: GLTFJson, buffersToTransfer: Transferable[]) {
     if (node.rotation || node.scale || node.translation) {
       const scale = vec3.copy(vec3.create(), node.scale || vec3.fromValues(1, 1, 1));
       if (node.scale && node.scale[0] > 10) {
+        console.warn('Large scale detected')
         scale[0] = 0.1;
         scale[1] = 0.1;
         scale[2] = 0.1;
@@ -137,7 +157,7 @@ function parseNodes(json: GLTFJson, buffersToTransfer: Transferable[]) {
   }
 
 
-  traverse(rootNode);
+  traverse(rootNode, rootTransform);
   return nodes;
 }
 
@@ -146,6 +166,7 @@ self.onmessage = async (event: MessageEvent<GlbJsonParserRequest>) => {
   // console.groupCollapsed(`[WORKER][BENCHMARK][${event.data.name}]`);
   // console.time(`[WORKER][${event.data.name}]`);
   const fileArrayBuffer = event.data.binary;
+  const rootTransform = new Float32Array(event.data.rootTransform) as mat4;
   const parsedJson = parseJson(fileArrayBuffer);
   const json = parsedJson.json;
   const binaryChunkOffset = parsedJson.binaryChunkOffset;
@@ -196,14 +217,14 @@ self.onmessage = async (event: MessageEvent<GlbJsonParserRequest>) => {
     accessorsByBufferView[i] = [];
   }
 
-  function groupAccessor(accessorIndex?: number, mesh?: number, attribute?: Attribute) {
+  function groupAccessor(accessorIndex: number | undefined, mesh: number, attribute: Attribute, index?: number) {
     if (accessorIndex === undefined) {
       return;
     }
 
     const accessor = json.accessors[accessorIndex];
     const bufferView =
-            json.bufferViews[accessor.bufferView];
+      json.bufferViews[accessor.bufferView];
 
 
     const data = [
@@ -216,9 +237,10 @@ self.onmessage = async (event: MessageEvent<GlbJsonParserRequest>) => {
 
     accessorsByBufferView[accessor.bufferView].push({
       data,
-      mesh: mesh!,
-      attribute: attribute!,
-      accessor: { accessor, bufferView }
+      mesh,
+      attribute,
+      index
+      // accessor: { accessor, bufferView }
     });
   }
 
@@ -241,12 +263,38 @@ self.onmessage = async (event: MessageEvent<GlbJsonParserRequest>) => {
     for (let i = 0; i < json.skins.length; i++) {
       const skin = json.skins[i];
       groupAccessor(skin.inverseBindMatrices, i, Attribute.SKIN);
-      // const accessor = json.accessors[skin.inverseBindMatrices];
-      // const bufferView = json.bufferViews[accessor.bufferView];
-      // const byteOffset = (bufferView.byteOffset || 0) + (accessor.byteOffset || 0);
-      // const byteLength = accessor.count * 16 * Float32Array.BYTES_PER_ELEMENT; // 16 floats per mat4
-      // const rawData = new Float32Array(fileArrayBuffer, byteOffset, accessor.count * 16);
+    }
+  }
 
+  const animations: SerializedAnimation[] = [];
+  const membersPerAnimationChannel = 3; // NODE PATH SAMPLER
+
+  if (json.animations) {
+    for (let i = 0; i < json.animations.length; i++) {
+      const animation = json.animations[i];
+      const name = animation.name;
+
+      const uint16Array = new Uint16Array(animation.channels.length * membersPerAnimationChannel);
+      const samplers = new Array(animation.samplers.length);
+      for (let j = 0; j < animation.samplers.length; j++) {
+        groupAccessor(animation.samplers[j].input, j, Attribute.SAMPLER_INPUT, i);
+        groupAccessor(animation.samplers[j].output, j, Attribute.SAMPLER_OUTPUT, i);
+
+        samplers[j] = { interpolation: AnimationStep[animation.samplers[j].interpolation] };
+      }
+
+      for (let j = 0; j < animation.channels.length; j++) {
+        uint16Array[j * membersPerAnimationChannel] = animation.channels[j].target.node;
+        uint16Array[(j * membersPerAnimationChannel) + 1] = AnimationProperty[animation.channels[j].target.path];
+        uint16Array[(j * membersPerAnimationChannel) + 2] = animation.channels[j].sampler;
+      }
+
+      buffersToTransfer.push(uint16Array.buffer);
+      animations.push({
+        name,
+        channels: uint16Array.buffer,
+        samplers
+      });
     }
   }
 
@@ -262,105 +310,117 @@ self.onmessage = async (event: MessageEvent<GlbJsonParserRequest>) => {
       bufferInfo: bufferInfo.buffer,
       buffer: bufferViews[Number(index)]
     }, [bufferViews[Number(index)], bufferInfo.buffer])
-      .then(parsedBuffers => {
-        for (let j = 0; j < data.length; j++) {
-          if (!meshes[data[j].mesh]) {
-            meshes[data[j].mesh] = {
-              [data[j].attribute]: parsedBuffers[j],
-            };
-          } else {
-            meshes[data[j].mesh][data[j].attribute] = parsedBuffers[j];
-          }
-        }
-      }));
+                                           .then(parsedBuffers => {
+                                             for (let j = 0; j < data.length; j++) {
+                                               if (data[j].attribute === Attribute.SAMPLER_INPUT) {
+                                                 const samplerIndex = data[j].mesh;
+                                                 animations[data[j].index!].samplers[samplerIndex].inputs = parsedBuffers[j];
+                                                 buffersToTransfer.push(parsedBuffers[j]);
+                                                 continue;
+                                               }
+                                               if (data[j].attribute === Attribute.SAMPLER_OUTPUT) {
+                                                 const samplerIndex = data[j].mesh;
+                                                 animations[data[j].index!].samplers[samplerIndex].output = parsedBuffers[j];
+                                                 buffersToTransfer.push(parsedBuffers[j]);
+                                                 continue;
+                                               }
+
+                                               if (!meshes[data[j].mesh]) {
+                                                 meshes[data[j].mesh] = {
+                                                   [data[j].attribute]: parsedBuffers[j],
+                                                 };
+                                               } else {
+                                                 meshes[data[j].mesh][data[j].attribute] = parsedBuffers[j];
+                                               }
+                                             }
+                                           }));
   }
 
   // console.timeLog(`[WORKER][${event.data.name}]`, 'Grouped buffer views and dispatched sub workers');
-  const nodes = parseNodes(json, buffersToTransfer);
+  const nodes = parseNodes(json, buffersToTransfer, rootTransform);
 
   const imageBitmaps = await Promise.all(imageResults).then(img => {
     imageLoadingWorkerPool.shutdown();
     return img;
   });
 
+  console.log(animations);
   Promise.all(workerResults)
-    .then((_) => {
-      // console.timeLog(`[WORKER][${event.data.name}]`, 'All sub workers finished.');
-      console.log(meshes);
+         .then((_) => {
+           // console.timeLog(`[WORKER][${event.data.name}]`, 'All sub workers finished.');
+           const meshGeometries = new Array(json.meshes.length);
+           const skins: ArrayBuffer[] = [];
+           for (let i = 0; i < json.meshes.length; i++) {
+             const data = meshes[i];
+             if (data[Attribute.SKIN]) {
+               skins.push(data[Attribute.SKIN]);
+               buffersToTransfer.push(data[Attribute.SKIN]);
+             }
 
-      const meshGeometries = new Array(json.meshes.length);
-      const skins: ArrayBuffer[] = [];
-      for (let i = 0; i < json.meshes.length; i++) {
-        const data = meshes[i];
-        if (data[Attribute.SKIN]) {
-          console.log('SKIN ', data);
-          skins.push(data[Attribute.SKIN])
-          buffersToTransfer.push(data[Attribute.SKIN]);
-        }
+             let geometryData: GeometryData = {
+               indices: new Uint32Array(data[Attribute.INDICES]),
+               vertices: new Float32Array(data[Attribute.POSITIONS]),
+               normals: new Float32Array(data[Attribute.NORMALS]),
+               texCoords: new Float32Array(data[Attribute.UV_0]),
+             };
 
-        let geometryData: GeometryData = {
-          indices: new Uint32Array(data[Attribute.INDICES]),
-          vertices: new Float32Array(data[Attribute.POSITIONS]),
-          normals: new Float32Array(data[Attribute.NORMALS]),
-          texCoords: new Float32Array(data[Attribute.UV_0]),
-        };
+             if (!data[Attribute.TANGENT]) {
+               geometryData = calculateTangentsVec4(geometryData);
+             } else {
+               geometryData.tangents = new Float32Array(data[Attribute.TANGENT]);
+             }
 
-        if (!data[Attribute.TANGENT]) {
-          geometryData = calculateTangentsVec4(geometryData);
-        } else {
-          geometryData.tangents = new Float32Array(data[Attribute.TANGENT]);
-        }
+             if (data[Attribute.WEIGHTS]) {
+               geometryData.weights = new Float32Array(data[Attribute.WEIGHTS]);
+             }
 
-        if (data[Attribute.WEIGHTS]) {
-          geometryData.weights = new Float32Array(data[Attribute.WEIGHTS]);
-        }
+             if (data[Attribute.JOINTS]) {
+               geometryData.joints = new Uint16Array(data[Attribute.JOINTS]);
+             }
 
-        if (data[Attribute.JOINTS]) {
-          geometryData.joints = new Uint16Array(data[Attribute.JOINTS]);
-        }
+             const isSkinned = (!!geometryData.joints && !!geometryData.weights);
+             const stride: GeometryStride = isSkinned
+                                            ? [['vertices', 3], ['texCoords', 2], ['normals', 3], ['tangents', 4], ['joints', 4], ['weights', 4]]
+                                            : [['vertices', 3], ['texCoords', 2], ['normals', 3], ['tangents', 4]];
 
-        const isSkinned = (!!geometryData.joints && !!geometryData.weights);
-        const stride: GeometryStride = isSkinned
-          ? [['vertices', 3], ['texCoords', 2], ['normals', 3], ['tangents', 4], ['joints', 4], ['weights', 4]]
-          : [['vertices', 3], ['texCoords', 2], ['normals', 3], ['tangents', 4]];
+             const interleavedData = interleaveData(geometryData, stride);
+             meshGeometries[i] = {
+               name: json.meshes[i].name,
+               data: interleavedData,
+               indices: data[Attribute.INDICES],
+               material: json.meshes[i].primitives[0].material,
+               shader: isSkinned ? VertexShaderName.SKINNED_LIT : VertexShaderName.LIT_TANGENTS_VEC4
+             };
+             buffersToTransfer.push(interleavedData);
+             buffersToTransfer.push(data[Attribute.INDICES]);
+           }
 
-        const interleavedData = interleaveData(geometryData, stride);
-        console.log(`Is skinned? ${isSkinned}`);
-        meshGeometries[i] = {
-          name: json.meshes[i].name,
-          data: interleavedData,
-          indices: data[Attribute.INDICES],
-          material: json.meshes[i].primitives[0].material,
-          shader: isSkinned ? VertexShaderName.SKINNED_LIT : VertexShaderName.LIT_TANGENTS_VEC4
-        };
-        buffersToTransfer.push(interleavedData);
-        buffersToTransfer.push(data[Attribute.INDICES]);
-      }
-
-      for (let i = 0; i < skins.length; i++) {
-        const jsonSkin = json.skins[i];
-        for (let j = 0; j < jsonSkin.joints.length; j++) {
-          const nodeIndex = jsonSkin.joints[j];
-          const mat4View = new Float32Array(skins[i], j * 16 * 4, 16);
-          mat4.multiply(mat4View, new Float32Array(nodes[nodeIndex].worldTransform), mat4View);
-        }
-      }
+           // for (let i = 0; i < skins.length; i++) {
+           //   const jsonSkin = json.skins[i];
+           //   for (let j = 0; j < jsonSkin.joints.length; j++) {
+           //     const nodeIndex = jsonSkin.joints[j];
+           //     console.log(`${j} -> ${nodes[nodeIndex].name}`);
+           //     const mat4View = new Float32Array(skins[i], j * 16 * 4, 16);
+               // mat4.multiply(mat4View, new Float32Array(nodes[nodeIndex].worldTransform), mat4View);
+             // }
+           // }
 
 
-      // deleteUnneededJsonProperties(json);
-      // console.timeEnd(`[WORKER][${event.data.name}]`, 'Full processing finished, returning result');
-      // console.groupEnd();
+           // deleteUnneededJsonProperties(json);
+           // console.timeEnd(`[WORKER][${event.data.name}]`, 'Full processing finished, returning result');
+           // console.groupEnd();
 
-      // console.log('%c [WORKER] Worker finished returning result', event.data.style);
-      bufferViewWorkerPool.shutdown();
-      self.postMessage({
-        meshes: meshGeometries,
-        imageBitmaps,
-        json,
-        nodes,
-        skins,
-      }, { transfer: buffersToTransfer });
-    });
+           // console.log('%c [WORKER] Worker finished returning result', event.data.style);
+           bufferViewWorkerPool.shutdown();
+           self.postMessage({
+             meshes: meshGeometries,
+             imageBitmaps,
+             json,
+             nodes,
+             skins,
+             animations,
+           }, { transfer: buffersToTransfer });
+         });
 
   // type KeyOfData = [keyof GeometryData, number][];
 
@@ -440,30 +500,30 @@ self.onmessage = async (event: MessageEvent<GlbJsonParserRequest>) => {
   }
 
   function calculateTangentsVec4(geometryData: GeometryData): GeometryData {
-    const vertices  = geometryData.vertices,
-          normals   = geometryData.normals,
-          texCoords = geometryData.texCoords,
-          indices   = geometryData.indices;
+    const vertices = geometryData.vertices,
+      normals = geometryData.normals,
+      texCoords = geometryData.texCoords,
+      indices = geometryData.indices;
     const tangents = new Float32Array(vertices.length * 4 / 3);
     const bitangents = new Float32Array(vertices.length);
-    const p0           = vec3.create(),
-          p1           = vec3.create(),
-          p2           = vec3.create(),
-          uv0          = vec2.create(),
-          uv1          = vec2.create(),
-          uv2          = vec2.create(),
-          deltaPos1    = vec3.create(),
-          deltaPos2    = vec3.create(),
-          deltaUV1     = vec2.create(),
-          deltaUV2     = vec2.create(),
-          tangent      = vec3.create(),
-          tangentTmp   = vec3.create(),
-          bitangent    = vec3.create(),
-          bitangentTmp = vec3.create(),
-          t            = vec3.create(),
-          b            = vec3.create(),
-          n            = vec3.create(),
-          crossTB      = vec3.create();
+    const p0 = vec3.create(),
+      p1 = vec3.create(),
+      p2 = vec3.create(),
+      uv0 = vec2.create(),
+      uv1 = vec2.create(),
+      uv2 = vec2.create(),
+      deltaPos1 = vec3.create(),
+      deltaPos2 = vec3.create(),
+      deltaUV1 = vec2.create(),
+      deltaUV2 = vec2.create(),
+      tangent = vec3.create(),
+      tangentTmp = vec3.create(),
+      bitangent = vec3.create(),
+      bitangentTmp = vec3.create(),
+      t = vec3.create(),
+      b = vec3.create(),
+      n = vec3.create(),
+      crossTB = vec3.create();
     for (let i = 0; i < indices.length; i += 3) {
       // Positions
       p0[0] = vertices[indices[i] * 3];

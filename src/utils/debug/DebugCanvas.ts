@@ -41,8 +41,8 @@ class DebugCanvas {
     // const imageData = context.createImageData(width, height);
     const imageData = new ImageData(width, height);
     const data = new Float32Array(buffer);
-    const minDepth = 0.8;
-    const maxDepth = 1.00;
+    const minDepth = 0.7;
+    const maxDepth = 1.10;
     // let minDepth = Infinity;
     // let maxDepth = -Infinity;
     // for (let i = 0; i < data.length; i++) {
@@ -53,7 +53,6 @@ class DebugCanvas {
 
     for (let i = 0; i < data.length; i++) {
       const depth = data[i];
-      // const normalizedDepth = linearizeDepth(depth, 0.1, 100.0);
       const normalizedDepth = (depth - minDepth) / (maxDepth - minDepth);
       const intensity = Math.floor(normalizedDepth * 255); // Map depth [0, 1] to [0, 255]
       const pixelIndex = i * 4;

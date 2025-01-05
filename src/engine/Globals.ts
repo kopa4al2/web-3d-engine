@@ -5,7 +5,7 @@ class Globals {
 
     DEFAULT_DEPTH_FORMAT: 'depth32float' | 'depth24plus' = 'depth32float'
 
-    SHADOW_PASS_TEXTURE_SIZE = 2048;
+    SHADOW_PASS_TEXTURE_SIZE = 512;
 
     MAX_SHADOW_CASTING_LIGHTS = 2;
 

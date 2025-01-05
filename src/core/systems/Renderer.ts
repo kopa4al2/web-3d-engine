@@ -4,9 +4,11 @@ import EntityManager from 'core/EntityManager';
 import DirectionalLight from 'core/light/DirectionalLight';
 import PointLight from 'core/light/PointLight';
 import SpotLight from 'core/light/SpotLight';
+import Skeleton from 'core/mesh/Skeleton';
 import { BindGroupHelper } from 'core/rendering/Helpers';
 import LightRenderer from 'core/rendering/LightRenderer';
-import { BufferId, BufferUsage } from 'core/resources/gpu/BufferDescription';
+import { VertexShaderName } from 'core/resources/cpu/CpuShaderData';
+import { BufferData, BufferId, BufferUsage } from 'core/resources/gpu/BufferDescription';
 import { UniformVisibility } from 'core/resources/gpu/GpuShaderData';
 import ResourceManager from 'core/resources/ResourceManager';
 import { createStruct } from 'core/resources/shader/DefaultBindGroupLayouts';
@@ -31,17 +33,15 @@ export default class Renderer implements System {
 
   private projectionViewMatrix: mat4 = mat4.create();
 
-  private readonly shadowPassPipeline: PipelineId;
+  private readonly shadowPassPipelines?: [PipelineId, PipelineId];
+  private readonly shadowPassBindGroupHelper?: BindGroupHelper;
+  private readonly debugBuffer?: BufferId;
+
   private readonly lights = new Map<Component, { texture: TextureId, layer: number }>();
-  private promiseQueue = new PromiseQueue();
 
-  private debugBuffer: BufferId;
+  private readonly lightsRenderer: LightRenderer;
+  private readonly promiseQueue = new PromiseQueue();
 
-  // @ts-ignore
-  private fullScreenQuads;
-
-  private shadowPassBindGroupHelper: BindGroupHelper;
-  private lightsRenderer: LightRenderer;
 
   constructor(private graphics: Graphics,
               private entityManager: EntityManager,
@@ -49,23 +49,38 @@ export default class Renderer implements System {
               private shaderManager: ShaderManager) {
     // this.fullScreenQuads = new FullScreenQuad(graphics, resourceManager);
     this.lightsRenderer = new LightRenderer();
-    this.shadowPassBindGroupHelper = new BindGroupHelper(resourceManager, 'lightViewProjMatrix', [{
-      type: 'uniform',
-      name: 'ShadowMapGlobal',
-      visibility: UniformVisibility.FRAGMENT | UniformVisibility.VERTEX,
-      byteLength: 16 * Float32Array.BYTES_PER_ELEMENT,
-    }]);
-    this.debugBuffer = resourceManager.createBuffer({
-      label: 'debug-buffer-1',
-      usage: BufferUsage.COPY_DST | BufferUsage.MAP_READ,
-      byteLength: Globals.SHADOW_PASS_TEXTURE_SIZE * Globals.SHADOW_PASS_TEXTURE_SIZE * Float32Array.BYTES_PER_ELEMENT
-    });
+    if (Globals.ENABLE_DEBUG_SHADOW) {
+      this.debugBuffer = resourceManager.createBuffer({
+        label: 'debug-buffer-1',
+        usage: BufferUsage.COPY_DST | BufferUsage.MAP_READ,
+        byteLength: Globals.SHADOW_PASS_TEXTURE_SIZE * Globals.SHADOW_PASS_TEXTURE_SIZE * Float32Array.BYTES_PER_ELEMENT
+      });
+    }
 
-    const layout1 = this.resourceManager.getOrCreateLayout({
-      label: 'InstanceBufferLayout',
-      entries: [createStruct('modelMatrix', 'storage', 0, UniformVisibility.VERTEX | UniformVisibility.FRAGMENT)]
-    });
-    this.shadowPassPipeline = this.shaderManager.createShadowPass(this.shadowPassBindGroupHelper.bindGroupLayoutId, layout1);
+    if (Globals.ENABLE_SHADOW_CASTINGS) {
+      this.shadowPassBindGroupHelper = new BindGroupHelper(resourceManager, 'lightViewProjMatrix', [{
+        type: 'uniform',
+        name: 'ShadowMapGlobal',
+        visibility: UniformVisibility.FRAGMENT | UniformVisibility.VERTEX,
+        byteLength: 16 * Float32Array.BYTES_PER_ELEMENT,
+      }]);
+
+
+      const layoutStatic = this.resourceManager.getOrCreateLayout({
+        label: 'InstanceBufferLayout',
+        entries: [createStruct('modelMatrix', 'storage', 0, UniformVisibility.VERTEX | UniformVisibility.FRAGMENT)]
+      });
+      const layoutSkinned = this.resourceManager.getOrCreateLayout({
+        label: 'SkinnedVertexLayout',
+        entries: [
+          createStruct('modelMatrix', 'storage', 0, UniformVisibility.VERTEX),
+          createStruct('inverseBindPoseMatrices', 'uniform', 1, UniformVisibility.VERTEX, 64 * 512)]
+      });
+      this.shadowPassPipelines = this.shaderManager.createShadowPass(
+        [this.shadowPassBindGroupHelper.bindGroupLayoutId, layoutStatic],
+        [this.shadowPassBindGroupHelper.bindGroupLayoutId, layoutSkinned]);
+    }
+
     this.debugVisualizeTexture = Globals.DEBUG_SHADOW_REALTIME ? this.debugVisualizeTexture.bind(this) : ThrottleUtil.throttle(this.debugVisualizeTexture.bind(this), 100);
   }
 
@@ -90,8 +105,8 @@ export default class Renderer implements System {
     const spotLights: [SpotLight, Transform][] = [];
     for (const lightEntity of scene.getVisibleLights()) {
       const [directionalLight, pointLight, spotLight, transform] = this.entityManager
-        .getComponents<[DirectionalLight, PointLight, SpotLight, Transform]>
-        (lightEntity, DirectionalLight.ID, PointLight.ID, SpotLight.ID, Transform.ID);
+                                                                       .getComponents<[DirectionalLight, PointLight, SpotLight, Transform]>
+                                                                       (lightEntity, DirectionalLight.ID, PointLight.ID, SpotLight.ID, Transform.ID);
 
       if (directionalLight) {
         dirLights.push(directionalLight);
@@ -146,7 +161,35 @@ export default class Renderer implements System {
     const renderPass = this.graphics.beginRenderPass();
 
     renderPass.setBindGroup(0, this.resourceManager.globalBindGroup);
+    const skeletons = this.entityManager.getComponentsWithId(Skeleton.ID) as Skeleton[];
+    const visited = new Set();
+    for (let i = 0; i < skeletons.length; i++) {
+      if (visited.has(skeletons[i].bindGroup)) {
+        continue;
+      }
 
+      visited.add(skeletons[i].bindGroup);
+      // const jointMatrices = skeletons[i].inverseBindMatrices.slice();
+      const jointMatrices = new ArrayBuffer(skeletons[i].inverseBindMatrices.byteLength);
+      const jointMatrixView = new Float32Array(jointMatrices);
+      const inverseBindMatrixView = new Float32Array(skeletons[i].inverseBindMatrices);
+      for (let j = 0; j < skeletons[i].joints.length; j++) {
+        const entity = skeletons[i].joints[j];
+        const transform = this.entityManager.getComponent(entity, Transform.ID) as Transform;
+        mat4.multiply(jointMatrixView.subarray(j * 16, (j + 1) * 16),
+          transform.getMatrix(),
+          inverseBindMatrixView.subarray(j * 16, (j + 1) * 16));
+        // const byteOffset = j * 16 * 4;
+        // const inverseBindMatrix = new Float32Array(skeletons[i].inverseBindMatrices, byteOffset, 16) as mat4;
+        // mat4.multiply(new Float32Array(jointMatrices, byteOffset, 16), transform.getMatrix(), inverseBindMatrix);
+        // mat4.multiply(new Float32Array(jointMatrices, byteOffset, 16), transform.getMatrix(), inverseBindMatrix);
+        // const multipliedMatrix = mat4.multiply(mat4.create(), transform.worldTransform.mat4, inverseBindMatrix);
+        // transform.worldTransform.mat4 = multipliedMatrix;
+        // new Float32Array(jointMatrices).set(multipliedMatrix, j * 16);
+      }
+
+      this.graphics.writeToBuffer(skeletons[i].bindGroup.getBuffer(1), new Float32Array(jointMatrices));
+    }
     for (const [pipeline, meshes] of entitiesToRender) {
       renderPass.usePipeline(pipeline);
       for (const [mesh, entities] of meshes) {
@@ -218,8 +261,6 @@ export default class Renderer implements System {
             height: Globals.SHADOW_PASS_TEXTURE_SIZE
           }
         });
-        shadowPass.usePipeline(this.shadowPassPipeline);
-        shadowPass.setBindGroup(0, this.shadowPassBindGroupHelper.bindGroupId);
 
 
         // SPOT LIGHT
@@ -242,17 +283,28 @@ export default class Renderer implements System {
         // const min = vec3.fromValues(-10, -10, -10);
         // const lightViewProjMatrix = calculateDirectionalLightVPMatrixv2(lightDirection, { min, max });
         lightViewProjMatrices[0] = lightViewProjMatrix;
-        this.graphics.writeToBuffer(this.shadowPassBindGroupHelper.bufferId, lightViewProjMatrix as Float32Array);
+        this.graphics.writeToBuffer(this.shadowPassBindGroupHelper!.bufferId, lightViewProjMatrix as Float32Array);
+
+        let currentPipeline;// = this.shadowPassPipelines[0];
+        shadowPass.setBindGroup(0, this.shadowPassBindGroupHelper!.bindGroupId);
         for (const [pipeline, meshes] of scene.getVisibleEntities()) {
           if (pipeline.description!.includes('SKY')) {
             // TODO: Ugly hack
-            console.debug('skipping', pipeline.description);
+            // console.debug('skipping', pipeline.description);
             continue;
           }
+
+
           for (const [mesh, entities] of meshes) {
+            if (mesh.geometry.descriptor.vertexShader === VertexShaderName.SKINNED_LIT && currentPipeline !== this.shadowPassPipelines![1]) {
+              currentPipeline = this.shadowPassPipelines![1];
+              shadowPass.usePipeline(currentPipeline);
+            } else if (mesh.geometry.descriptor.vertexShader === VertexShaderName.LIT_TANGENTS_VEC4 && currentPipeline !== this.shadowPassPipelines![0]) {
+              currentPipeline = this.shadowPassPipelines![0];
+              shadowPass.usePipeline(currentPipeline);
+            }
             shadowPass.setVertexBuffer(0, mesh.geometry.vertexBuffer);
             if (!mesh.instanceBuffers) {
-              console.log(pipeline.description);
               shadowPass.drawIndexed(mesh.geometry.indexBuffer, mesh.geometry.indices);
               continue;
             }
@@ -268,7 +320,7 @@ export default class Renderer implements System {
         }
 
         shadowPass.submit();
-        if (Globals.ENABLE_DEBUG_SHADOW) {
+        if (Globals.ENABLE_DEBUG_SHADOW && this.graphics._getTextureData) {
           this.debugVisualizeTexture(textureId);
         }
       }
@@ -276,12 +328,6 @@ export default class Renderer implements System {
   }
 
   private debugVisualizeTexture(textureId: symbol) {
-    // this.graphics
-    //     ._getTextureData!(textureId, this.debugBuffer)
-    //     .then(data =>
-    //         DebugCanvas.visualizeDepth(data, Globals.SHADOW_PASS_TEXTURE_SIZE, Globals.SHADOW_PASS_TEXTURE_SIZE));
-    // if (this.graphics._getTextureData) {
-
     this.promiseQueue.addLimitedTask(60, () => this.graphics
       ._getTextureData!(textureId, this.debugBuffer)
       .then(data => DebugCanvas

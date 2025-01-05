@@ -29,12 +29,20 @@ export default class Transform implements Component {
               _scale: vec3,
               public children: Transform[]   = [],
               private _parent?: Transform,
+              _label?: string,
               public needsCalculate: boolean = true) {
+    if (_label) {
+      this.label = _label;
+    }
     this.targetTransform = {
-      position: vec3.copy(vec3.create(), _position),
-      rotation: quat.copy(quat.create(), _rotation),
-      scale: vec3.copy(vec3.create(), _scale),
-      mat4: mat4.fromRotationTranslationScale(mat4.create(), _rotation, _position, _scale)
+      position: vec3.create(),
+      rotation: quat.create(),
+      scale: vec3.create(),
+      mat4: mat4.create(),
+      // position: vec3.copy(vec3.create(), _position),
+      // rotation: quat.copy(quat.create(), _rotation),
+      // scale: vec3.copy(vec3.create(), _scale),
+      // mat4: mat4.fromRotationTranslationScale(mat4.create(), _rotation, _position, _scale)
     };
 
     this.localTransform = {
@@ -45,17 +53,42 @@ export default class Transform implements Component {
     };
 
     this.worldTransform = {
-      position: vec3.copy(vec3.create(), _position),
-      rotation: quat.copy(quat.create(), _rotation),
-      scale: vec3.copy(vec3.create(), _scale),
-      mat4: mat4.fromRotationTranslationScale(mat4.create(), _rotation, _position, _scale)
+      position: vec3.create(),
+      rotation: quat.create(),
+      scale: vec3.create(),
+      mat4: mat4.create(),
+      // position: vec3.copy(vec3.create(), _position),
+      // rotation: quat.copy(quat.create(), _rotation),
+      // scale: vec3.copy(vec3.create(), _scale),
+      // mat4: mat4.fromRotationTranslationScale(mat4.create(), _rotation, _position, _scale)
     };
   }
 
-  // public set(transform: Transformations) {
-  //   this.copy(this.targetTransform, transform);
-  //   this.copy(this.worldTransform, transform);
-  //   this.copy(this.localTransform, transform);
+  // reorient(): Transform {
+  //   const right = vec3.create();
+  //   vec3.cross(right, Transform.FORWARD, Transform.UP);
+  //   vec3.normalize(right, right);
+  //
+  //   // Recompute up to ensure orthogonality
+  //   const up = vec3.cross(vec3.create(), right, Transform.FORWARD);
+  //   vec3.normalize(up, up);
+  //
+  //   // Create the orientation matrix
+  //   const rotationMatrix = mat4.create();
+  //   mat4.set(
+  //     rotationMatrix,
+  //     right[0], up[0], Transform.FORWARD[0], 0,
+  //     right[1], up[1], Transform.FORWARD[1], 0,
+  //     right[2], up[2], Transform.FORWARD[2], 0,
+  //     0, 0, 0, 1
+  //   );
+  //
+  //   // Combine with the existing model matrix
+  //   const newModelMatrix = mat4.create();
+  //   // this.localTransform.mat4 = mat4.multiply(newModelMatrix, rotationMatrix, this.localTransform.mat4);
+  //   // this.targetTransform.mat4 = mat4.multiply(newModelMatrix, rotationMatrix, this.targetTransform.mat4);
+  //   // this.worldTransform.mat4 = mat4.multiply(newModelMatrix, rotationMatrix, this.worldTransform.mat4);
+  //   return this;
   // }
 
   get up() {
@@ -71,8 +104,9 @@ export default class Transform implements Component {
   }
 
   set parent(parent: Transform) {
+    // this.needsCalculate = true;
     this._parent = parent;
-    // this.multiply(this.worldTransform, parent.localTransform, this.localTransform);
+    // this.multiply(this.worldTransform, parent.localTransform.mat4, this.localTransform.mat4);
   }
 
   get parent(): Transform | undefined {
@@ -92,7 +126,9 @@ export default class Transform implements Component {
   }
 
   transformBy(other: Transform) {
-    this.multiply(this.targetTransform, other.worldTransform.mat4, this.localTransform.mat4);
+    // this.needsCalculate = true;
+    this.multiply(this.localTransform, other.worldTransform.mat4, this.localTransform.mat4);
+    // this.multiply(this.targetTransform, other.worldTransform.mat4, this.localTransform.mat4);
   }
 
   shouldMove() {
@@ -108,7 +144,7 @@ export default class Transform implements Component {
     const forward = vec3.sub(vec3.create(), target, this.localTransform.position);
     vec3.normalize(forward, forward);
 
-    let up = Transform.UP;
+    let up = vec3.copy(vec3.create(), Transform.UP);
     // Check if forward is parallel to up
     if (Math.abs(vec3.dot(forward, up)) > 0.99999 && Math.abs(forward[0]) < 0.99999) {
       up = vec3.fromValues(1, 0, 0);
@@ -117,6 +153,8 @@ export default class Transform implements Component {
 
     mat4.targetTo(this.targetTransform.mat4, this.localTransform.position, target, up);
     mat4.getRotation(this.targetTransform.rotation, this.targetTransform.mat4);
+    // mat4.getScaling(this.targetTransform.scale, this.targetTransform.mat4);
+    // mat4.getTranslation(this.targetTransform.position, this.targetTransform.mat4);
 
     return this;
   }
@@ -158,8 +196,8 @@ export default class Transform implements Component {
   }*/
 
   getMatrix(): ModelMatrix {
-    // return mat4.fromRotationTranslationScale(mat4.create(), this.worldTransform.rotation, this.worldTransform.position, this.worldTransform.scale);
-    return this.worldTransform.mat4;
+    return mat4.fromRotationTranslationScale(mat4.create(), this.worldTransform.rotation, this.worldTransform.position, this.worldTransform.scale);
+    // return this.worldTransform.mat4;
   }
 
   rotateByEuler(x: number, y: number, z: number): Transform {
@@ -217,14 +255,30 @@ export default class Transform implements Component {
       vec3.copy(vec3.create(), newScale),
       other.children,
       other._parent,
+      other.label,
       other.needsCalculate
     );
+  }
+
+  fromMat4(out: Transformations, mat: mat4) {
+    mat4.getTranslation(out.position, mat);
+    mat4.getScaling(out.scale, mat);
+    mat4.getRotation(out.rotation, mat);
+
+    mat4.copy(out.mat4, mat);
+
+    return this;
   }
 
   public static fromMat4(mat: mat4): Transform {
     const position = mat4.getTranslation(vec3.create(), mat);
     const scale = mat4.getScaling(vec3.create(), mat);
     const rotation = mat4.getRotation(quat.create(), mat);
+
+    // const transform = new Transform(position, rotation, scale);
+    // mat4.copy(transform.localTransform.mat4, mat);
+    // mat4.copy(transform.worldTransform.mat4, mat);
+    // mat4.copy(transform.targetTransform.mat4, mat);
 
     return new Transform(position, rotation, scale);
   }
@@ -240,6 +294,7 @@ export const defaultTransform = (): Transform => new Transform(
 export class TransformBuilder {
 
   public matrix = mat4.create();
+  private _label?: string;
 
   constructor(public translation = vec3.fromValues(0, 0, 0),
               public rotation    = quat.fromValues(0, 0, 0, 1),
@@ -301,16 +356,16 @@ export class TransformBuilder {
     vec3.normalize(right, right);
 
     // Recompute up to ensure orthogonality
-    vec3.cross(Transform.UP, right, Transform.FORWARD);
-    vec3.normalize(Transform.UP, Transform.UP);
+    const up = vec3.cross(vec3.create(), right, Transform.FORWARD);
+    vec3.normalize(up, up);
 
     // Create the orientation matrix
     const rotationMatrix = mat4.create();
     mat4.set(
       rotationMatrix,
-      right[0], Transform.UP[0], Transform.FORWARD[0], 0,
-      right[1], Transform.UP[1], Transform.FORWARD[1], 0,
-      right[2], Transform.UP[2], Transform.FORWARD[2], 0,
+      right[0], up[0], Transform.FORWARD[0], 0,
+      right[1], up[1], Transform.FORWARD[1], 0,
+      right[2], up[2], Transform.FORWARD[2], 0,
       0, 0, 0, 1
     );
 
@@ -320,11 +375,17 @@ export class TransformBuilder {
     return this;
   }
 
+  label(label: string) {
+    this._label = label;
+
+    return this;
+  }
+
   build(): Transform {
     return new Transform(
       mat4.getTranslation(this.translation, this.matrix),
       mat4.getRotation(this.rotation, this.matrix),
       mat4.getScaling(this.scale, this.matrix),
-      this.children, this.parent);
+      this.children, this.parent, this._label);
   }
 }
