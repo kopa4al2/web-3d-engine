@@ -21,6 +21,13 @@ export function wrapArrayAsColor(arr: number[] | Float32Array) {
             get b() {
                 return arr[2];
             },
+
+            set a(a: number) {
+                arr[2] = a;
+            },
+            get a() {
+                return arr[2];
+            },
         }
     }
 }

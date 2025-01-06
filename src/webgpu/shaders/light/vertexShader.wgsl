@@ -1,4 +1,5 @@
-const MAX_SHADOW_CASTING_LIGHTS = 2;
+/*{{GLOBALS}}*/
+//const MAX_SHADOW_CASTING_LIGHTS = 2;
 
 struct Camera {
     projectionViewMatrix: mat4x4<f32>,                                    // 64 bytes

@@ -45,10 +45,12 @@ export default class Transform implements Component {
   }
 
   get localMatrix() {
+    mat4.identity(this.localMat4Cache);
     return mat4.fromRotationTranslationScale(this.localMat4Cache, this.localTransform.rotation, this.localTransform.translation, this.localTransform.scale);
   }
 
   get worldMatrix() {
+    mat4.identity(this.worldMat4Cache);
     return mat4.fromRotationTranslationScale(this.worldMat4Cache, this.worldTransform.rotation, this.worldTransform.translation, this.worldTransform.scale);
   }
 

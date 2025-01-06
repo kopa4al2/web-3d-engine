@@ -1,5 +1,6 @@
 import SamplingConfig, { SamplerAddressMode, SamplerFilter } from "core/texture/SamplingConfig";
 import { SamplerId } from "core/texture/Texture";
+import DebugUtil from 'utils/debug/DebugUtil';
 
 export type GlTarget = number | WebGLSampler;
 export type GlFunc = (target: GlTarget, name: GLenum, value: number) => void;
@@ -56,7 +57,7 @@ export default class GlSampler {
             fn(target, gl.TEXTURE_MIN_FILTER, GlSampler.samplerFilterToGL(gl, minFilter, mipmapFilter));
         }
         if (magFilter) {
-            // console.warn('Texture mag filter: ', GlSampler.samplerFilterToGL(gl, magFilter, mipmapFilter));
+            // console.warn('Texture mag filter: ', DebugUtil.glEnumToString(GlSampler.samplerFilterToGL(gl, magFilter, mipmapFilter)));
             // TODO: This does not work with mipmap
             fn(target, gl.TEXTURE_MAG_FILTER, GlSampler.samplerFilterToGL(gl, minFilter, mipmapFilter));
         }
@@ -65,6 +66,12 @@ export default class GlSampler {
         }
         if (addressModeV) {
             fn(target, gl.TEXTURE_WRAP_T, GlSampler.samplerAddressModeToGL(gl, addressModeV));
+        }
+
+        if (samplerProps.compare) {
+            gl.samplerParameteri(target, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
+            // TODO: Dont hardcode lequal
+            gl.samplerParameteri(target, gl.TEXTURE_COMPARE_FUNC, gl.LEQUAL);
         }
     };
 }

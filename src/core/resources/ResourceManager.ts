@@ -76,7 +76,7 @@ export default class ResourceManager {
                     bufferId: this.textureManager.getTextureArrayIdForSize(TextureManager.MAX_TEXTURE_ARRAY_SIZE),
                     depth: TextureManager.TEXTURE_ARRAY_LAYERS,
                     binding: 3,
-                    name: 'TexturesArray',
+                    name: 'TexturesArrayTexture',
                 }, {
                     type: 'sampler',
                     bufferId: this.graphics.createSampler({
@@ -90,16 +90,16 @@ export default class ResourceManager {
                         targetTexture: this.textureManager.getTextureArrayIdForSize(TextureManager.MAX_TEXTURE_ARRAY_SIZE),
                     }),
                     binding: 4,
-                    name: 'GlobalSampler',
+                    name: 'TexturesArray',
                 },
                 {
                     type: 'cube-texture',
-                    name: 'EnvCubeMap',
+                    name: 'EnvCubeMapTexture',
                     bufferId: this.textureManager.getEnvironmentMap(),
                     binding: 5,
                 }, {
                     type: 'sampler',
-                    name: 'EnvSampler',
+                    name: 'EnvCubeMap',
                     bufferId: this.graphics.createSampler({
                         label: 'env-sampler',
                         magFilter: 'linear',
@@ -114,17 +114,17 @@ export default class ResourceManager {
                 },
                 {
                     type: 'texture-array',
-                    name: 'ShadowMap',
+                    name: 'ShadowMapTexture',
                     bufferId: this.textureManager.getShadowMap(),
                     binding: 7,
                 }, {
                     type: 'sampler',
-                    name: 'ShadowMapSampler',
+                    name: 'ShadowMap',
                     bufferId: this.graphics.createSampler({
                         label: 'ShadowMapSampler',
                         magFilter: 'linear',
                         minFilter: 'linear',
-                        mipmapFilter: 'linear',
+                        // mipmapFilter: 'linear',
                         addressModeU: 'clamp-to-edge',
                         addressModeV: 'clamp-to-edge',
                         addressModeW: 'clamp-to-edge',
@@ -138,7 +138,7 @@ export default class ResourceManager {
     }
 
     public getOrCreateLayout(bindGroupLayout: BindGroupLayout): BindGroupLayoutId {
-        const uniqueKey = bindGroupLayout.label;
+        const uniqueKey = bindGroupLayout.label.toLowerCase();
         if (!this.bindGroupLayoutsCache[uniqueKey]) {
             this.bindGroupLayoutsCache[uniqueKey] = this.graphics.createShaderLayout({ ...bindGroupLayout });
         } else {

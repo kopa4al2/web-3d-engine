@@ -7,6 +7,7 @@ import { mat4, quat, vec2, vec3 } from 'gl-matrix';
 import { GlbGeometryParseRequest } from 'core/parser/gltf/workers/GlbAccessorParser.worker';
 import { GeometryStride } from 'core/factories/GeometryFactory';
 import { VertexShaderName } from 'core/resources/cpu/CpuShaderData';
+import MathUtil from "utils/MathUtil";
 
 export interface GlbJsonParserRequest {
   binary: ArrayBuffer,
@@ -146,7 +147,6 @@ function getTransform(node: GLTFNode) {
 }
 
 function parseNodes(json: GLTFJson, buffersToTransfer: Transferable[]) {
-  console.log('SCENES', json.scenes);
   const rootNode = json.scene;
   const nodes: GlbWorkerNode[] = Array(json.nodes.length);
 
@@ -280,9 +280,15 @@ self.onmessage = async (event: MessageEvent<GlbJsonParserRequest>) => {
       groupAccessor(primitive.attributes.TANGENT, i, Attribute.TANGENT);
       groupAccessor(primitive.attributes.JOINTS_0, i, Attribute.JOINTS);
       groupAccessor(primitive.attributes.WEIGHTS_0, i, Attribute.WEIGHTS);
-      groupAccessor(primitive.attributes.TEXCOORD_0, i, Attribute.UV_0);
-      groupAccessor(primitive.attributes.TEXCOORD_1, i, Attribute.UV_1);
-      groupAccessor(primitive.attributes.TEXCOORD_2, i, Attribute.UV_2);
+      if (primitive.attributes.TEXCOORD_0 && primitive.attributes.TEXCOORD_1 && primitive.attributes.TEXCOORD_1 !== primitive.attributes.TEXCOORD_0) {
+        console.warn('different tex coordinates', primitive, mesh)
+        groupAccessor(primitive.attributes.TEXCOORD_1, i, Attribute.UV_0);
+      } else {
+        groupAccessor(primitive.attributes.TEXCOORD_0, i, Attribute.UV_0);
+      }
+      // groupAccessor(primitive.attributes.TEXCOORD_1, i, Attribute.UV_1);
+      // groupAccessor(primitive.attributes.TEXCOORD_2, i, Attribute.UV_2);
+      // console.log(primitive.attributes.TEXCOORD_2, primitive.attributes.TEXCOORD_3, primitive.attributes.TEXCOORD_1);
     }
   }
 
@@ -371,7 +377,6 @@ self.onmessage = async (event: MessageEvent<GlbJsonParserRequest>) => {
     return img;
   });
 
-  console.log(animations);
   Promise.all(workerResults)
     .then((_) => {
       // console.timeLog(`[WORKER][${event.data.name}]`, 'All sub workers finished.');
@@ -421,16 +426,6 @@ self.onmessage = async (event: MessageEvent<GlbJsonParserRequest>) => {
         buffersToTransfer.push(interleavedData);
         buffersToTransfer.push(data[Attribute.INDICES]);
       }
-
-      // for (let i = 0; i < skins.length; i++) {
-      //   const jsonSkin = json.skins[i];
-      //   for (let j = 0; j < jsonSkin.joints.length; j++) {
-      //     const nodeIndex = jsonSkin.joints[j];
-      //     console.log(`${j} -> ${nodes[nodeIndex].name}`);
-      //     const mat4View = new Float32Array(skins[i], j * 16 * 4, 16);
-      // mat4.multiply(mat4View, new Float32Array(nodes[nodeIndex].worldTransform), mat4View);
-      // }
-      // }
 
 
       // deleteUnneededJsonProperties(json);

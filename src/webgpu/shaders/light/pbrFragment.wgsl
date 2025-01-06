@@ -1,7 +1,8 @@
-const MAX_DIRECTIONAL_LIGHTS = 2;
-const MAX_POINT_LIGHTS = 4;
-const MAX_SPOT_LIGHTS = 4;
-const MAX_SHADOW_CASTING_LIGHTS = 1;
+//const MAX_DIRECTIONAL_LIGHTS = 2;
+//const MAX_POINT_LIGHTS = 4;
+//const MAX_SPOT_LIGHTS = 4;
+//const MAX_SHADOW_CASTING_LIGHTS = 1;
+/*{{GLOBALS}}*/
 
 const EPSILON = 0.001;
 
@@ -29,28 +30,6 @@ struct Light {
     _padding: u32,
 }
 
-struct Time {
-    deltaTime: f32,
-    timePassed: f32,
-    _padding: vec2<f32>,
-}
-
-
-struct TextureMap {
-    uv_offset: vec2<f32>,
-    uv_scale: vec2<f32>,
-    texture_layer: u32,
-    alphaCutoff: f32, // only albedo has this
-    color_factor: vec4<f32>, // empty for normals as theyd ont have factor
-}
-
-struct PBRMaterial {
-    @align(32) albedo_map: TextureMap,
-    @align(32) normal_map: TextureMap,
-    @align(32) emissive_map: TextureMap,
-    @align(32) metallic_map: TextureMap,
-};
-
 struct PointLight {
     position: vec4<f32>,
     color: vec4<f32>,
@@ -77,6 +56,29 @@ struct DirectionalLight {
     direction: vec4<f32>,
     color: vec4<f32>,
     intensity: f32,
+};
+
+
+struct Time {
+    deltaTime: f32,
+    timePassed: f32,
+    _padding: vec2<f32>,
+}
+
+
+struct TextureMap {
+    uv_offset: vec2<f32>,
+    uv_scale: vec2<f32>,
+    texture_layer: u32,
+    alphaCutoff: f32, // only albedo has this
+    color_factor: vec4<f32>, // empty for normals as theyd ont have factor
+}
+
+struct PBRMaterial {
+    @align(16) albedo_map: TextureMap,
+    @align(16) normal_map: TextureMap,
+    @align(16) emissive_map: TextureMap,
+    @align(16) metallic_map: TextureMap,
 };
 
 struct FragmentInput {
@@ -113,6 +115,7 @@ fn main(input: FragmentInput) -> @location(0) vec4<f32> {
     let textureLayer = material.albedo_map.texture_layer;
     let alphaCutoff = material.albedo_map.alphaCutoff;
     let baseColor = textureSample(globalTextures, globalSampler, uv, textureLayer) * material.albedo_map.color_factor;
+//    let baseColor = textureSample(globalTextures, globalSampler, vec2(0.0, 0.0), textureLayer) * material.albedo_map.color_factor;
 
     if (baseColor.a < alphaCutoff) {
         discard;
@@ -271,8 +274,9 @@ fn main(input: FragmentInput) -> @location(0) vec4<f32> {
   
 //        return vec4<f32>(emissiveColor, 1.0);
 //      return baseColor;
-      return vec4<f32>(finalColor, baseColor.a);
-//      return vec4<f32>(normalWorld, baseColor.a);
+//      return vec4<f32>(finalColor, baseColor.a);
+      return vec4<f32>(normalWorld, baseColor.a);
+//      return textureSample(globalTextures, globalSampler, normalUv, normalTextureLayer);
 //      return vec4<f32>(alphaCutoff, emissiveStrength - 1.0, 0.0, 1.0);
 }
 

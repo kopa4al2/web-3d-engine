@@ -55,11 +55,11 @@ import Globals from '../../../engine/Globals';
 // import glTerrainFragmentShader from 'webgl/shaders/terrain/terrainFragmentShader.frag';
 // import glTerrainVertexShader from 'webgl/shaders/terrain/terrainVertexShader.vert';
 export enum ShaderTemplate {
-  UNLIT = 'UNLIT',
-  PHONG = 'PHONG',
-  PBR = 'PBR',
-  TERRAIN = 'TERRAIN',
-  SKYBOX = 'SKYBOX',
+  UNLIT       = 'UNLIT',
+  PHONG       = 'PHONG',
+  PBR         = 'PBR',
+  TERRAIN     = 'TERRAIN',
+  SKYBOX      = 'SKYBOX',
   SHADOW_PASS = 'SHADOW_PASS'
 }
 
@@ -88,7 +88,7 @@ export default class ShaderManager {
   };
 
   public static INSTANCE_BUFFER_GROUP = {
-    label: 'VERTEX-INSTANCE',
+    label: 'SingleInstanceBuffer',
     entries: [
       VERTEX_STORAGE_BUFFER_STRUCT,
     ]
@@ -105,6 +105,7 @@ export default class ShaderManager {
   }
 
   public createShadowPass(staticMeshLayoutIds: BindGroupLayoutId[], skinnedMeshLayoutIds: BindGroupLayoutId[]): [PipelineId, PipelineId] {
+    console.warn('Creating shadow pass');
     const uniqueId = ShaderTemplate.SHADOW_PASS;
     if (this.pipelinesCache[uniqueId]) {
       return [this.pipelinesCache[uniqueId], this.pipelinesCache[`${uniqueId}_SKINNED`]];
@@ -176,11 +177,11 @@ export default class ShaderManager {
     const isSkybox = geometryDescriptor.vertexShader === VertexShaderName.SKY_BOX;
 
     const shaderLayoutIds = isSkybox
-                            ? [
+      ? [
         this.resourceManager.getOrCreateLayout(ShaderManager.GLOBAL_BIND_GROUP),
         ...materialDescriptor.bindGroupLayouts.map(l => this.resourceManager.getOrCreateLayout(l)),
       ]
-                            : [
+      : [
         this.resourceManager.getOrCreateLayout(ShaderManager.GLOBAL_BIND_GROUP),
         ...materialDescriptor.bindGroupLayouts.map(l => this.resourceManager.getOrCreateLayout(l)),
         layoutId,
@@ -317,19 +318,48 @@ export default class ShaderManager {
       return [
         `#version 300 es
 
-                layout(location = 0) in vec3 aVertexPosition;
-                layout(location = 1) in vec2 textureUV;
-                layout(location = 2) in vec3 aNormal;
-                layout(location = 3) in vec4 aTangent;
-                    
-                uniform mat4 lightViewProjMatrix;
-                uniform mat4 modelMatrix;
-                    
-                    
-                void main() {
-                    gl_Position = lightViewProjMatrix * modelMatrix * vec4(aVertexPosition, 1.0);
-                }`,
-        ``];
+         layout(location = 0) in vec3 aVertexPosition;
+         layout(location = 1) in vec2 textureUV;
+         layout(location = 2) in vec3 aNormal;
+         layout(location = 3) in vec4 aTangent;
+             
+         // uniform mat4 lightViewProjMatrix;
+         // uniform mat4 modelMatrix;
+         layout(std140) uniform ShadowMapGlobal {
+           uniform mat4 lightViewProjMatrix;
+         };
+         uniform sampler2D instanceDataTexture;
+         uniform float textureWidth;
+         
+         void main() {
+             gl_Position = lightViewProjMatrix * modelMatrix * vec4(aVertexPosition, 1.0);
+         }`,
+        `#version 300 es
+
+         layout(location = 0) in vec3 aVertexPosition;
+         layout(location = 1) in vec2 textureUV;
+         layout(location = 2) in vec3 aNormal;
+         layout(location = 3) in vec4 aTangent;
+         layout(location = 4) in vec4 aJointIndices;
+         layout(location = 5) in vec4 aJointWeights;
+         
+         layout(std140) uniform ShadowMapGlobal {
+           uniform mat4 lightViewProjMatrix;
+         };
+         
+         layout(std140) uniform SkinnedMeshJointMatrices {
+            mat4[160] jointMatrices;
+         };
+         // uniform mat4[160] jointMatrices;  
+         uniform sampler2D instanceDataTexture;
+         uniform float textureWidth;
+           
+             
+             
+         void main() {
+             gl_Position = lightViewProjMatrix * modelMatrix * vec4(aVertexPosition, 1.0);
+         }`
+      ];
     }
 
     // throw new Error('WEBGL2 Shadow pass shaders are not yet created');
@@ -534,10 +564,13 @@ export default class ShaderManager {
       })),
       import ('webgl/shaders/light/pbrFragment.frag').then(module => ({ content: module.default, shader: FragmentShaderName.PBR })),
       import ('webgl/shaders/light/phongFragment.frag').then(module => ({ content: module.default, shader: FragmentShaderName.PHONG_LIT })),
-      import ('webgl/shaders/light/vertexShader.vert').then(module => ({
-        content: module.default,
-        shader: VertexShaderName.LIT_TANGENTS_VEC4
-      })),
+      this.importShader(import('webgl/shaders/light/vertexShader.vert'), VertexShaderName.LIT_TANGENTS_VEC4),
+      this.importShader(import('webgl/shaders/light/skinnedVertexShader.vert'), VertexShaderName.SKINNED_LIT),
+      // import ('webgl/shaders/light/vertexShader.vert').then(module => ({
+      //   content: module.default,
+      //   shader: VertexShaderName.LIT_TANGENTS_VEC4
+      // })),
+      // import ('webgl/shaders/light/skinnedVertexShader.vert').then(module => ({ content: module.default, shader: VertexShaderName.SKINNED_LIT })),
       import ('webgl/shaders/skybox-fragment.frag').then(module => ({ content: module.default, shader: FragmentShaderName.SKY_BOX })),
       import ('webgl/shaders/skybox-vertex.vert').then(module => ({ content: module.default, shader: VertexShaderName.SKY_BOX })),
       // import ('webgl/shaders/terrain/terrainFragmentShader.frag').then(module => ({ content: module.default, shader: FragmentShaderName.TERRAIN })),
@@ -546,6 +579,14 @@ export default class ShaderManager {
       console.log('Loaded shaders: ', res);
       res.forEach(({ content, shader }) => this.shaderContents[shader] = content);
     });
+  }
+
+  private importShader(importStatement: Promise<{ default: any }>, shaderName: FragmentShaderName | VertexShaderName) {
+    return importStatement.then(module => ({ content: module.default, shader: shaderName }));
+    // return import(`${url}`).then(module => ({
+    //   content: module.default,
+    //   shader: shaderName,
+    // }));
   }
 
   private loadWebGpuShaders() {

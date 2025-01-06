@@ -5,7 +5,8 @@ precision highp float;
 //const int MAX_DIRECTIONAL_LIGHTS = 2;
 //const int MAX_POINT_LIGHTS = 4;
 //const int MAX_SPOT_LIGHTS = 4;
-//const int MAX_SHADOW_CASTING_LIGHTS = 2;
+//const int MAX_SHADOW_CASTING_LIGHTS;
+
 /*{{GLOBALS}}*/
 
 struct SpotLight {
@@ -64,10 +65,16 @@ layout(std140) uniform Time {
     vec2 _padding;
 };
 
+layout(std140) uniform SkinnedMeshJointMatrices {
+    mat4[300] jointMatrices;
+};
+
 layout(location = 0) in vec3 aVertexPosition;
 layout(location = 1) in vec2 textureUV;
 layout(location = 2) in vec3 aNormal;
 layout(location = 3) in vec4 aTangent;
+layout(location = 4) in vec4 aJointIndices;
+layout(location = 5) in vec4 aJointWeights;
 
 out vec3 vFragPosition;
 out vec2 vTextureCoord;
@@ -78,22 +85,45 @@ out vec3 vBitangent;
 uniform sampler2D instanceDataTexture;
 uniform float textureWidth;
 
+        
 mat4 getInstanceMatrix(float id, float offset);
+
 
 void main() {
     mat4 modelMatrix = getInstanceMatrix(float(gl_InstanceID), 0.0);
     mat4 inverseModel = getInstanceMatrix(float(gl_InstanceID), 4.0);
 
+    mat4 skinMatrix = mat4(0.0);
+    for (uint i = 0u; i < 4u; i++) {
+        skinMatrix += jointMatrices[uint(aJointIndices[i])] * aJointWeights[i];
+    }
 
-    //    vNormal = normalize(inverseModel * vec4(aNormal, 1.0)).xyz;
+    // Apply the flip (e.g., flipping the Y-axis in case of a left-handed to right-handed conversion)
+    vec3 flippedNormal = vec3(aNormal.x, aNormal.y, -aNormal.z);  // Flip Y-axis for normal
+    vec3 flippedTangent = vec3(aTangent.x, aTangent.y, -aTangent.z);  // Flip Y-axis for tangent
+//    vec3 flippedBitangent = vec3(aBitangent.x, -aBitangent.y, aBitangent.z);  // Flip Y-axis for bitangent
+
+    // Transform position, normal, and tangent using skinning
+    vec4 skinnedPosition = skinMatrix * vec4(aVertexPosition, 1.0);
+//    vec3 skinnedNormal = normalize((skinMatrix * vec4(flippedNormal, 0.0)).xyz);
+//    vec3 skinnedTangent = normalize((skinMatrix * vec4(flippedTangent, 0.0)).xyz);
+        vec3 skinnedNormal = normalize((skinMatrix * vec4(aNormal, 0.0)).xyz);
+        vec3 skinnedTangent = normalize((skinMatrix * vec4(aTangent.xyz, 0.0)).xyz);
+
+    // Apply normal matrix to transform into world space
     mat3 normalMatrix = mat3(inverseModel);
-    vNormal = normalize(normalMatrix * aNormal).xyz;
-    vTangent = normalize(normalMatrix * aTangent.xyz);
-    vBitangent = normalize(cross(vNormal, vTangent) * aTangent.w);
-    vFragPosition = vec3(modelMatrix * vec4(aVertexPosition, 1.0));
-    vTextureCoord = textureUV;
+    vec3 worldNormal = normalize(normalMatrix * skinnedNormal);
+    vec3 worldTangent = normalize(normalMatrix * skinnedTangent);
 
-    gl_Position = projectionViewMatrix * modelMatrix * vec4(aVertexPosition, 1.0);
+    // Compute bitangent
+    vec3 worldBitangent = normalize(cross(worldNormal, worldTangent) * aTangent.w);
+
+    vTangent = worldTangent;
+    vNormal = worldNormal;
+    vBitangent = worldBitangent;
+    vFragPosition = skinnedPosition.xyz;
+    vTextureCoord = textureUV;
+    gl_Position = projectionViewMatrix * skinnedPosition;
 }
 
 mat4 getInstanceMatrix(float id, float offset) {

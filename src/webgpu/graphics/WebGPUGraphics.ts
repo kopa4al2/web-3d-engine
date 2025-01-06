@@ -8,6 +8,9 @@ import Graphics, {
   RenderPassDescriptor,
   UpdateTexture
 } from 'core/Graphics';
+import DirectionalLight from 'core/light/DirectionalLight';
+import PointLight from 'core/light/PointLight';
+import SpotLight from 'core/light/SpotLight';
 import PropertiesManager from 'core/PropertiesManager';
 import BindGroup, {
   BindGroupDynamicOffset,
@@ -166,7 +169,7 @@ export default class WebGPUGraphics implements Graphics {
     const device = this._device;
     const vertexShader = device.createShaderModule({
       label: 'vertexShader',
-      code: shader.vertexShaderSource
+      code: this.passGlobals(shader.vertexShaderSource)
     });
 
     let fragment: GPUFragmentState | undefined = undefined;
@@ -188,7 +191,7 @@ export default class WebGPUGraphics implements Graphics {
       fragment = {
         module: device.createShaderModule({
           label: 'fragmentShader',
-          code: shader.fragmentShaderSource
+          code: this.passGlobals(shader.fragmentShaderSource)
         }),
         entryPoint: 'main',
         targets,
@@ -233,6 +236,15 @@ export default class WebGPUGraphics implements Graphics {
     }));
 
     return pipelineId;
+  }
+
+  private passGlobals(shader: string) {
+    return shader.replaceAll(Globals.GLOBALS_SHADER_TEMPLATE, `
+    const MAX_DIRECTIONAL_LIGHTS = ${DirectionalLight.MAX_DIRECTION_LIGHTS};
+    const MAX_POINT_LIGHTS = ${PointLight.MAX_POINT_LIGHTS};
+    const MAX_SPOT_LIGHTS = ${SpotLight.MAX_SPOT_LIGHTS};
+    const MAX_SHADOW_CASTING_LIGHTS = ${Globals.MAX_SHADOW_CASTING_LIGHTS};
+    `);
   }
 
   public createShaderLayout(layout: BindGroupLayout): BindGroupLayoutId {

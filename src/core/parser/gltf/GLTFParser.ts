@@ -50,8 +50,8 @@ export default class GLTFParser {
               public skins: ArrayBuffer[],
               public animations: SerializedAnimation[]) {
     DebugUtil.addToWindowObject('gltf', this);
-    console.log('ANIMATIONS: ', animations);
-    console.log('%c GLTF JSON', 'background: yellow;', json);
+    console.log('GLTF parser', this);
+    console.log('%c GLTF JSON', 'background: yellow;font-size: 20px;color:black;', json);
     this.nodes.reduce((previousValue, currentValue, currentIndex, array) => ({
       ...previousValue,
       [currentIndex]: {
@@ -160,8 +160,9 @@ export default class GLTFParser {
             },
             {
               type: 'uniform',
-              byteLength: arrayBuffer.byteLength,
-              name: 'inverseJoinBindMatrix',
+              data: new Float32Array(arrayBuffer),
+              byteLength: 300 * 16 * 4,
+              name: 'SkinnedMeshJointMatrices',
               visibility: UniformVisibility.VERTEX
             }
           ]);
@@ -200,6 +201,11 @@ export default class GLTFParser {
         parentT.children.push(transform);
       }
 
+      // if (this.json.skins[0].skeleton === nodeIndex) {
+      //   console.log('Setting root: ', nodeIndex, entity, skeletons);
+      //   entityManager.addComponents(entity, [skeletons[0]]);
+      // }
+
       if (this.json.nodes[nodeIndex].skin !== undefined) {
         entityManager.addComponents(entity, [skeletons[this.json.nodes[nodeIndex].skin!]]);
       }
@@ -223,7 +229,7 @@ export default class GLTFParser {
         } else {
           const material = this.parseMaterial(gltfMaterial, textureManager, materialFactory);
 
-          const bgHelper = new BindGroupHelper(resourceManager, 'VERTEX-INSTANCE', [{
+          const bgHelper = new BindGroupHelper(resourceManager, 'SingleInstanceBuffer', [{
             type: 'storage',
             byteLength: 4096,
             // byteLength: 8096,
@@ -516,7 +522,7 @@ export enum GLTFBufferViewTarget {
 
 export interface GLTFMaterial {
   name: string;
-  alphaMode?: 'MASK' | 'BLEND',
+  alphaMode?: 'MASK' | 'BLEND' | 'OPAQUE',
   alphaCutoff?: number,
   doubleSided?: boolean,
   normalTexture?: GLTFTextureRef,

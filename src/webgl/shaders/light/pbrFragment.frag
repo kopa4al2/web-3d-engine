@@ -2,10 +2,13 @@
 precision highp int;
 precision highp float;
 precision highp sampler2DArray;
+precision highp sampler2DArrayShadow;
 
-const int MAX_DIRECTIONAL_LIGHTS = 2;
-const int MAX_POINT_LIGHTS = 4;
-const int MAX_SPOT_LIGHTS = 4;
+//const int MAX_DIRECTIONAL_LIGHTS = 2;
+//const int MAX_POINT_LIGHTS = 4;
+//const int MAX_SPOT_LIGHTS = 4;
+//const int MAX_SHADOW_CASTING_LIGHTS = 2;
+/*{{GLOBALS}}*/
 
 const float EPSILON = 0.0001;
 
@@ -41,32 +44,6 @@ struct DirectionalLight {
     float intensity;
 };
 
-struct TextureMap {
-    vec2 uv_offset;
-    vec2 uv_scale;
-    uint texture_layer;
-    float _padding;
-//    vec3 _padding;
-};
-
-layout (std140) uniform PBRMaterial {
-    TextureMap albedo_map;
-    TextureMap normal_map;
-    TextureMap metallic_map;
-    vec4 base_color;
-};
-
-
-layout (std140) uniform Camera {
-    mat4 projectionViewMatrix;
-    mat4 projectionMatrix;
-    mat4 viewMatrix;
-    vec4 cameraPosition;
-    vec4 cameraForward;
-    vec4 cameraUp;
-    vec4 nearFarFovAspect;
-};
-
 layout (std140) uniform Light {
     DirectionalLight directionalLights[MAX_DIRECTIONAL_LIGHTS];
     PointLight pointLights[MAX_POINT_LIGHTS];
@@ -77,6 +54,33 @@ layout (std140) uniform Light {
     vec2 padding;
 };
 
+struct TextureMap {
+    vec2 uv_offset;
+    vec2 uv_scale;
+    uint texture_layer;
+    float alphaCutoff;
+    vec4 color_factor;
+};
+
+layout (std140) uniform PBRMaterial {
+    TextureMap albedo_map;
+    TextureMap normal_map;
+    TextureMap emissive_map;
+    TextureMap metallic_map;
+};
+
+
+layout (std140) uniform Camera {
+    mat4 projectionViewMatrix;
+    mat4 projectionMatrix;
+    mat4 viewMatrix;
+    mat4[MAX_SHADOW_CASTING_LIGHTS] lightProjectionView;
+    vec4 cameraPosition;
+    vec4 cameraForward;
+    vec4 cameraUp;
+    vec4 nearFarFovAspect;
+};
+
 layout (std140) uniform Time {
     float deltaTime;
     float timePassed;
@@ -85,6 +89,7 @@ layout (std140) uniform Time {
 
 uniform sampler2DArray TexturesArray;
 uniform samplerCube EnvCubeMap;
+uniform sampler2DArrayShadow ShadowMap;
 
 in vec3 vFragPosition;
 in vec3 vNormal;
@@ -94,34 +99,41 @@ in vec3 vBitangent;
 out vec4 fragColor;
 
 vec3 calculateSpotlight(SpotLight spotlight, vec3 fragPosition, vec3 normal,
-vec3 viewDir, vec3 baseColor, float roughnessSquared, float metallic, vec3 F0);
+                        vec3 viewDir, vec3 baseColor, float roughnessSquared, float metallic, vec3 F0, float shadowFactor);
 
 void main() {
     highp vec2 normalizedUv = fract(vTextureCoord);
-
+//    normalizedUv = vec2(normalizedUv.x, 1.0 - normalizedUv.y);
     vec2 albedoUv = albedo_map.uv_scale * normalizedUv + albedo_map.uv_offset;
-    albedoUv = clamp(albedoUv, albedo_map.uv_offset, albedo_map.uv_offset + albedo_map.uv_scale - vec2(EPSILON));
-    vec4 baseColor = texture(TexturesArray, vec3(albedoUv, albedo_map.texture_layer)) * base_color;
+//    albedoUv = clamp(albedoUv, albedo_map.uv_offset, albedo_map.uv_offset + albedo_map.uv_scale - vec2(EPSILON));
+    vec4 baseColor = texture(TexturesArray, vec3(albedoUv, albedo_map.texture_layer)) * albedo_map.color_factor;
 
     // TODO: Hard coded alpha mask, by default enabled for all
-    if (baseColor.a <= 0.5) {
+    if (baseColor.a <= albedo_map.alphaCutoff) {
         discard;
     }
 
     // --- Metallic and Roughness ---
     vec2 metallicRoughtnessUv = metallic_map.uv_scale * normalizedUv + metallic_map.uv_offset;
-    metallicRoughtnessUv = clamp(metallicRoughtnessUv, metallic_map.uv_offset, metallic_map.uv_offset + metallic_map.uv_scale - vec2(EPSILON));
+//    metallicRoughtnessUv = clamp(metallicRoughtnessUv, metallic_map.uv_offset, metallic_map.uv_offset + metallic_map.uv_scale - vec2(EPSILON));
     vec3 metallicRoughness = texture(TexturesArray, vec3(metallicRoughtnessUv, metallic_map.texture_layer)).rgb;
-    float metallic = metallicRoughness.b;
-    float roughness = metallicRoughness.g;
+    float metallic = metallicRoughness.b * metallic_map.color_factor.x;
+    float roughness = metallicRoughness.g * metallic_map.color_factor.y;
 
     // --- Normal Mapping ---
     mat3 TBN = mat3(vTangent, vBitangent, vNormal);
     vec2 normalUv = normal_map.uv_scale * normalizedUv + normal_map.uv_offset;
-    normalUv = clamp(normalUv, normal_map.uv_offset, normal_map.uv_offset + normal_map.uv_scale - vec2(EPSILON));
+//    normalUv = clamp(normalUv, normal_map.uv_offset, normal_map.uv_offset + normal_map.uv_scale - vec2(EPSILON));
     vec3 normalTangent = texture(TexturesArray, vec3(normalUv, normal_map.texture_layer)).rgb;
     normalTangent = normalize(normalTangent * 2.0 - 1.0);
     vec3 normalWorld = normalize(TBN * normalTangent);
+
+    // --- Emissive ---
+    vec2 emissiveUv = emissive_map.uv_scale * normalizedUv + emissive_map.uv_offset;
+    uint emissiveTextureLayer = emissive_map.texture_layer;
+    float emissiveStrength = emissive_map.color_factor.a; // KHR_materials_emissive_strength
+    vec3 emissiveColor = texture(TexturesArray, vec3(emissiveUv, emissiveTextureLayer)).rgb * emissive_map.color_factor.rgb;
+    emissiveColor = emissiveColor * emissiveStrength;
 
     // --- View Direction ---
     vec3 viewDir = normalize(cameraPosition.xyz - vFragPosition);
@@ -137,11 +149,33 @@ void main() {
 
     vec3 finalColor = vec3(0.0);
 
+    // --- Shadows calculations ---
+    float shadowFactor = 1.0;
+    float size = float(textureSize(ShadowMap, 0).x);
+    float oneOverSize = 1.0 / size;
+    for (int i = 0; i < MAX_SHADOW_CASTING_LIGHTS; i++) {
+        vec4 lightSpacePosition = lightProjectionView[i] * vec4(vFragPosition, 1.0);
+        vec3 lightNDC = lightSpacePosition.xyz / lightSpacePosition.w;
+        vec2 shadowCoord = (vec2(lightNDC.x, -lightNDC.y) + vec2(1.0)) * 0.5;
+        float shadowDepth = lightNDC.z;
+
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dy = -1; dy <= 1; dy++) {
+                vec2 offset = vec2(float(dx) * oneOverSize, float(dy) * oneOverSize);
+                vec2 clampedShadowCoord = clamp(shadowCoord + offset, vec2(0.0), vec2(1.0));
+                shadowFactor += texture(ShadowMap, vec4(clampedShadowCoord, i, shadowDepth - 0.005));
+                //                shadowFactor += textureSampleCompare(shadowMap, shadowSampler,
+                //                                                     clampedShadowCoord, i, shadowDepth - 0.005);
+            }
+        }
+    }
+    shadowFactor /= float(MAX_SHADOW_CASTING_LIGHTS * 9);
+
     // --- Spot Lights ---
     for (uint i = 0u; i < numSpotLights; i++) {
         SpotLight spotLight = spotLights[i];
         finalColor += calculateSpotlight(spotLight, vFragPosition, normalWorld,
-        viewDir, baseColor.rgb, roughnessSquared, metallic, F0);
+                                         viewDir, baseColor.rgb, roughnessSquared, metallic, F0, shadowFactor);
     }
 
     // --- Point Lights ---
@@ -220,24 +254,25 @@ void main() {
 
     vec3 envSpecular = fresnelEnv * envNdotL * envColor;
     vec3 envDiffuse = fresnelEnv * envNdotL * (1.0 - metallic) * (1.0 - fresnelEnv);
-    finalColor += envDiffuse + envSpecular;
+    finalColor += envDiffuse + envSpecular + emissiveColor;
 
     // Ambient Light
     vec3 ambient = vec3(0.1);
     finalColor += ambient * (1.0 - metallic);
 
-    fragColor = vec4(finalColor, baseColor.a);
-    //    fragColor = texture(TexturesArray, vec3(albedoUv, albedo_map.texture_layer));
+//        fragColor = vec4(finalColor, baseColor.a);
+    //        fragColor = baseColor;
+    fragColor = vec4(normalWorld, baseColor.a);
     //    vec2 normalizedUv = fract(normalizedUv);
     //    vec2 uv = albedo_map.uv_scale * normalizedUv + albedo_map.uv_offset;
     //    vec2 subRegionEnd = albedo_map.uv_offset + vec2(2048, 2048) * albedo_map.uv_scale;
     //    uv = clamp(uv, albedo_map.uv_offset, subRegionEnd);
-    //    fragColor = texture(TexturesArray, vec3(uv, albedo_map.texture_layer));
-    //    fragColor = vec4(normalWorld, base_color.a);
+//        fragColor = texture(TexturesArray, vec3(normalUv, normal_map.texture_layer));
+//        fragColor = vec4(normalWorld, base_color.a);
 }
 
 
-vec3 calculateSpotlight(SpotLight spotlight, vec3 fragPosition, vec3 normal, vec3 viewDir, vec3 baseColor, float roughnessSquared, float metallic, vec3 F0) {
+vec3 calculateSpotlight(SpotLight spotlight, vec3 fragPosition, vec3 normal, vec3 viewDir, vec3 baseColor, float roughnessSquared, float metallic, vec3 F0, float shadowFactor) {
     // Compute the light direction
     vec3 lightDir = normalize(spotlight.position.xyz - fragPosition);
 
@@ -288,7 +323,7 @@ vec3 calculateSpotlight(SpotLight spotlight, vec3 fragPosition, vec3 normal, vec
     vec3 diffuse = (1.0 - fresnel) * (1.0 - metallic) * baseColor;
 
     // Final radiance from spotlight
-    vec3 radiance = spotlight.color.rgb * spotlight.intensity;
+    vec3 radiance = spotlight.color.rgb * spotlight.intensity * shadowFactor;
     return attenuation * spotlightEffect * radiance * (diffuse + specular) * NdotL;
 }
 

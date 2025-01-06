@@ -4,8 +4,12 @@ import Graphics, {
   GraphicsAPI,
   PipelineId,
   RenderPass,
+  RenderPassDescriptor,
   UpdateTexture
 } from 'core/Graphics';
+import DirectionalLight from 'core/light/DirectionalLight';
+import PointLight from 'core/light/PointLight';
+import SpotLight from 'core/light/SpotLight';
 import PropertiesManager from 'core/PropertiesManager';
 import BindGroup from 'core/resources/BindGroup';
 import BindGroupLayout from 'core/resources/BindGroupLayout';
@@ -15,9 +19,11 @@ import TextureManager from 'core/resources/TextureManager';
 import SamplingConfig from 'core/texture/SamplingConfig';
 import { SamplerId, TextureDescription, TextureId } from 'core/texture/Texture';
 import TexturePacker from 'core/texture/TexturePacker';
-import DebugUtil from '../utils/debug/DebugUtil';
+import Globals from 'engine/Globals';
 import { BlendModeConverter } from 'webgl/BlendModeConverter';
+import GlUniform from 'webgl/uniforms/GlUniform';
 import Canvas from '../Canvas';
+import DebugUtil from '../utils/debug/DebugUtil';
 import GlSampler from './textures/GlSampler';
 import GlTexture from './textures/GlTexture';
 
@@ -52,11 +58,13 @@ export default class WebGLGraphics implements Graphics {
   public readonly pipelines: WeakMap<PipelineId, WebGlPipelineInfo>;
 
   private textureUnitCounter;
+  private depthBuffer: WebGLFramebuffer;
 
 
   constructor(canvas: Canvas, private props: PropertiesManager) {
     DebugUtil.addToWindowObject('glGraphics', this);
     const gl = canvas.getWebGl2Context();
+    this.glContext = gl;
 
     this.bindGroupsByLayout = new Map();
 
@@ -69,6 +77,7 @@ export default class WebGLGraphics implements Graphics {
     this.samplers = new WeakMap();
     this.pipelines = new WeakMap();
     this.textureUnitCounter = gl.TEXTURE0;
+    this.depthBuffer = this.createFrameBuffer();
 
     gl.enable(gl.DEPTH_TEST);
     gl.enable(gl.CULL_FACE);
@@ -82,7 +91,6 @@ export default class WebGLGraphics implements Graphics {
 
     props.subscribeToAnyPropertyChange(['window.width', 'window.height'],
       () => gl.viewport(0, 0, props.get<number>('window.width'), props.get<number>('window.height')));
-    this.glContext = gl;
   }
 
   public initPipeline(shader: ShaderProgramDescription): PipelineId {
@@ -119,8 +127,10 @@ export default class WebGLGraphics implements Graphics {
 
   public createShaderLayout(layout: BindGroupLayout): BindGroupLayoutId {
     for (const { type, name } of layout.entries) {
-      if (type === 'uniform' && this.uniformBlockIndices[name] === undefined) {
-        this.uniformBlockIndices[name] = Math.max(...Object.values(this.uniformBlockIndices), -1) + 1;
+      // if (type === 'uniform' && this.uniformBlockIndices[name] === undefined) {
+        // this.uniformBlockIndices[name] = Math.max(...Object.values(this.uniformBlockIndices), -1) + 1;
+      if (type === 'uniform') {
+        GlUniform.registerUniform(name);
       }
     }
 
@@ -133,12 +143,11 @@ export default class WebGLGraphics implements Graphics {
 
     this.bindGroupsByLayout.set(groupLayoutId, { bindGroup, bindGroupId: id });
     this.bindGroups.set(id, bindGroup);
-    bindGroup.entries
-      .filter(entry => entry.type === 'uniform')
-      .forEach(({
-                  name,
-                  bufferId
-                }) => gl.bindBufferBase(gl.UNIFORM_BUFFER, this.uniformBlockIndices[name], this.buffers.get(bufferId)!.gpuBuffer));
+    // bindGroup.entries
+    //          .filter(entry => entry.type === 'uniform' && typeof UniformBinding.getUniformIndex(entry.name) === 'number')
+    //          .forEach(({ name, bufferId }) =>
+    //            gl.bindBufferBase(gl.UNIFORM_BUFFER, UniformBinding.getUniformIndex(name), this.buffers.get(bufferId)!.gpuBuffer));
+    // }) => gl.bindBufferBase(gl.UNIFORM_BUFFER, this.uniformBlockIndices[name], this.buffers.get(bufferId)!.gpuBuffer));
 
     return id;
   }
@@ -198,7 +207,7 @@ export default class WebGLGraphics implements Graphics {
 
   writeToBuffer(bufferId: BufferId, data: BufferData,
                 bufferOffset: number = 0, dataOffset: number = 0,
-                dataToWriteSize: number                      = (data as Float32Array).length) {
+                dataToWriteSize: number = (data as Float32Array).length) {
     const buffer = this.buffers.get(bufferId) as WebGlBufferInfo;
     const gl = this.glContext;
     if (buffer.bufferInfo.usage & BufferUsage.STORAGE) {
@@ -227,7 +236,7 @@ export default class WebGLGraphics implements Graphics {
     if (isUniform) {
       this.glContext.bufferSubData(type, bufferOffset, data, dataOffset, dataToWriteSize);
     } else {
-      // console.warn('WARNING, THIS MAY NOT WORK AS EXPECTED, WRITE TO BUFFER STATIC DRAW')
+      console.warn('WARNING, THIS MAY NOT WORK AS EXPECTED, WRITE TO BUFFER STATIC DRAW')
       this.glContext.bufferData(type, data, this.glContext.DYNAMIC_DRAW);
     }
     this.glContext.bindBuffer(type, null);
@@ -241,6 +250,9 @@ export default class WebGLGraphics implements Graphics {
   createTexture(textureDescription: TextureDescription): TextureId {
     const textureId = Symbol(`texture-${textureDescription.label || 'gl2'}`);
     const activeTexture = this.textureUnitCounter++;
+    if (activeTexture >= this.glContext.TEXTURE31) {
+      console.error('Active texture unit passed 31. Check!!!')
+    }
     const texture = GlTexture.createTexture(this.glContext, textureDescription, activeTexture);
     this.textures.set(textureId, {
       glTexture: texture,
@@ -257,7 +269,52 @@ export default class WebGLGraphics implements Graphics {
     return samplerId;
   }
 
-  beginRenderPass(): RenderPass {
+  beginRenderPass(descriptor?: RenderPassDescriptor): RenderPass {
+    const gl = this.glContext;
+    if (!descriptor) {
+      gl.clearColor(0.2, 0.2, 0.2, 1);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      return new WebGLRenderPass(this, this.props);
+    }
+
+    if (!descriptor.depthAttachment.skip) {
+      gl.clear(gl.DEPTH_BUFFER_BIT);
+      const depthTexture = this.textures.get(descriptor.depthAttachment.textureId!)!.glTexture;
+      const { dimension, baseArrayLayer } = descriptor.depthAttachment.textureView || { dimension: '2d', baseArrayLayer: 0 };
+
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.depthBuffer);
+      if (dimension === '2d-array') {
+        gl.framebufferTextureLayer(
+          gl.FRAMEBUFFER,
+          gl.DEPTH_ATTACHMENT, // Attach to depth
+          depthTexture,   // Depth texture array
+          0,                   // Mipmap level
+          baseArrayLayer                // Layer index
+        );
+      } else {
+        gl.framebufferTexture2D(
+          gl.FRAMEBUFFER,
+          gl.DEPTH_ATTACHMENT,
+          gl.TEXTURE_2D, // Or gl.TEXTURE_2D_ARRAY
+          depthTexture,       // Attach the desired texture
+          0              // Mipmap level
+        );
+      }
+
+      if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+        console.error('Framebuffer is not complete');
+        DebugUtil.glCheckError(gl, null, 'creating framebuffer');
+      }
+
+    }
+
+    if (!descriptor.colorAttachment.skip) {
+      gl.clearColor(0.2, 0.2, 0.2, 1);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      // TODO:
+    }
+
     return new WebGLRenderPass(this, this.props);
   }
 
@@ -268,7 +325,12 @@ export default class WebGLGraphics implements Graphics {
   private loadShader(type: GLenum, source: string) {
     const gl = this.glContext;
     const shader = gl.createShader(type) as WebGLShader;
-    gl.shaderSource(shader, source);
+    gl.shaderSource(shader, source.replaceAll(Globals.GLOBALS_SHADER_TEMPLATE, `
+    const int MAX_DIRECTIONAL_LIGHTS = ${DirectionalLight.MAX_DIRECTION_LIGHTS};
+    const int MAX_POINT_LIGHTS = ${PointLight.MAX_POINT_LIGHTS};
+    const int MAX_SPOT_LIGHTS = ${SpotLight.MAX_SPOT_LIGHTS};
+    const int MAX_SHADOW_CASTING_LIGHTS = ${Globals.MAX_SHADOW_CASTING_LIGHTS};
+    `));
     gl.compileShader(shader);
     if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
       const shaderType = (type ^ gl.VERTEX_SHADER) ? 'FRAGMENT_SHADER' : 'VERTEX_SHADER';
@@ -316,10 +378,19 @@ export default class WebGLGraphics implements Graphics {
     for (const bindGroupEntry of entries) {
       const { type, name, binding, bufferId } = bindGroupEntry;
       if (type === 'uniform') {
-        const uniformBindPoint = this.uniformBlockIndices[name];
-        // bindGroupEntry.binding = uniformBindPoint;
-        const blockIndex = gl.getUniformBlockIndex(shaderProgram, name);
-        gl.uniformBlockBinding(shaderProgram, blockIndex, uniformBindPoint);
+        // gl.useProgram(shaderProgram);
+        GlUniform.bindUniform(gl, shaderProgram, name);
+        // gl.bindBufferBase(gl.UNIFORM_BUFFER, UniformBinding.getUniformIndex(name), this.buffers.get(bufferId)!.gpuBuffer)
+
+                // const uniformBindPoint = this.uniformBlockIndices[name];
+                // const blockIndex = gl.getUniformBlockIndex(shaderProgram, name);
+                // const uniformLocation = gl.getUniformLocation(shaderProgram, name)!;
+                // if (uniformLocation) {
+                // } else {
+                //   console.log(`${blockIndex} - ${name}`);
+                //   gl.uniformBlockBinding(shaderProgram, blockIndex, uniformBindPoint);
+                //   DebugUtil.glCheckError(gl, null, JSON.stringify(bindGroupEntry));
+                // }
         // gl.bindBufferBase(gl.UNIFORM_BUFFER, uniformBindPoint, this.buffers.get(bufferId)!.gpuBuffer);
       } else if (type === 'texture-array' || type === 'cube-texture' || type === 'texture') {
         gl.useProgram(shaderProgram);
@@ -341,8 +412,11 @@ export default class WebGLGraphics implements Graphics {
           continue;
         }
 
-        const textureUnit = this.textures.get(targetTexture)!.activeTexture;
-        gl.bindSampler(textureUnit - gl.TEXTURE0, glSampler);
+        gl.useProgram(shaderProgram);
+        const { activeTexture: textureUnit} = this.textures.get(targetTexture)!;
+        const relativeTextureUnit = textureUnit - gl.TEXTURE0;
+        gl.bindSampler(relativeTextureUnit, glSampler);
+        gl.uniform1i(gl.getUniformLocation(shaderProgram, name), relativeTextureUnit);
       }
     }
   }
@@ -441,16 +515,16 @@ export default class WebGLGraphics implements Graphics {
       ctx.fillText(`Layer ${layer}`, textX, textY + 30);
       for (let i = 0; i < texturePacker.layers[layer].occupiedRegions.length; i++) {
         const {
-                label,
-                x,
-                y,
-                width,
-                height,
-                uvScaleX,
-                uvScaleY,
-                uvOffsetX,
-                uvOffsetY
-              } = texturePacker.layers[layer].occupiedRegions[i];
+          label,
+          x,
+          y,
+          width,
+          height,
+          uvScaleX,
+          uvScaleY,
+          uvOffsetX,
+          uvOffsetY
+        } = texturePacker.layers[layer].occupiedRegions[i];
         if (width <= 16 || height <= 16) {
           if (width > 1 && height > 1) {
             continue;
@@ -489,6 +563,11 @@ export default class WebGLGraphics implements Graphics {
     link.download = 'texture_atlas_grid.png';
     link.click();
   }
+
+  private createFrameBuffer() {
+    const gl = this.glContext;
+    return gl.createFramebuffer();
+  }
 }
 
 
@@ -498,8 +577,6 @@ export class WebGLRenderPass implements RenderPass {
   private pipeline?: PipelineId;
 
   constructor(private glGraphics: WebGLGraphics, props: PropertiesManager) {
-    glGraphics.glContext.clearColor(0.2, 0.2, 0.2, 1);
-    glGraphics.glContext.clear(glGraphics.glContext.COLOR_BUFFER_BIT | glGraphics.glContext.DEPTH_BUFFER_BIT);
     this.drawMode = props.getBoolean('wireframe') ? glGraphics.glContext.LINES : glGraphics.glContext.TRIANGLES;
   }
 
@@ -510,19 +587,19 @@ export class WebGLRenderPass implements RenderPass {
     this.pipeline = pipeline;
 
     const {
-            options: {
-              wireframe,
-              depthAttachment: {
-                depthCompare,
-                depthWriteEnabled,
-              },
-              colorAttachment: {
-                blendMode,
-                writeMask
-              },
-              cullFace,
-            }
-          } = shaderDescription;
+      options: {
+        wireframe,
+        depthAttachment: {
+          depthCompare,
+          depthWriteEnabled,
+        },
+        colorAttachment: {
+          blendMode,
+          writeMask
+        },
+        cullFace,
+      }
+    } = shaderDescription;
 
     this.drawMode = wireframe ? gl.LINES : this.drawMode;
     if (cullFace === 'none') {
@@ -550,9 +627,10 @@ export class WebGLRenderPass implements RenderPass {
     const gl = this.glGraphics.glContext;
     const buffers = this.glGraphics.bindGroups.get(bindGroupId)!.entries;
     buffers.forEach((buffer) => {
-      if (buffer.type === 'uniform') {
+      if (buffer.type === 'uniform' && typeof GlUniform.getUniformIndex(buffer.name) === 'number') {
         const { gpuBuffer } = this.glGraphics.buffers.get(buffer.bufferId)!;
-        const uboIndex = this.glGraphics.uniformBlockIndices[buffer.name];
+        // const uboIndex = this.glGraphics.uniformBlockIndices[buffer.name];
+        const uboIndex = GlUniform.getUniformIndex(buffer.name);
         gl.bindBufferBase(gl.UNIFORM_BUFFER, uboIndex, gpuBuffer);
       } else if (buffer.type === 'storage') {
         // const { gpuBuffer } = this.glGraphics.buffers.get(buffer.bufferId)!;
@@ -560,6 +638,12 @@ export class WebGLRenderPass implements RenderPass {
         // TODO: This is the hard coded texture slot for textures used as instance buffers
         //       This will not work if more than one instance buffers are present.
         gl.activeTexture(gl.TEXTURE15);
+      } else if (buffer.type === 'sampler') {
+        const { glSampler, targetTexture } = this.glGraphics.samplers.get(buffer.bufferId)!;
+        const { activeTexture: textureUnit} = this.glGraphics.textures.get(targetTexture!)!;
+        const relativeTextureUnit = textureUnit - gl.TEXTURE0;
+        gl.bindSampler(relativeTextureUnit, glSampler);
+        gl.uniform1i(gl.getUniformLocation(gl.getParameter(gl.CURRENT_PROGRAM), buffer.name), relativeTextureUnit);
       }
     });
 

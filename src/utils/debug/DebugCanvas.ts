@@ -122,11 +122,18 @@ class DebugCanvas {
     return this.context;
   }
 
+  static shown = false;
+  static isShown() {
+    return this.shown;
+  }
+
   static show() {
+    this.shown = true;
     this.getContext().canvas.style.display = 'block';
   }
 
   static hide() {
+    this.shown = false;
     this.getContext().clearRect(0, 0, this.canvas.width, this.canvas.height);
     this.getContext().canvas.style.display = 'none';
   }

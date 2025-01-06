@@ -1,6 +1,10 @@
-import Graphics, { RenderPass } from "core/Graphics";
+import Graphics, { RenderPass } from 'core/Graphics';
 import Material, { MaterialDescriptor } from 'core/mesh/material/Material';
-import MaterialProperties, { NOOP_MATERIAL, TerrainMaterialProperties } from 'core/mesh/material/MaterialProperties';
+import MaterialProperties, {
+    NOOP_MATERIAL,
+    PBRMaterialProperties,
+    TerrainMaterialProperties
+} from 'core/mesh/material/MaterialProperties';
 import { FragmentShaderName } from 'core/resources/cpu/CpuShaderData';
 import {
     PBR_MATERIAL_STRUCT,
@@ -8,9 +12,9 @@ import {
     TERRAIN_MATERIAL_STRUCT,
     UNLIT_MATERIAL_STRUCT
 } from 'core/resources/shader/DefaultBindGroupLayouts';
-import { BufferData, BufferUsage } from "core/resources/gpu/BufferDescription";
+import { BufferData, BufferUsage } from 'core/resources/gpu/BufferDescription';
 import { PipelineOptions } from 'core/resources/gpu/GpuShaderData';
-import ResourceManager from "core/resources/ResourceManager";
+import ResourceManager from 'core/resources/ResourceManager';
 import Globals from '../../engine/Globals';
 import DebugUtil from 'utils/debug/DebugUtil';
 
@@ -50,8 +54,8 @@ export default class MaterialFactory {
     public pbrMaterial(label: string,
                        data: MaterialProperties,
                        overrides: Partial<PipelineOptions> = {}) {
-
-        if (!this.materialLabels.has(label)) {
+        const materialHash = this.generateMaterialHash(data, overrides);
+        if (!this.materialLabels.has(materialHash)) {
 
             const descriptor: MaterialDescriptor = {
                 ...MaterialFactory.PBR_MATERIAL_DESCRIPTOR,
@@ -93,10 +97,12 @@ export default class MaterialFactory {
                 });
             }
 
-            this.materialLabels.set(label, new Material(label, descriptor, data, fns));
+            this.materialLabels.set(materialHash, new Material(label, descriptor, data, fns));
+        } else {
+            console.warn('Material was present in the cache:', this.materialLabels.get(materialHash), 'New:', data, overrides);
         }
 
-        return this.materialLabels.get(label)!;
+        return this.materialLabels.get(materialHash)!;
     }
 
     public litMaterial(label: string = 'LitMaterial',
@@ -209,5 +215,15 @@ export default class MaterialFactory {
         ],
         properties: {},
         fragmentShader: FragmentShaderName.PBR,
+    }
+
+    private generateMaterialHash(data: MaterialProperties, overrides: Partial<PipelineOptions>) {
+        if (data instanceof PBRMaterialProperties) {
+
+        } else {
+            console.log('Material that is not PBR added. Hash may not work', data, overrides);
+        }
+
+        return JSON.stringify(data) + JSON.stringify(overrides);
     }
 }

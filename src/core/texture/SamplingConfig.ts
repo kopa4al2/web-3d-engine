@@ -15,6 +15,7 @@ export default interface SamplingConfig {
     compare?: 'less' | 'never' | 'always' | 'greater',
     // TODO: Hack for webgl
     targetTexture?: TextureId,
+    // targetTexture?: { id: TextureId, name: string },
 }
 
 export const DefaultSampling: SamplingConfig = {

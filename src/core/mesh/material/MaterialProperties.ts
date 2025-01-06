@@ -49,7 +49,7 @@ export class PhongMaterialProperties implements MaterialProperties {
 export interface AlbedoProperties {
     texture: Texture,
     baseColor?: vec4,
-    alphaCutoff: number
+    alphaCutoff?: number
 }
 export interface EmissiveProperties {
     texture: Texture,
@@ -71,13 +71,13 @@ export class PBRMaterialProperties implements MaterialProperties {
         const dataView = new DataView(bufferData);
 
         let byteOffset = this.setTextureData(dataView, 0, this.albedo.texture.index, this.albedo.baseColor, this.albedo.alphaCutoff);
-        // console.log(`Albedo byte offset. Expected: ${64}, Actual: ${byteOffset}`)
+        // console.log(`Albedo byte offset. Expected: ${48}, Actual: ${byteOffset}`)
         byteOffset = this.setTextureData(dataView, byteOffset, this.normalMap.index);
-        // console.log(`normal byte offset. Expected: ${64 * 2}, Actual: ${byteOffset}`)
+        // console.log(`normal byte offset. Expected: ${48 * 2}, Actual: ${byteOffset}`)
         byteOffset = this.setTextureData(dataView, byteOffset, this.emissive.texture.index, vec4.fromValues(this.emissive.factor[0], this.emissive.factor[1], this.emissive.factor[2], this.emissive.strength));
-        // console.log(`Emissive byte offset. Expected: ${64 * 3}, Actual: ${byteOffset}`)
+        // console.log(`Emissive byte offset. Expected: ${48 * 3}, Actual: ${byteOffset}`)
         byteOffset = this.setTextureData(dataView, byteOffset, this.metallicRoughnessMap.index, vec4.fromValues(this.metallicRoughnessFactor[0], this.metallicRoughnessFactor[1], 1, 1));
-        // console.log(`metallic roughness byte offset. Expected: ${64 * 4}, Actual: ${byteOffset}`)
+        // console.log(`metallic roughness byte offset. Expected: ${48 * 4}, Actual: ${byteOffset}`)
 
         return new Uint8Array(bufferData);
     }
@@ -91,9 +91,6 @@ export class PBRMaterialProperties implements MaterialProperties {
 
         dataView.setUint32(byteOffset, textureData.textureLayer, true);
         byteOffset += 4;
-        if (alphaCutoff > 0) {
-            console.log(`Writing alpha cutoff: ${alphaCutoff} offset: ${byteOffset}`);
-        }
         dataView.setFloat32(byteOffset, alphaCutoff, true);
         byteOffset += 4;
         byteOffset += 8;
@@ -102,7 +99,7 @@ export class PBRMaterialProperties implements MaterialProperties {
         // dataView.setFloat32(byteOffset, colorFactor[1], true);
         // dataView.setFloat32(byteOffset, colorFactor[2], true);
         // dataView.setFloat32(byteOffset, colorFactor[3], true);
-        byteOffset += 16;
+        // byteOffset += 16;
 
         return byteOffset;
     }

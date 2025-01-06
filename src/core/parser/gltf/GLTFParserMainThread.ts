@@ -40,7 +40,7 @@ export default class GLTFParserMainThread {
                       rootTransform?: Transform): EntityId[] {
     const textureManager: TextureManager = resourceManager.textureManager;
 
-    const bgHelper = new BindGroupHelper(resourceManager, 'VERTEX-INSTANCE', [{
+    const bgHelper = new BindGroupHelper(resourceManager, 'SingleInstanceBuffer', [{
       type: 'storage',
       byteLength: 4096,
       name: 'InstanceData',
@@ -75,6 +75,7 @@ export default class GLTFParserMainThread {
           const gltfMaterial = this.json.materials[primitive.material];
           const matName = gltfMaterial.name || `unnamed-mat-${Math.random()}`;
           if (usedMaterials.get(matName)) {
+            // console.warn('Material already used', matName, usedMaterials.get(matName));
             const usedMesh = usedMaterials.get(matName)!;
             entityManager.addComponents(entity, [
               new Mesh(usedMesh.pipelineId, geometry,
@@ -108,9 +109,7 @@ export default class GLTFParserMainThread {
                                     : textureManager.getTexture(Texture.DEFAULT_METALLIC_ROUGHNESS_MAP);
           const metallicRoughnessFactor = vec2.fromValues(metallicFactor, roughnessFactor);
 
-          if (gltfMaterial.alphaMode || gltfMaterial.alphaCutoff || gltfMaterial.doubleSided) {
-            console.log('Material', gltfMaterial);
-          }
+
           const blendMode = gltfMaterial.alphaMode === 'BLEND' ? BlendPresets.TRANSPARENT : undefined;
           const pbrMaterialProperties = new PBRMaterialProperties({
               texture: albedo,

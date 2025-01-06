@@ -51,7 +51,7 @@ export default class TextureManager {
     this.globalTextures.set(TextureManager.SHADOW_MAP_TEXTURE_KEY,
       graphics.createTexture({
         depth: Globals.MAX_SHADOW_CASTING_LIGHTS,
-        label: 'shadowMapDepthTexture',
+        label: 'ShadowMap',
         type: TextureType.TEXTURE_ARRAY,
         usage: TextureUsage.COPY_DST | TextureUsage.TEXTURE_BINDING | TextureUsage.RENDER_ATTACHMENT | TextureUsage.COPY_SRC,
         image: {
@@ -261,7 +261,8 @@ export default class TextureManager {
     const sizeSerialized = JSON.stringify(size);
     if (!this.globalTextures.has(sizeSerialized)) {
       const textureId = this.graphics.createTexture({
-        label: `array-w-${size.width}-h-${size.height}-d-${TextureManager.TEXTURE_ARRAY_LAYERS}`,
+        label: `TexturesArray`,
+        // label: `array-w-${size.width}-h-${size.height}-d-${TextureManager.TEXTURE_ARRAY_LAYERS}`,
         image: {
           width: size.width, height: size.height,
           channel: {

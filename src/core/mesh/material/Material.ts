@@ -29,6 +29,11 @@ export default class Material {
         this.hasChanged = true;
     }
 
+    refresh() {
+        this.hasChanged = true;
+        // console.warn('Material updated')
+    }
+
     update<T extends MaterialProperties>(mutator: (t: T) => void) {
         mutator(this.properties as T);
         this.hasChanged = true;

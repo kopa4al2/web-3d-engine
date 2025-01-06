@@ -1,5 +1,5 @@
-const MAX_SHADOW_CASTING_LIGHTS = 2;
-
+//const MAX_SHADOW_CASTING_LIGHTS = 2;
+/*{{GLOBALS}}*/
 struct Camera {
     projectionViewMatrix: mat4x4<f32>,                                    // 64 bytes
     projectionMatrix: mat4x4<f32>,                                        // 64 bytes
@@ -49,11 +49,6 @@ fn main(input: VertexInput) -> VertexOutput {
     let inverseModel = instanceData[input.instanceID].modelMatrixInverseTranspose;
 
 
-    var skinMatrix = mat4x4<f32>();
-    for (var i = 0u; i < 4u; i++) {
-        skinMatrix += jointMatrices[u32(input.jointIndices[i])] * input.jointWeights[i];
-    }
-
 //    let skinMatrix: vec4<f32> =
 //        input.jointWeights.x * (jointMatrices[u32(input.jointIndices.x)] * vec4<f32>(input.position, 1.0)) +
 //        input.jointWeights.y * (jointMatrices[u32(input.jointIndices.y)] * vec4<f32>(input.position, 1.0)) +
@@ -78,6 +73,12 @@ fn main(input: VertexInput) -> VertexOutput {
 //    let bitangent = cross(normal, tangent) * input.tangent.w;
 //    let bitangent = cross(worldNormal, worldTangent) * input.tangent.w;
 
+
+    var skinMatrix = mat4x4<f32>();
+    for (var i = 0u; i < 4u; i++) {
+        skinMatrix += jointMatrices[u32(input.jointIndices[i])] * input.jointWeights[i];
+    }
+
     // Transform position, normal, and tangent using skinning
     let skinnedPosition = skinMatrix * vec4<f32>(input.position, 1.0);
     let skinnedNormal = normalize((skinMatrix * vec4<f32>(input.normal, 0.0)).xyz);
@@ -87,18 +88,13 @@ fn main(input: VertexInput) -> VertexOutput {
     let normalMatrix = extract_mat3_from_mat4(inverseModel); // Extract mat3 from mat4
     let worldNormal = normalize(normalMatrix * skinnedNormal);
     let worldTangent = normalize(normalMatrix * skinnedTangent);
-
-    // Compute bitangent
     let worldBitangent = normalize(cross(worldNormal, worldTangent) * input.tangent.w);
-
-    // Transform position into world space
-//    let worldPosition = modelMatrix * skinnedPosition;
 
     output.position = global.projectionViewMatrix * skinnedPosition;
     output.pixelPosition = (skinnedPosition).xyz;
     output.tangent = worldTangent;
     output.normal = worldNormal;
-    output.bitangent = worldTangent;
+    output.bitangent = worldBitangent;
     output.textureCoord = input.textureCoord;
 
     return output;

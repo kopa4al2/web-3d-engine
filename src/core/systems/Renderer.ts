@@ -58,20 +58,21 @@ export default class Renderer implements System {
     }
 
     if (Globals.ENABLE_SHADOW_CASTINGS) {
-      this.shadowPassBindGroupHelper = new BindGroupHelper(resourceManager, 'lightViewProjMatrix', [{
+      this.shadowPassBindGroupHelper = new BindGroupHelper(resourceManager, 'ShadowMapGlobal', [{
         type: 'uniform',
-        name: 'ShadowMapGlobal',
+        name: 'lightViewProjMatrix',
         visibility: UniformVisibility.FRAGMENT | UniformVisibility.VERTEX,
         byteLength: 16 * Float32Array.BYTES_PER_ELEMENT,
       }]);
 
 
       const layoutStatic = this.resourceManager.getOrCreateLayout({
-        label: 'InstanceBufferLayout',
+        label: 'SingleInstanceBuffer',
         entries: [createStruct('modelMatrix', 'storage', 0, UniformVisibility.VERTEX | UniformVisibility.FRAGMENT)]
       });
       const layoutSkinned = this.resourceManager.getOrCreateLayout({
-        label: 'SkinnedVertexLayout',
+        label: 'Skinned',
+        // label: 'SkinnedVertexLayout',
         entries: [
           createStruct('modelMatrix', 'storage', 0, UniformVisibility.VERTEX),
           createStruct('inverseBindPoseMatrices', 'uniform', 1, UniformVisibility.VERTEX, 64 * 512)]

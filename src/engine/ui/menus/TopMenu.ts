@@ -30,6 +30,9 @@ export class TopMenu {
             Lights: new LightControl(this.rightMenu),
             Meshes: new MeshTweakPane(this.rightMenu)
         }
+
+        // TODO: Hack
+        setTimeout(() => this.materials(), 1500);
     }
 
     private handleClick(e: MouseEvent) {
@@ -49,22 +52,22 @@ export class TopMenu {
 
     private allEntities() {
         for (const [entity, components] of this.entityManager._entities.entries()) {
-            // if (
-            //   (components.has(Mesh.ID) && components.has(Transform.ID))
-            // || (components.has(Transform.ID) && (components.get(Transform.ID) as Transform)?.parent === undefined)) {
-            //     this.controls.Meshes.addMesh(entity.description!,
-            //         components.get(Mesh.ID) as Mesh,
-            //         components.get(Transform.ID) as Transform);
-            // }
+            if (
+              (components.has(Mesh.ID) && components.has(Transform.ID))
+            || (components.has(Transform.ID) && (components.get(Transform.ID) as Transform)?.parent === undefined)) {
+                this.controls.Meshes.addMesh(entity.description!,
+                    components.get(Mesh.ID) as Mesh,
+                    components.get(Transform.ID) as Transform);
+            }
 
             // if (components.has(Transform.ID) && (components.get(Transform.ID) as Transform).parent === undefined) {
-            if (components.has(Transform.ID)) {
-                requestIdleCallback(() => {
-                    this.controls.Meshes.addMesh(entity.description!,
-                      undefined as unknown as Mesh,
-                      components.get(Transform.ID) as Transform);
-                });
-            }
+            // if (components.has(Transform.ID)) {
+            //     requestIdleCallback(() => {
+            //         this.controls.Meshes.addMesh(entity.description!,
+            //           undefined as unknown as Mesh,
+            //           components.get(Transform.ID) as Transform);
+            //     });
+            // }
         }
 
         requestIdleCallback(() => this.rightMenu.setActive('ENTITIES'));
