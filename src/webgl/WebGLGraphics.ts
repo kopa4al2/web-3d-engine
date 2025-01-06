@@ -98,6 +98,7 @@ export default class WebGLGraphics implements Graphics {
     const gl = this.glContext;
     const shaderProgram = gl.createProgram() as WebGLProgram;
 
+    console.log('Creating shader program: ', shader.label, shader.vertexShaderSource, shader.fragmentShaderSource);
     gl.attachShader(shaderProgram, this.loadShader(gl.VERTEX_SHADER, shader.vertexShaderSource));
     gl.attachShader(shaderProgram, this.loadShader(gl.FRAGMENT_SHADER, shader.fragmentShaderSource || EMPTY_FRAGMENT_SHADER));
     gl.linkProgram(shaderProgram);

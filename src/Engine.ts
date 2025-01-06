@@ -241,7 +241,7 @@ export default class Engine {
           new TerrainSystem(this.graphicsApi));
 
 
-        // this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumGLB, sponzaTransform);
+        this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumGLB, sponzaTransform);
 
         // this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumScene, TransformBuilder.scale(vec3.fromValues(20.0, 20.0, 20.0)).build())
         //   .then(() => this.loadAndAddMesh('Crate2', this.modelRepository.createCrate, [2, 3, 0], 0.005));
