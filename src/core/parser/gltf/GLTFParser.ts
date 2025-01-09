@@ -50,88 +50,19 @@ export default class GLTFParser {
               public skins: ArrayBuffer[],
               public animations: SerializedAnimation[]) {
     DebugUtil.addToWindowObject('gltf', this);
-    console.log('GLTF parser', this);
-    console.log('%c GLTF JSON', 'background: yellow;font-size: 20px;color:black;', json);
-    this.nodes.reduce((previousValue, currentValue, currentIndex, array) => ({
-      ...previousValue,
-      [currentIndex]: {
-        name: currentValue.name,
-        parent: currentValue.parent,
-        worldTransform: new Float32Array(currentValue.worldTransform),
-        localTransform: new Float32Array(currentValue.localTransform)
-      }
-    }), {});
+    // this.nodes.length = Math.min(228, this.nodes.length);
+    // console.log('%c GLTF JSON', 'background: yellow;font-size: 20px;color:black;', json);
+    // this.nodes.reduce((previousValue, currentValue, currentIndex, array) => ({
+    //   ...previousValue,
+    //   [currentIndex]: {
+    //     name: currentValue.name,
+    //     parent: currentValue.parent,
+    //     worldTransform: new Float32Array(currentValue.worldTransform),
+    //     localTransform: new Float32Array(currentValue.localTransform)
+    //   }
+    // }), {});
 
-    for (let i = 0; i < this.nodes.length; i++) {
-      const parsed = this.nodes[i];
-      const original = this.json.nodes[i];
-
-      if (parsed.name !== original.name || parsed.mesh !== original.mesh) {
-        console.groupCollapsed(`${i} [PARSED - ORIGINAL] [${parsed.name} - ${original.name}] [${parsed.mesh} - ${original.mesh}]`);
-        console.log('parsed', parsed, 'original', original);
-        console.groupEnd();
-      }
-
-      // if (!mat4.equals(mat4.create(), new Float32Array(parsed.worldTransform))) {
-      //   console.groupCollapsed(`${i} WORLD TRANSFORM IS NOT IDENTITY [${parsed.name} - ${original.name}] [${parsed.mesh} - ${original.mesh}]`);
-      //   console.log('parsed', parsed, 'original', original);
-      //   console.groupEnd();
-      // }
-
-      const parsedMat4 = new Float32Array(parsed.localTransform) as mat4;
-      if (original.matrix) {
-        const originalMat4 = new Float32Array(original.matrix) as mat4;
-        if (!mat4.equals(parsedMat4, originalMat4)) {
-          console.groupCollapsed(`${i} MATRIX MISMATCH [PARSED - ORIGINAL] [${parsed.name} - ${original.name}] [${parsed.mesh} - ${original.mesh}]`);
-          console.log('parsed', parsedMat4, 'original', originalMat4);
-          console.groupEnd();
-        }
-      }
-
-      if (original.rotation) {
-        const originalQuat = new Float32Array(original.rotation) as quat;
-        if (!quat.equals(mat4.getRotation(quat.create(), parsedMat4), originalQuat)) {
-          if (mat4.equals(parsedMat4, mat4.fromRotationTranslationScale(mat4.create(), originalQuat, original.translation || [0, 0, 0], original.scale || [1, 1, 1] as vec3))) {
-
-          } else {
-            console.warn('Rotation and Matrix are wrong');
-            console.groupCollapsed(`${i} ROTATION MISMATCH [${parsed.name} - ${original.name}] [${parsed.mesh} - ${original.mesh}]`);
-            console.log('Parsed local: ', parsedMat4);
-            console.log('Parsed rotation: ', mat4.getRotation(quat.create(), parsedMat4));
-            console.log('Original rotation: ', originalQuat);
-            console.log(parsed);
-            console.log(original);
-            console.groupEnd();
-          }
-        }
-      }
-
-      if (original.scale) {
-        const originalVec3 = new Float32Array(original.scale) as vec3;
-        if (!vec3.equals(mat4.getScaling(vec3.create(), parsedMat4), originalVec3)) {
-          console.groupCollapsed(`${i} SCALE MISMATCH [${parsed.name} - ${original.name}] [${parsed.mesh} - ${original.mesh}]`);
-          console.log('parsed', parsedMat4, 'original', originalVec3);
-          console.groupEnd();
-        }
-      }
-
-      if (original.translation) {
-        const originalVec3 = new Float32Array(original.translation) as vec3;
-        if (!vec3.equals(mat4.getTranslation(vec3.create(), parsedMat4), originalVec3)) {
-          console.groupCollapsed(`${i} TRANSLATION MISMATCH [${parsed.name} - ${original.name}] [${parsed.mesh} - ${original.mesh}]`);
-          console.log(originalVec3, mat4.getTranslation(vec3.create(), parsedMat4));
-          console.groupEnd();
-        }
-      }
-
-      if (!original.translation && !original.rotation && !original.scale && !original.matrix) {
-        if (!mat4.equals(parsedMat4, mat4.create())) {
-          console.groupCollapsed(`${i} MATRIX MISMATCH [${parsed.name} - ${original.name}] [${parsed.mesh} - ${original.mesh}]`);
-          console.log('parsed', parsedMat4, 'original', mat4.create());
-          console.groupEnd();
-        }
-      }
-    }
+    // this._performValidations();
   }
 
   public createMeshes(shaderManager: ShaderManager,
@@ -200,11 +131,6 @@ export default class GLTFParser {
         transform.parent = parentT;
         parentT.children.push(transform);
       }
-
-      // if (this.json.skins[0].skeleton === nodeIndex) {
-      //   console.log('Setting root: ', nodeIndex, entity, skeletons);
-      //   entityManager.addComponents(entity, [skeletons[0]]);
-      // }
 
       if (this.json.nodes[nodeIndex].skin !== undefined) {
         entityManager.addComponents(entity, [skeletons[this.json.nodes[nodeIndex].skin!]]);
@@ -327,7 +253,7 @@ export default class GLTFParser {
     if (node.rotation || node.scale || node.translation) {
       const scale = vec3.copy(vec3.create(), node.scale || vec3.fromValues(1, 1, 1));
       if (node.scale && node.scale[0] > 10) {
-        console.warn('Large scale detected', node.name, node);
+        // console.warn('Large scale detected', node.name, node);
         scale[0] = 0.1;
         scale[1] = 0.1;
         scale[2] = 0.1;
@@ -350,7 +276,7 @@ export default class GLTFParser {
     const baseColorFactor = pbr.baseColorFactor || [1.0, 1.0, 1.0, 1.0];
     const metallicFactor = pbr.metallicFactor ?? 1.0;
     const roughnessFactor = pbr.roughnessFactor ?? 1.0;
-    let emissiveFactor = gltfMaterial.emissiveFactor ?? [0.0, 0.0, 0.0];
+    const emissiveFactor = gltfMaterial.emissiveFactor ?? [0.0, 0.0, 0.0];
     const emissiveStrength = gltfMaterial.extensions?.KHR_materials_emissive_strength?.emissiveStrength || 1.0;
     let normal = gltfMaterial.normalTexture
                  ? this.getTextureAtIndex(gltfMaterial.normalTexture.index, textureManager)
@@ -366,13 +292,6 @@ export default class GLTFParser {
                               ? this.getTextureAtIndex(pbr.metallicRoughnessTexture.index, textureManager)
                               : textureManager.getTexture(Texture.DEFAULT_METALLIC_ROUGHNESS_MAP);
     const metallicRoughnessFactor = vec2.fromValues(metallicFactor, roughnessFactor);
-
-    if (gltfMaterial.emissiveTexture || gltfMaterial.emissiveFactor || gltfMaterial.extensions) {
-      console.log('Material', gltfMaterial);
-      if ((!gltfMaterial.emissiveFactor && gltfMaterial.emissiveTexture) || (gltfMaterial.emissiveTexture && !gltfMaterial.emissiveTexture)) {
-        console.error('Emissives will cancel out check this')
-      }
-    }
 
     const blendMode = gltfMaterial.alphaMode === 'BLEND' ? BlendPresets.TRANSPARENT : undefined;
     const pbrMaterialProperties = new PBRMaterialProperties({
@@ -404,13 +323,13 @@ export default class GLTFParser {
     'background: #647796; color: #223344',
     'background: #FFFF00; color: #223344',
   ];
-  static index = 0;
 
+  static index = 0;
   public static async parseGlb(rootDir: string, relativePath: string, rootTransform = mat4.create()): Promise<GLTFParser> {
     const style = this.styles[this.index++ % 3];
     // console.log(`%c BEGIN LOADING ${rootDir + relativePath} GLB`, style);
     const rootBuffer = (rootTransform as Float32Array).buffer as ArrayBuffer;
-    return fetch(rootDir + relativePath, { cache: 'force-cache' })
+    return fetch(rootDir + relativePath, /*{ cache: 'force-cache' }*/)
       .then(res => res.arrayBuffer())
       .then(buffer => {
         // console.log(`%c LOADED ${rootDir + relativePath} ABOUT TO CALL WORKER`, style);
@@ -425,6 +344,83 @@ export default class GLTFParser {
         // console.log(`%c WORKER FINISHED ${rootDir + relativePath}`, style, resp);
         return new GLTFParser(resp.json, resp.imageBitmaps, resp.meshes, resp.nodes, resp.skins, resp.animations);
       });
+  }
+
+  private _performValidations() {
+    for (let i = 0; i < this.nodes.length; i++) {
+      const parsed = this.nodes[i];
+      const original = this.json.nodes[i];
+
+      if (!parsed) {
+        console.warn('Parsed node is null', i, this.nodes, original);
+        return;
+      }
+      if (parsed.name !== original.name || parsed.mesh !== original.mesh) {
+        console.groupCollapsed(`${i} [PARSED - ORIGINAL] [${parsed.name} - ${original.name}] [${parsed.mesh} - ${original.mesh}]`);
+        console.log('parsed', parsed, 'original', original);
+        console.groupEnd();
+      }
+
+      // if (!mat4.equals(mat4.create(), new Float32Array(parsed.worldTransform))) {
+      //   console.groupCollapsed(`${i} WORLD TRANSFORM IS NOT IDENTITY [${parsed.name} - ${original.name}] [${parsed.mesh} - ${original.mesh}]`);
+      //   console.log('parsed', parsed, 'original', original);
+      //   console.groupEnd();
+      // }
+
+      const parsedMat4 = new Float32Array(parsed.localTransform) as mat4;
+      if (original.matrix) {
+        const originalMat4 = new Float32Array(original.matrix) as mat4;
+        if (!mat4.equals(parsedMat4, originalMat4)) {
+          console.groupCollapsed(`${i} MATRIX MISMATCH [PARSED - ORIGINAL] [${parsed.name} - ${original.name}] [${parsed.mesh} - ${original.mesh}]`);
+          console.log('parsed', parsedMat4, 'original', originalMat4);
+          console.groupEnd();
+        }
+      }
+
+      if (original.rotation) {
+        const originalQuat = new Float32Array(original.rotation) as quat;
+        if (!quat.equals(mat4.getRotation(quat.create(), parsedMat4), originalQuat)) {
+          if (mat4.equals(parsedMat4, mat4.fromRotationTranslationScale(mat4.create(), originalQuat, original.translation || [0, 0, 0], original.scale || [1, 1, 1] as vec3))) {
+
+          } else {
+            console.warn('Rotation and Matrix are wrong');
+            console.groupCollapsed(`${i} ROTATION MISMATCH [${parsed.name} - ${original.name}] [${parsed.mesh} - ${original.mesh}]`);
+            console.log('Parsed local: ', parsedMat4);
+            console.log('Parsed rotation: ', mat4.getRotation(quat.create(), parsedMat4));
+            console.log('Original rotation: ', originalQuat);
+            console.log(parsed);
+            console.log(original);
+            console.groupEnd();
+          }
+        }
+      }
+
+      if (original.scale) {
+        const originalVec3 = new Float32Array(original.scale) as vec3;
+        if (!vec3.equals(mat4.getScaling(vec3.create(), parsedMat4), originalVec3)) {
+          console.groupCollapsed(`${i} SCALE MISMATCH [${parsed.name} - ${original.name}] [${parsed.mesh} - ${original.mesh}]`);
+          console.log('parsed', parsedMat4, 'original', originalVec3);
+          console.groupEnd();
+        }
+      }
+
+      if (original.translation) {
+        const originalVec3 = new Float32Array(original.translation) as vec3;
+        if (!vec3.equals(mat4.getTranslation(vec3.create(), parsedMat4), originalVec3)) {
+          console.groupCollapsed(`${i} TRANSLATION MISMATCH [${parsed.name} - ${original.name}] [${parsed.mesh} - ${original.mesh}]`);
+          console.log(originalVec3, mat4.getTranslation(vec3.create(), parsedMat4));
+          console.groupEnd();
+        }
+      }
+
+      if (!original.translation && !original.rotation && !original.scale && !original.matrix) {
+        if (!mat4.equals(parsedMat4, mat4.create())) {
+          console.groupCollapsed(`${i} MATRIX MISMATCH [${parsed.name} - ${original.name}] [${parsed.mesh} - ${original.mesh}]`);
+          console.log('parsed', parsedMat4, 'original', mat4.create());
+          console.groupEnd();
+        }
+      }
+    }
   }
 }
 

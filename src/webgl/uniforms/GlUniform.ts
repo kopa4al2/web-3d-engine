@@ -18,7 +18,6 @@ export default class GlUniform {
       console.error(`Uniform not found: ${name} location: `, uniformLocation, 'Program ', program);
     } else {
       if (!this.boundUniforms[name]) {
-        console.warn(`Registering bound uniform: ${name}`);
         this.boundUniforms[name] = Object.keys(this.boundUniforms).length;
       }
 

@@ -112,5 +112,3 @@ function generateArrowGeometry(cylinderRadius = 0.1,
 
 
 const { vertices, indices } = generateArrowGeometry();
-// console.log("Vertices:", vertices);
-// console.log("Indices:", indices);

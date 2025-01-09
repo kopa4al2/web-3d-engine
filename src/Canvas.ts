@@ -1,93 +1,117 @@
-import PropertiesManager, { WindowProperties } from "core/PropertiesManager";
-import MathUtil from "utils/MathUtil";
-import ThrottleUtil from "utils/ThrottleUtil";
+import PropertiesManager from 'core/PropertiesManager';
+import { SplitScreenMode } from 'engine/GlobalPropertiesControl';
 
 
 export default class Canvas {
-    width: number;
-    height: number;
-    readonly htmlElement: HTMLCanvasElement;
 
-    constructor(public readonly parent: HTMLElement,
-                private props: PropertiesManager,
-                private canvasId: string = 'canvas') {
-        this.width = props.getAbsolute('window.width');
-        this.height = props.getAbsolute('window.height');
+  private _htmlElement?: HTMLCanvasElement;
+  private isShown = false;
 
-        this.htmlElement = document.createElement('canvas');
-        this.htmlElement.id = canvasId;
-        this.htmlElement.tabIndex = 1;
+  private onResizeListeners: (() => void)[] = [];
 
-        this.parent.style.width = '100%';
-        this.parent.style.height = '100%';
-        this.htmlElement.style.position = 'relative';
-        this.htmlElement.width = this.width;
-        this.htmlElement.height = this.height;
+  constructor(public readonly parent: HTMLElement,
+              private props: PropertiesManager,
+              private canvasId: string = 'canvas') {
+    this.props.subscribeToAnyPropertyChange(
+      ['window.width', 'window.height', 'splitScreen'],
+      props => this.updateDimensions(props));
+  }
 
-        this.updateDimensions(props.getT('window'));
-        this.props.subscribeToAnyPropertyChange(
-            ['window.width', 'window.height', 'window.leftOffset', 'window.topOffset', 'window.hide'],
-            props => this.updateDimensions(props.getT('window')));
+  get width() {
+    return this.isShown ? this.htmlElement.width : 0;
+
+  }
+
+  get height() {
+    return this.isShown ? this.htmlElement.height : 0;
+  }
+
+  get htmlElement(): HTMLCanvasElement {
+    if (!this._htmlElement) {
+      const wrapper = this.parent;
+      const { width, height } = wrapper.getBoundingClientRect();
+      this._htmlElement = document.createElement('canvas');
+      this._htmlElement.id = this.canvasId;
+      this._htmlElement.tabIndex = 1;
+      this._htmlElement.width = width;
+      this._htmlElement.height = height;
+
+      wrapper.appendChild(this._htmlElement);
+      this.updateDimensions(this.props);
     }
 
-    addToDOM(parentElement?: HTMLElement): Canvas {
-        const wrapper = parentElement || this.parent;
-        wrapper.appendChild(this.htmlElement);
-        // addTitle(this.canvasId, this.parent, this.props);
+    return this._htmlElement;
+  }
 
-        window.addEventListener('resize', ThrottleUtil.debounce(e => {
-            this.width = MathUtil.clamp(window.innerWidth, 800, 3840);
-            this.height = MathUtil.clamp(window.innerHeight, 600, 2160);
+  addOnResizeListener(onResize: () => void): void {
+    this.onResizeListeners.push(onResize);
+  }
 
-            if (this.props.getBoolean('splitScreen')) {
-                this.width = window.innerWidth / 2;
-                if (this.props.get<number>('window.leftOffset') > 0) {
-                    const leftOffset = window.innerWidth - this.width;
-                    this.props.updateNestedProperty('window', { leftOffset })
-                    this.parent.style.left = leftOffset + 'px';
-                }
-            }
+  getWebGl2Context(): WebGL2RenderingContext {
+    const ctx = this.htmlElement.getContext('webgl2', { depth: true, });
 
-            this.parent.style.width = this.width + 'px';
-            this.parent.style.height = this.height + 'px';
-            this.htmlElement.width = this.width;
-            this.htmlElement.height = this.height;
-
-            this.props.updateNestedProperty('window', { width: this.width, height: this.height });
-        }, 100));
-
-        return this;
+    if (!ctx) {
+      throw 'WebGL2 Is not supported';
     }
 
-    getWebGl2Context(): WebGL2RenderingContext {
-        const ctx = this.htmlElement.getContext("webgl2", { depth: true, });
+    return ctx;
+  }
 
-        if (!ctx) {
-            throw 'WebGL2 Is not supported';
-        }
+  getWebGpuContext(): GPUCanvasContext {
+    const ctx = this.htmlElement.getContext('webgpu');
 
-        return ctx;
+    if (!ctx) {
+      throw 'WebGPU is not supported';
     }
 
-    getWebGpuContext(): GPUCanvasContext {
-        const ctx = this.htmlElement.getContext('webgpu');
+    return ctx;
+  }
 
-        if (!ctx) {
-            throw 'WebGPU is not supported';
-        }
+  private updateDimensions(props: PropertiesManager) {
+    const splitScreen: SplitScreenMode = props.getNum('splitScreen');
+    const { top: topMenuOffset, height: topMenuHieght } = document.querySelector('.top-menu')!.getBoundingClientRect();
+    const { innerWidth, innerHeight } = window;
 
-        return ctx;
+    let width  = innerWidth,
+        height = innerHeight - topMenuOffset - topMenuHieght;
+    if (splitScreen === SplitScreenMode.SplitScreen) {
+      width /= 2;
     }
 
-    private updateDimensions({ width, height, leftOffset, topOffset, hide }: WindowProperties) {
-        this.width = width;
-        this.height = height;
-        this.parent.style.width = width + 'px';
-        this.parent.style.height = height + 'px';
-        this.parent.style.top = topOffset + 'px';
-        this.parent.style.left = leftOffset + 'px';
-        this.parent.style.display = hide ? 'none' : 'block';
-        this.htmlElement.width = width;
-        this.htmlElement.height = height;
+    this.parent.style.width = `${width}px`;
+    this.parent.style.height = `${height}px`;
+    this.htmlElement.width = width;
+    this.htmlElement.height = height;
+
+    if (this.isShown) {
+      this.parent.style.display = `none`;
+    } else {
+      this.parent.style.display = `initial`;
     }
+
+    this.onResizeListeners.forEach(listener => listener());
+  }
+
+  async show(): Promise<void> {
+    console.log(`SHOWING ${this.canvasId}`, this.parent);
+    // this.parent.style.display = 'block';
+    this.isShown = true;
+      this.updateDimensions(this.props);
+    // return new Promise(resolve => {
+    //   return resolve();
+    // });
+  }
+
+  async hide(): Promise<void> {
+    console.log(`HIDING ${this.canvasId}`, this.parent);
+
+    // this.htmlElement.style.display = 'none';
+    this.isShown = false;
+    this.updateDimensions(this.props);
+
+    // return new Promise(resolve => {
+    //   this.updateDimensions(this.props);
+    //   return resolve();
+    // });
+  }
 }

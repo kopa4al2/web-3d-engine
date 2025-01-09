@@ -105,7 +105,6 @@ export default class ShaderManager {
   }
 
   public createShadowPass(staticMeshLayoutIds: BindGroupLayoutId[], skinnedMeshLayoutIds: BindGroupLayoutId[]): [PipelineId, PipelineId] {
-    console.warn('Creating shadow pass');
     const uniqueId = ShaderTemplate.SHADOW_PASS;
     if (this.pipelinesCache[uniqueId]) {
       return [this.pipelinesCache[uniqueId], this.pipelinesCache[`${uniqueId}_SKINNED`]];
@@ -575,10 +574,7 @@ export default class ShaderManager {
       import ('webgl/shaders/skybox-vertex.vert').then(module => ({ content: module.default, shader: VertexShaderName.SKY_BOX })),
       // import ('webgl/shaders/terrain/terrainFragmentShader.frag').then(module => ({ content: module.default, shader: FragmentShaderName.TERRAIN })),
       // import ('webgl/shaders/terrain/terrainVertexShader.vert').then(module => ({ content: module.default, shader: VertexShaderName.TERRAIN })),
-    ]).then(res => {
-      console.log('Loaded shaders: ', res);
-      res.forEach(({ content, shader }) => this.shaderContents[shader] = content);
-    });
+    ]).then(res => res.forEach(({ content, shader }) => this.shaderContents[shader] = content));
   }
 
   private importShader(importStatement: Promise<{ default: any }>, shaderName: FragmentShaderName | VertexShaderName) {

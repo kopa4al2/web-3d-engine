@@ -155,13 +155,7 @@ export default class GeometryFactory {
         strides.forEach(([geometryKey, stride]) => {
             const geometryElement = geometry[geometryKey]!;
             if (geometryElement.length / stride !== numItems) {
-                console.warn(`${ geometryKey } is not the same size as vertices. Will try to default`);
-                console.groupCollapsed('Warning debug');
-                console.log(`geometryElement.length / stride: ${ geometryElement.length / stride } !== numItems ${ numItems }`);
-                console.log('Geometry: ', geometry, 'Strides: ', strides);
-                console.groupEnd()
-                missingKeys.push(geometryKey);
-                // throw new Error("All arrays must represent the same number of items based on their strides");
+                throw new Error("All arrays must represent the same number of items based on their strides");
             }
         })
 

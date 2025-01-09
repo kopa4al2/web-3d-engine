@@ -31,6 +31,16 @@ self.onmessage = (event: MessageEvent<GLBWorkerRequest>) => {
                 });
             break;
         }
+        case 'image/webp': {
+            const blob = new Blob([view.buffer], { type: mimeType });
+            createImageBitmap(blob)
+                .then(imageBitmap => {
+                    self.postMessage(
+                        { imageBitmap },
+                        { transfer: [imageBitmap] });
+                });
+            break;
+        }
         default: {
             console.error('Unmapped mime type: ', mimeType)
             throw new Error('Unmapped mime type: ' + mimeType);

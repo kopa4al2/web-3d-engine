@@ -1,11 +1,9 @@
-import { RadioGridController } from '@tweakpane/plugin-essentials';
 import Canvas from 'Canvas';
 import ProjectionMatrix from 'core/components/camera/ProjectionMatrix';
 import EntityManager from 'core/EntityManager';
 import Graphics from 'core/Graphics';
-import PropertiesManager, { PartialProperties, Property, PropertyValue } from 'core/PropertiesManager';
+import PropertiesManager, { PartialProperties } from 'core/PropertiesManager';
 import EntityComponentSystem from 'core/systems/EntityComponentSystem';
-import SdiPerformance from 'utils/SdiPerformance';
 import Engine, { OnRenderPlugin } from 'Engine';
 import { TopMenu } from 'engine/ui/menus/TopMenu';
 import { glMatrix, mat4, quat, vec2, vec3 } from 'gl-matrix';
@@ -17,258 +15,94 @@ import ResourceManager from 'core/resources/ResourceManager';
 import MaterialTweakPane from 'engine/ui/controls/MaterialTweakPane';
 import MaterialFactory from 'core/factories/MaterialFactory';
 import './styles/index.scss';
+import './styles/top-menu/styles.scss';
 import './styles/theme.scss';
+import ThrottleUtil from 'utils/ThrottleUtil';
+import GlobalPropertiesControl, { SplitScreenMode } from 'engine/GlobalPropertiesControl';
 
 glMatrix.setMatrixArrayType(Float32Array);
 
 // OVERRIDE SYMBOL TO STRING FOR DEBUGGING
 Symbol.prototype.toString = function () {
-    return this.description || 'N/A';
-}
+  return this.description || 'N/A';
+};
+
 DebugUtil.addToWindowObject('quat', quat);
 DebugUtil.addToWindowObject('vec3', vec3);
 DebugUtil.addToWindowObject('mat4', mat4);
 DebugUtil.addToWindowObject('glMatrix', glMatrix);
 
-// enableWebComponentEntitySelect();
-
-SdiPerformance.begin();
-
-const onRender: OnRenderPlugin = () => {
-    screenProps.flushBuffer()
-};
 
 document.body.onload = async () => {
-    SdiPerformance.log('DOM loaded');
+  const screenProps = createProps();
 
-    new GlobalPropertiesControl(screenProps);
-    let gpuEngine: Engine | undefined,
-        glEngine: Engine | undefined,
-        gpuProps: PropertiesManager | undefined,
-        glProps: PropertiesManager | undefined;
+  window.addEventListener('resize', ThrottleUtil.debounce(() => {
+    screenProps.updateNestedProperty('window', {
+      width: window.innerWidth,
+      height: window.innerHeight,
+    });
+  }, 200));
 
-    if (screenProps.getBoolean('splitScreen')) {
-        const engineProps = {
-            ['window.width']: window.innerWidth / 2,
-            splitScreen: true,
-        }
-        const { webGpuProps, webgpuEngine } = await initWebGpu(engineProps);
-        gpuEngine = webgpuEngine;
-        gpuProps = webGpuProps;
-        gpuEngine.start();
 
-        const { webGl2Props, webGlEngine } = await initWebGlEngine({
-            ...engineProps,
-            'window.leftOffset': window.innerWidth / 2
-        });
-        glEngine = webGlEngine;
-        glProps = webGl2Props;
-        glEngine.start();
-    } else if (screenProps.get('gpuApi') !== 'webgl2') {
-        const { webGpuProps, webgpuEngine } = await initWebGpu({
-            'window.width': window.innerWidth,
-            'window.leftOffset': 0,
-            splitScreen: false,
-        });
-        gpuEngine = webgpuEngine;
-        gpuProps = webGpuProps;
-        gpuEngine.start();
-    } else if (screenProps.get('gpuApi') === 'webgl2') {
-        const { webGl2Props, webGlEngine } = await initWebGlEngine({
-            'window.width': window.innerWidth,
-            'window.leftOffset': 0,
-            splitScreen: false,
-        });
-        glEngine = webGlEngine;
-        glProps = webGl2Props;
-        glEngine.start();
+  const onRender: OnRenderPlugin = () => {
+    screenProps.flushBuffer();
+  };
+
+
+  let webGpuEngine: EngineWrapper, webGlEngine: EngineWrapper;
+  const globalMenu = new GlobalPropertiesControl(screenProps);
+  screenProps.subscribeToPropertyChange('splitScreen', props => updateState(props.getNum('splitScreen') as SplitScreenMode));
+  screenProps.flushBuffer();
+
+  async function updateState(state: SplitScreenMode) {
+    if (state === SplitScreenMode.SplitScreen) {
+      const engines = await Promise.all([getWebGPUEngine(), getGlEngine()]);
+      await Promise.all(engines.map(e => e.canvas.show()))
+        .then(() => engines.forEach(e => e.engine.start()));
+    } else if (state === SplitScreenMode.WebGpu) {
+      stop(webGlEngine);
+      getWebGPUEngine().then(engine => engine.start());
+    } else {
+      stop(webGpuEngine);
+      getGlEngine().then(engine => engine.start());
+    }
+  }
+
+  async function getGlEngine(): Promise<EngineWrapper> {
+    if (!webGlEngine) {
+      const WebGLGraphics = (await import('webgl/WebGLGraphics')).default;
+      const canvas = new Canvas(document.getElementById('webgl2-canvas')!, screenProps, 'webgl2');
+      const layout = new RightMenu(canvas.parent);
+      const graphics = new WebGLGraphics(canvas, screenProps);
+      const engine = await createEngine('WebGl', screenProps, canvas, graphics, layout);
+
+      webGlEngine = new EngineWrapper(canvas, engine);
     }
 
-    screenProps.subscribeToAnyPropertyChange(['splitScreen', 'gpuApi'], async props => {
-        const isSplitScreen = props.getBoolean('splitScreen');
-        const isWebGl = props.get('gpuApi') === 'webgl2';
-        const windowWidth = isSplitScreen ? window.innerWidth / 2 : window.innerWidth;
+    return webGlEngine!;
+  }
 
-        if (!gpuEngine || !gpuProps) {
-            const { webGpuProps, webgpuEngine } = await initWebGpu({
-                'window.width': windowWidth,
-                splitScreen: isSplitScreen,
-            });
+  async function getWebGPUEngine(): Promise<EngineWrapper> {
+    if (!webGpuEngine) {
+      const WebGPUGraphics = (await import('webgpu/graphics/WebGPUGraphics')).default;
+      const canvas = new Canvas(document.getElementById('webgpu-canvas')!, screenProps, 'webgpu');
+      const layout = new RightMenu(canvas.parent);
+      const graphics = await WebGPUGraphics.initWebGPU(canvas, screenProps);
+      const engine = await createEngine('WebGPU', screenProps, canvas, graphics, layout);
 
-            gpuEngine = webgpuEngine;
-            gpuProps = webGpuProps;
-        }
-        if (!glEngine || !glProps) {
-            const { webGl2Props, webGlEngine } = await initWebGlEngine({
-                'window.width': windowWidth,
-                splitScreen: isSplitScreen
-            });
-
-            glEngine = webGlEngine;
-            glProps = webGl2Props;
-        }
-
-        if (!isSplitScreen) {
-            const engineToStart = isWebGl ? glEngine : gpuEngine;
-            const startedEngineProps = isWebGl ? glProps : gpuProps;
-            const engineToStop = isWebGl ? gpuEngine : glEngine;
-            const stoppedEngineProps = isWebGl ? gpuProps : glProps;
-
-
-            engineToStop.stop();
-            // await Promise.resolve(setTimeout(() => {}, 100));
-            engineToStart.start();
-
-            stoppedEngineProps.updateNestedProperty('window', { width: 0, leftOffset: 0, hide: true });
-            startedEngineProps.updateNestedProperty('window', {
-                leftOffset: 0,
-                width: window.innerWidth,
-                hide: false,
-            });
-
-            glProps.updateProperty('splitScreen', false);
-            gpuProps.updateProperty('splitScreen', false);
-            stoppedEngineProps.flushBuffer();
-        } else {
-            gpuEngine.start();
-            glEngine.start();
-            glProps.updateProperty('splitScreen', true);
-            gpuProps.updateProperty('splitScreen', true);
-            glProps.updateNestedProperty('window', {
-                width: window.innerWidth / 2,
-                leftOffset: window.innerWidth / 2,
-                hide: false,
-            });
-            gpuProps.updateNestedProperty('window', {
-                width: window.innerWidth / 2,
-                leftOffset: 0,
-                hide: false,
-            });
-        }
-    });
-
-
-    // document.querySelector('canvas')!.focus();
-    SdiPerformance.log('Initialized engine');
-};
-
-const screenProps = new PropertiesManager({
-    input: {
-        inputFlags: {},
-        mousePos: vec2.create(),
-        mouseDelta: vec2.create(),
-        deltaWheel: vec3.create(),
-        wheel: vec3.create(),
-    },
-    wireframe: false,
-    fieldOfView: Math.PI / 4,
-    zNear: 0.1,
-    zFar: 100,
-    // splitScreen: false,
-    splitScreen: !!localStorage.getItem('splitScreen'),
-    gpuApi: localStorage.getItem('gpuApi') || 'webgpu',
-    // gpuApi: 'webgl2',
-    window: {
-        width: window.innerWidth,
-        height: window.innerHeight,
-        leftOffset: 0,
-        topOffset: 0,
-        hide: false,
+      webGpuEngine = new EngineWrapper(canvas, engine);
     }
-}, {}, 'Screen');
 
-const sharedProps: PartialProperties = {
-    fieldOfView: Math.PI / 4,
-    zNear: 0.1,
-    zFar: 1000,
-}
+    return webGpuEngine;
+  }
 
-async function initWebGlEngine(properties: PartialProperties) {
-    return await import('webgl/WebGLGraphics').then(async module => {
-        const WebGLGraphics = module.default;
+  function stop(engine: EngineWrapper | null) {
+    if (engine) {
+      engine.stop();
+    }
+  }
 
-        const webGl2Props = createProperties({ ...sharedProps, ...properties }, {
-            input: {
-                inputFlags: {},
-                mousePos: vec2.create(),
-                mouseDelta: vec2.create(),
-                deltaWheel: vec3.create(),
-                wheel: vec3.create(),
-            },
-            wireframe: properties.wireframe || false,
-            fieldOfView: Math.PI / 4,
-            zNear: 0.1,
-            zFar: 1000,
-            splitScreen: properties.splitScreen || false,
-            gpuApi: 'webgl2',
-            window: {
-                width: properties['window.width'] as number || window.innerWidth / 2,
-                height: window.innerHeight,
-                leftOffset: window.innerWidth / 2,
-                topOffset: 0,
-                hide: false
-            }
-        }, 'webgl2');
-
-        const canvas = new Canvas(document.getElementById('webgl2-canvas') as HTMLElement,
-          webGl2Props,
-          'webgl2');
-        canvas.addToDOM();
-        const layout = new RightMenu(canvas.parent);
-
-        const graphics = new WebGLGraphics(canvas, webGl2Props);
-        const webGlEngine = await createEngine('WebGl', webGl2Props, canvas, graphics, layout);
-        return { webGl2Props, webGlEngine };
-    });
-}
-
-async function initWebGpu(properties: PartialProperties) {
-    const WebGPUGraphics = (await import('webgpu/graphics/WebGPUGraphics')).default;
-    const webGpuProps = createProperties(sharedProps, {
-        input: {
-            inputFlags: {},
-            mousePos: vec2.create(),
-            mouseDelta: vec2.create(),
-            deltaWheel: vec3.create(),
-            wheel: vec3.create(),
-        },
-        wireframe: properties.wireframe || false,
-        fieldOfView: Math.PI / 4,
-        zNear: 0.1,
-        zFar: 1000,
-        splitScreen: properties.splitScreen || false,
-        gpuApi: 'webgpu',
-        window: {
-            width: properties['window.width'] as number || window.innerWidth / 2,
-            height: window.innerHeight - 80,
-            leftOffset: 0,
-            topOffset: 0,
-            hide: false,
-        },
-    }, 'webgpu');
-
-
-    const canvas = new Canvas(document.getElementById('webgpu-canvas') as HTMLElement,
-        webGpuProps,
-        'webgpu');
-    canvas.addToDOM();
-    SdiPerformance.log('Added canvas to DOM')
-
-    const layout = new RightMenu(canvas.parent);
-
-    const graphics = await WebGPUGraphics.initWebGPU(canvas, webGpuProps);
-    SdiPerformance.log('Initialized graphics')
-
-    const webgpuEngine = await createEngine('WebGPU', webGpuProps, canvas, graphics, layout);
-
-    return { webGpuProps, webgpuEngine };
-}
-
-function createProperties(sharedProperties: PartialProperties, currentProperties: Record<Property, PropertyValue>, name: string = 'engine') {
-    return new PropertiesManager(currentProperties, sharedProperties, name)
-}
-
-async function createEngine(
+  async function createEngine(
     label: string,
     properties: PropertiesManager,
     canvas: Canvas,
@@ -286,85 +120,66 @@ async function createEngine(
     const topMenu = new TopMenu(materialTweakPane, entityControl, entityManager, uiLayout);
 
     const engine = new Engine(
-        label,
-        graphics,
-        canvas,
-        properties,
-        entityControl,
-        new EntityComponentSystem(),
-        projectionMatrix,
-        resourceManager,
-        materialTweakPane,
-        // materialFactory,
-        [onRender, fpsCounter.tick.bind(fpsCounter)],
+      label,
+      graphics,
+      canvas,
+      properties,
+      entityControl,
+      new EntityComponentSystem(),
+      projectionMatrix,
+      resourceManager,
+      materialTweakPane,
+      // materialFactory,
+      [onRender, fpsCounter.tick.bind(fpsCounter)],
     );
 
     await resourceManager.init()
-        .then(engine.initializeScene.bind(engine));
+      .then(engine.initializeScene.bind(engine));
 
     return engine;
+  }
+
+};
+
+function createProps() {
+  return new PropertiesManager({
+    input: {
+      inputFlags: {},
+      mousePos: vec2.create(),
+      mouseDelta: vec2.create(),
+      deltaWheel: vec3.create(),
+      wheel: vec3.create(),
+    },
+    wireframe: false,
+    fieldOfView: Math.PI / 4,
+    zNear: 0.1,
+    zFar: 1000,
+    // splitScreen: false,
+    splitScreen: localStorage.getItem('splitScreenMode')!,
+    // splitScreen: !!localStorage.getItem('splitScreen'),
+    gpuApi: localStorage.getItem('gpuApi') || 'webgpu',
+    // gpuApi: 'webgl2',
+    window: {
+      width: window.innerWidth,
+      height: window.innerHeight,
+      leftOffset: 0,
+      topOffset: 0,
+      hide: false,
+    }
+  }, {}, 'Screen');
 }
 
-class GlobalPropertiesControl {
+class EngineWrapper {
+  constructor(public canvas: Canvas, public engine: Engine) {
+  }
 
-    constructor(private properties: PropertiesManager) {
-        const pane = RightMenu.createPane(document.querySelector('.gpu-api-switch')!, 'GPU Api');
-        FpsCounter.counter = pane.addBlade({ view: 'fpsgraph', label: 'fps', rows: 2 });
-        properties.subscribeToAnyPropertyChange(['gpuApi'], props => {
-            pane.title = props.getString('gpuApi');
-        });
+  start() {
+    this.canvas.show();
+    requestAnimationFrame(() => this.engine.start());
+  }
 
-        const isSplitScreenEnabled = properties.getBoolean('splitScreen');
-        const apis = {
-            active: properties.getString('gpuApi'),
-            available: [
-                ['Split Screen', ''],
-                ['Web gpu', 'Webgl 2']
-            ],
-            onSelect: [
-                [this.setSplitScreen.bind(this)],
-                [() => this.setGpuApi('webgpu'), () => this.setGpuApi('webgl2')]],
-        }
-
-        const radioGrid = pane.addBinding(apis, 'active', {
-            label: undefined,
-            view: 'radiogrid',
-            groupName: 'grp',
-            size: [2, 2],
-            cells: (x: number, y: number) => ({
-                title: apis.available[y][x],
-                value: apis.onSelect[y][x],
-            }),
-        }).on('change', (ev) => (ev.value as any)());
-
-        const valueController = radioGrid.controller.valueController as RadioGridController<any>;
-        const splitScreenBtn = valueController.cellControllers[0];
-        const webGpuApiBtn = valueController.cellControllers[2];
-        const webglApiBtn = valueController.cellControllers[3];
-
-        const currentApi = properties.getString('gpuApi');
-        splitScreenBtn.view.element.style.gridColumn = 'span 2';
-        splitScreenBtn.view.inputElement.checked = isSplitScreenEnabled;
-        webGpuApiBtn.view.inputElement.checked = !isSplitScreenEnabled && currentApi === 'webgpu';
-        webglApiBtn.view.inputElement.checked = !isSplitScreenEnabled && currentApi === 'webgl2';
-        valueController.cellControllers[1].viewProps.set("hidden", true);
-    }
-
-    private setGpuApi(api: string) {
-        this.properties.updateProperty('gpuApi', api);
-        this.properties.updateProperty('splitScreen', false);
-        localStorage.setItem('gpuApi', api);
-        localStorage.removeItem('splitScreen');
-        SdiPerformance.reset();
-    }
-
-    private setSplitScreen() {
-        const oldValue = this.properties.getBoolean('splitScreen');
-        this.properties.updateProperty('splitScreen', !oldValue);
-        if (oldValue) {
-            localStorage.removeItem('splitScreen');
-        } else {
-            localStorage.setItem('splitScreen', 'true');
-        }
-    }
+  stop() {
+    this.engine.stop();
+    this.canvas.hide();
+  }
 }

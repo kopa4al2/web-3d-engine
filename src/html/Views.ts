@@ -85,9 +85,7 @@ export function worldCoordinates(props: PropertiesManager,
         }
 
         const ndcMousePos = MathUtil.mousePosToNdc(inputState.inputState.mousePos, width, height);
-        // console.log(`x: ${ndcMousePos[0]} y: ${ndcMousePos[1]}`);
         const viewCoordinates = MathUtil.ndcToView(ndcMousePos, mat4.invert(mat4.create(), projectionMatrix.get()));
-        // console.log(viewCoordinates)
         const worldCoordinates = MathUtil.viewToWorld(viewCoordinates, mat4.invert(mat4.create(), camera.viewMatrix()));
 
         // const rayOrigin = cameraPosition; // Camera's position in world space

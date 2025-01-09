@@ -27,13 +27,6 @@ import DebugUtil from '../utils/debug/DebugUtil';
 import GlSampler from './textures/GlSampler';
 import GlTexture from './textures/GlTexture';
 
-const idGenerator = (() => {
-  let id = 0;
-  return () => {
-    return id++;
-  };
-})();
-
 const EMPTY_FRAGMENT_SHADER = `#version 300 es 
                                void main() {}
                                `;
@@ -93,18 +86,26 @@ export default class WebGLGraphics implements Graphics {
       () => gl.viewport(0, 0, props.get<number>('window.width'), props.get<number>('window.height')));
   }
 
+  destroy(): void {
+    console.log('TODO WEBGL DESTROY NOT IMPLEMENTED');
+  }
+
+  init(): void {
+    console.log('TODO WEBGL INIT NOT IMPLEMENTED');
+  }
+
+
   public initPipeline(shader: ShaderProgramDescription): PipelineId {
     const pipelineId = Symbol(`WebGl2Pipeline-${shader.label}`);
     const gl = this.glContext;
     const shaderProgram = gl.createProgram() as WebGLProgram;
 
-    console.log('Creating shader program: ', shader.label, shader.vertexShaderSource, shader.fragmentShaderSource);
     gl.attachShader(shaderProgram, this.loadShader(gl.VERTEX_SHADER, shader.vertexShaderSource));
     gl.attachShader(shaderProgram, this.loadShader(gl.FRAGMENT_SHADER, shader.fragmentShaderSource || EMPTY_FRAGMENT_SHADER));
     gl.linkProgram(shaderProgram);
 
     if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
-      console.group('Error initializing the shader program');
+      console.groupCollapsed('Error initializing the shader program');
       console.log('Shader log: ', gl.getProgramInfoLog(shaderProgram));
       console.log('Shader data: ', shader);
       console.groupEnd();

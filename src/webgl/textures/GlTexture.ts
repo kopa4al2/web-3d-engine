@@ -35,7 +35,7 @@ export default class GlTexture {
       const ext = gl.getExtension('EXT_texture_filter_anisotropic');
       if (ext) {
         const maxAniso = gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
-        console.info(`Activating ${maxAniso}x anisotropic filtering for texture array!`);
+        // console.debug(`Activating ${maxAniso}x anisotropic filtering for texture array!`);
         gl.texParameterf(gl.TEXTURE_2D_ARRAY, ext.TEXTURE_MAX_ANISOTROPY_EXT, maxAniso);
       }
 

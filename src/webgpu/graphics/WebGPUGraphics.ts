@@ -52,15 +52,13 @@ export default class WebGPUGraphics implements Graphics {
   private readonly _device: GPUDevice;
 
   private depthTexture?: GPUTexture;
-  private currentTexture: GPUTexture;
 
   constructor(private gpuDevice: WebGPUDevice,
               private gpuContext: WebGPUContext,
-              public props: PropertiesManager) {
+              public canvas: Canvas) {
     DebugUtil.addToWindowObject('gpuGraphics', this);
     this._device = this.gpuDevice.gpuDevice;
 
-    console.log();
     this.buffers = new WeakMap();
     this.textures = new WeakMap();
     this.samplers = new WeakMap();
@@ -68,9 +66,18 @@ export default class WebGPUGraphics implements Graphics {
     this.bindGroups = new WeakMap();
     this.shaderLayouts = new WeakMap();
 
-    this.initDepthTexture(props);
-    this.currentTexture = this.gpuContext.ctx.getCurrentTexture();
-    props.subscribeToAnyPropertyChange(['window.width', 'window.height'], this.initDepthTexture.bind(this));
+    canvas.addOnResizeListener(() => this.initDepthTexture(canvas));
+    this.initDepthTexture(canvas);
+  }
+
+  destroy(): void {
+    console.log('Destroying webgpu depth texture');
+    this.depthTexture?.destroy();
+  }
+
+  init(): void {
+    console.log('Initializing webgpu depth texture');
+    this.initDepthTexture(this.canvas);
   }
 
   beginRenderPass(descriptor?: RenderPassDescriptor): RenderPass {
@@ -156,8 +163,8 @@ export default class WebGPUGraphics implements Graphics {
     passEncoder.setViewport(
       viewport.x || 0,
       viewport.y || 0,
-      viewport.width || this.props.getAbsolute('window.width'),
-      viewport.height || this.props.getAbsolute('window.height'),
+      viewport.width || this.canvas.width,
+      viewport.height || this.canvas.height,
       0.1,
       1.0
     );
@@ -520,14 +527,16 @@ export default class WebGPUGraphics implements Graphics {
     return this.gpuDevice;
   }
 
-  private initDepthTexture(properties: PropertiesManager) {
-    const width = <number>properties.getAbsolute('window.width');
-    const height = <number>properties.getAbsolute('window.height');
+  private initDepthTexture(canvas: Canvas): void {
+    const width = canvas.width;
+    const height = canvas.height;
+    console.warn('update depth texture', width, height);
+    // const width = <number>properties.getAbsolute('window.width');
+    // const height = <number>properties.getAbsolute('window.height');
 
     if (width === 0 || height === 0) {
       this.depthTexture?.destroy();
       this.depthTexture = undefined;
-      console.warn('destroying depth texture');
       return;
     }
 
@@ -564,8 +573,8 @@ export default class WebGPUGraphics implements Graphics {
       alphaMode: 'premultiplied'
     });
 
-
-    return new WebGPUGraphics(new WebGPUDevice(device), new WebGPUContext(context), properties);
+    await canvas.show();
+    return new WebGPUGraphics(new WebGPUDevice(device), new WebGPUContext(context), canvas);
   }
 
   public _rawApi(): GPUDevice {

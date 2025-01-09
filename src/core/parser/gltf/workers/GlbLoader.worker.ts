@@ -104,43 +104,17 @@ function deleteUnneededJsonProperties(json: GLTFJson) {
   delete json.buffers;
 }
 
-function isNonUniformScaling(matrix: mat4): boolean {
-  const scale = mat4.getScaling(vec3.create(), matrix);
-  return !(Math.abs(scale[0] - scale[1]) < 1e-5 && Math.abs(scale[1] - scale[2]) < 1e-5);
-}
-
-function normalizeScaling(matrix: mat4): mat4 {
-  const scale = mat4.getScaling(vec3.create(), matrix);
-  const uniformScale = Math.cbrt(scale[0] * scale[1] * scale[2]); // Approximate a uniform scale
-  const normalizedMatrix = mat4.create();
-
-  mat4.scale(normalizedMatrix, matrix, [
-    uniformScale / scale[0],
-    uniformScale / scale[1],
-    uniformScale / scale[2],
-  ]);
-
-  return normalizedMatrix;
-}
-
 function getTransform(node: GLTFNode) {
   if (node.matrix) {
     return mat4.copy(mat4.create(), node.matrix);
   }
 
   if (node.rotation || node.scale || node.translation) {
-    const scale = vec3.copy(vec3.create(), node.scale || vec3.fromValues(1, 1, 1));
-    if (node.scale && node.scale[0] > 10) {
-      console.warn('Large scale detected NOT SCALED DOWN');
-      // scale[0] = 0.1;
-      // scale[1] = 0.1;
-      // scale[2] = 0.1;
-      // node.scale = [0.01, 0.01, 0.01];
-    }
+
     return mat4.fromRotationTranslationScale(mat4.create(),
       node.rotation || quat.create(),
       node.translation || vec3.create(),
-      scale || vec3.fromValues(1, 1, 1));
+      node.scale || vec3.fromValues(1, 1, 1));
   }
 
   return mat4.create();
@@ -156,16 +130,7 @@ function parseNodes(json: GLTFJson, buffersToTransfer: Transferable[]) {
   function traverse(nodeIdx: number, parentTransform?: mat4, parent?: number) {
     const node = json.nodes[nodeIdx];
     let localTransform = getTransform(node);
-      // if (isNonUniformScaling(localTransform)) {
-      //   // localTransform = normalizeScaling(localTransform);
-      //   console.warn('Normalized, non uniform scaling detected root node: ', node, rootNode);
-      // }
-
     const worldTransform = mat4.create();
-    // const worldTransform = parentTransform
-    //   ? mat4.multiply(mat4.create(), parentTransform, localTransform)
-    //   : mat4.copy(mat4.create(), localTransform);
-
 
     const worldTransformBuffer: ArrayBuffer = (worldTransform as Float32Array).buffer as ArrayBuffer;
     const localTransformBuffer: ArrayBuffer = (localTransform as Float32Array).buffer as ArrayBuffer;
@@ -190,14 +155,10 @@ function parseNodes(json: GLTFJson, buffersToTransfer: Transferable[]) {
 }
 
 self.onmessage = async (event: MessageEvent<GlbJsonParserRequest>) => {
-  console.log('%c [WORKER] Received data in the worker', event.data.style);
-  // console.groupCollapsed(`[WORKER][BENCHMARK][${event.data.name}]`);
-  // console.time(`[WORKER][${event.data.name}]`);
   const fileArrayBuffer = event.data.binary;
   const parsedJson = parseJson(fileArrayBuffer);
   const json = parsedJson.json;
   const binaryChunkOffset = parsedJson.binaryChunkOffset;
-
 
   const imageLoadingWorkerPool = new WorkerPool<GLBWorkerRequest, GLBWorkerResponse>();
   const bufferViewWorkerPool = new WorkerPool<GlbGeometryParseRequest, ArrayBuffer[]>();
@@ -250,6 +211,9 @@ self.onmessage = async (event: MessageEvent<GlbJsonParserRequest>) => {
     }
 
     const accessor = json.accessors[accessorIndex];
+    if (accessor.bufferView === undefined) {
+      return;
+    }
     const bufferView =
             json.bufferViews[accessor.bufferView];
 
@@ -281,14 +245,10 @@ self.onmessage = async (event: MessageEvent<GlbJsonParserRequest>) => {
       groupAccessor(primitive.attributes.JOINTS_0, i, Attribute.JOINTS);
       groupAccessor(primitive.attributes.WEIGHTS_0, i, Attribute.WEIGHTS);
       if (primitive.attributes.TEXCOORD_0 && primitive.attributes.TEXCOORD_1 && primitive.attributes.TEXCOORD_1 !== primitive.attributes.TEXCOORD_0) {
-        console.warn('different tex coordinates', primitive, mesh)
-        groupAccessor(primitive.attributes.TEXCOORD_1, i, Attribute.UV_0);
+        groupAccessor(primitive.attributes.TEXCOORD_2, i, Attribute.UV_0);
       } else {
         groupAccessor(primitive.attributes.TEXCOORD_0, i, Attribute.UV_0);
       }
-      // groupAccessor(primitive.attributes.TEXCOORD_1, i, Attribute.UV_1);
-      // groupAccessor(primitive.attributes.TEXCOORD_2, i, Attribute.UV_2);
-      // console.log(primitive.attributes.TEXCOORD_2, primitive.attributes.TEXCOORD_3, primitive.attributes.TEXCOORD_1);
     }
   }
 
@@ -369,7 +329,6 @@ self.onmessage = async (event: MessageEvent<GlbJsonParserRequest>) => {
       }));
   }
 
-  // console.timeLog(`[WORKER][${event.data.name}]`, 'Grouped buffer views and dispatched sub workers');
   const nodes = parseNodes(json, buffersToTransfer);
 
   const imageBitmaps = await Promise.all(imageResults).then(img => {
@@ -379,7 +338,6 @@ self.onmessage = async (event: MessageEvent<GlbJsonParserRequest>) => {
 
   Promise.all(workerResults)
     .then((_) => {
-      // console.timeLog(`[WORKER][${event.data.name}]`, 'All sub workers finished.');
       const meshGeometries = new Array(json.meshes.length);
       const skins: ArrayBuffer[] = [];
       for (let i = 0; i < json.meshes.length; i++) {
@@ -390,7 +348,7 @@ self.onmessage = async (event: MessageEvent<GlbJsonParserRequest>) => {
         }
 
         let geometryData: GeometryData = {
-          indices: new Uint32Array(data[Attribute.INDICES]),
+          indices: new Uint16Array(data[Attribute.INDICES]),
           vertices: new Float32Array(data[Attribute.POSITIONS]),
           normals: new Float32Array(data[Attribute.NORMALS]),
           texCoords: new Float32Array(data[Attribute.UV_0]),
@@ -429,10 +387,6 @@ self.onmessage = async (event: MessageEvent<GlbJsonParserRequest>) => {
 
 
       // deleteUnneededJsonProperties(json);
-      // console.timeEnd(`[WORKER][${event.data.name}]`, 'Full processing finished, returning result');
-      // console.groupEnd();
-
-      // console.log('%c [WORKER] Worker finished returning result', event.data.style);
       bufferViewWorkerPool.shutdown();
       self.postMessage({
         meshes: meshGeometries,
@@ -443,8 +397,6 @@ self.onmessage = async (event: MessageEvent<GlbJsonParserRequest>) => {
         animations,
       }, { transfer: buffersToTransfer });
     });
-
-  // type KeyOfData = [keyof GeometryData, number][];
 
   function interleaveData(geometry: GeometryData, strides: GeometryStride): ArrayBuffer {
     strides.forEach(([geometryKey, stride]) => {
@@ -500,18 +452,10 @@ self.onmessage = async (event: MessageEvent<GlbJsonParserRequest>) => {
             interleaved.set([0, 0, 0], itemIndex * totalStride + offset);
           }
         } else {
-          // const isFloat = geometry[geometryKey] instanceof Float32Array;
-          // console.log(geometryKey, isFloat);
           let currentOffset = itemIndex * totalStride + offset;
-          // if (isFloat) {
           for (let i = start; i < end; i++) {
-            // interleaved.setFloat32(currentOffset, geometry[geometryKey]![i], true);
             interleaved[currentOffset++] = geometry[geometryKey]![i];
           }
-          // }
-          // interleaved.set(geometry[geometryKey]!.slice(start, end), itemIndex * totalStride + offset);
-          // @ts-ignore
-          // interleaved.set(geometry[geometryKey].subarray(start, end), itemIndex * totalStride + offset);
         }
 
         offset += stride;

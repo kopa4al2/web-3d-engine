@@ -41,6 +41,9 @@ export interface UpdateTexture {
 
 export default interface Graphics {
 
+    destroy(): void;
+    init(): void;
+
     beginRenderPass(descriptor?: RenderPassDescriptor): RenderPass;
 
     initPipeline(shader: ShaderProgramDescription): PipelineId;

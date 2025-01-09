@@ -32,7 +32,7 @@ export class TopMenu {
         }
 
         // TODO: Hack
-        setTimeout(() => this.materials(), 1500);
+        // setTimeout(() => this.materials(), 1500);
     }
 
     private handleClick(e: MouseEvent) {

@@ -80,15 +80,17 @@ export default class Engine {
   }
 
   start(): void {
-    console.log('Engine starting...', this.label);
+    console.debug('Engine starting...', this.label);
     this.isRunning = true;
     requestAnimationFrame(this.loop.bind(this));
+    this.graphicsApi.init();
   }
 
   stop(): void {
-    console.log('Engine stopping...', this.label);
+    console.debug('Engine stopping...', this.label);
     cancelAnimationFrame(this.frameRequest);
     this.isRunning = false;
+    this.graphicsApi.destroy();
   }
 
   loop(now: number) {
@@ -214,7 +216,7 @@ export default class Engine {
     this.scene.addEntities(sponzaEntity);
 
     return Promise.all([
-      this.addScene('Midas', this.modelRepository.midas, midasTransform),
+      // this.addScene('Midas', this.modelRepository.midas, midasTransform),
       this.addScene('Scourge', this.modelRepository.scourger, scourgeTransform),
       // this.addScene('Skeletal', () => this.modelRepository.newyork()),
       this.loadAndAddMesh('Crate1', this.modelRepository.createCrate, [-2, 2, 0], 0.005),
@@ -241,7 +243,7 @@ export default class Engine {
           new TerrainSystem(this.graphicsApi));
 
 
-        this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumGLB, sponzaTransform);
+        // this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumGLB, sponzaTransform);
 
         // this.addScene('Sponza Atrium', this.modelRepository.sponzaAtriumScene, TransformBuilder.scale(vec3.fromValues(20.0, 20.0, 20.0)).build())
         //   .then(() => this.loadAndAddMesh('Crate2', this.modelRepository.createCrate, [2, 3, 0], 0.005));
@@ -251,8 +253,6 @@ export default class Engine {
   }
 
   private async addScene(label = 'scene', scene: () => Promise<EntityId[]>, transform?: Transform): Promise<void> {
-    const color = DebugUtil.getRandomColorStyle();
-    console.log(`%c Begin loading ${label}`, color);
     // @ts-ignore
     const entities = await scene.bind(this.modelRepository)(transform);
     if (transform) {
@@ -267,7 +267,7 @@ export default class Engine {
     }
 
     this.scene.addEntities(...entities);
-    console.log(`%c Finished loading ${label}`, color);
+    // console.log(`%c Finished loading ${label}`, color);
   }
 
   private createPointLight(label: string, props: Partial<PointLightProps>, transform?: Transform) {

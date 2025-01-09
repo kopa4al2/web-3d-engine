@@ -94,7 +94,7 @@ export default class Scene {
         const { pipelineId, geometry } = mesh;
 
         if (!this.frustum.isSphereWithinFrustum(geometry.getBoundingVolume(BoundingSphere), this.camera.viewMatrix())) {
-          console.warn('Frustum culling: ', mesh.pipelineId);
+          // console.warn('Frustum culling: ', mesh.pipelineId);
           culled.push(mesh);
           return;
         }
@@ -108,11 +108,8 @@ export default class Scene {
           entitiesByMesh.set(mesh, []);
         }
 
-        if (!transform) {
-          // console.log(`Entity: ${entity.description} does not have transform`, mesh);
-        } else {
+        if (transform) {
           entitiesByMesh.get(mesh).push([entity, transform.worldMatrix]);
-          // console.log(`Entity: ${entity.description} has position: ${mat4.getTranslation(vec3.create(), transform.worldMatrix())}`, mesh);
         }
       } else {
         // console.log('No mesh or pipeline: ', transform, mesh);
@@ -207,8 +204,8 @@ export default class Scene {
     }
 
     return blend.color.srcFactor === 'src-alpha' && blend.color.dstFactor === 'one-minus-src-alpha'
-           ? 'alpha'
-           : blend.color.dstFactor === 'one' ? 'additive' : 'none';
+      ? 'alpha'
+      : blend.color.dstFactor === 'one' ? 'additive' : 'none';
   }
 }
 

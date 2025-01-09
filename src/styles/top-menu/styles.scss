@@ -1,0 +1,76 @@
+@use '@tweakpane/core/lib/sass/tp';
+
+.top-menu {
+    @extend %tp-theming;
+    position: relative;
+    margin: auto;
+    z-index: 999;
+    display: flex;
+    width: var(--top-menu-width);
+    height: var(--top-menu-height);
+    justify-content: center;
+
+    & .center {
+        display: flex;
+        gap: 24px;
+
+
+        & .menu-item {
+            position: relative;
+            width: calc(#{tp.cssVar('container-unit-size')} * 5);
+            height: calc(#{tp.cssVar('container-unit-size')} * 2);
+            padding: 0 tp.cssVar('blade-h-padding') 0 tp.cssVar('blade-h-padding');
+            align-items: center;
+            justify-content: center;
+            display: flex;
+            background: tp.cssVar('button-bg');
+
+            &:hover {
+                cursor: pointer;
+                background: tp.cssVar('button-bg-hover');
+
+                & .body {
+                    transform: translateY(40%);
+                    transition: transform ease-out 0.25s;
+                }
+            }
+
+            & .drop-down-toggle {
+                color: tp.cssVar('button-fg');
+            }
+
+            & .body {
+                z-index: 10;
+                background: tp.cssVar('container-bg-hover');
+                box-shadow: tp.cssVar('base-shadow');
+                border-radius: tp.cssVar('base-border-radius');
+                position: absolute;
+                top: 0;
+                left: 0;
+                margin: 0;
+                padding: 0;
+                width: 150%;
+                height: max-content;
+                transform: translateY(-100%);
+                transition: transform ease-in 0.125s;
+
+                display: flex;
+                flex-direction: column;
+
+                list-style: none;
+
+                & > li.body-item {
+                    cursor: pointer;
+                    text-align: center;
+                    padding: calc(#{tp.cssVar('blade-h-padding')} * 2);
+                    background: tp.cssVar('button-bg');
+                    color: tp.cssVar('button-fg');
+
+                    &:hover {
+                        background: tp.cssVar('button-bg-hover');
+                    }
+                }
+            }
+        }
+    }
+}

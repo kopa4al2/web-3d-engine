@@ -29,7 +29,7 @@ export default class GLTFParserMainThread {
 
   constructor(public json: GLTFJson, public buffers: ArrayBuffer[], public images: Texture[]) {
     DebugUtil.addToWindowObject('gltf', this);
-    console.log('GLTF JSON', json);
+    console.debug('GLTF JSON', json);
   }
 
   public createMeshes(shaderManager: ShaderManager,

@@ -238,14 +238,11 @@ class ModelRepository {
       return this.sceneCache.get('sponza')!;
     }
 
-    console.time('[Sponza]');
     const sponzaScene = await ModelRepository.cacheables.sponzaAtrium(this.resourceManager.textureManager)()
                                              .then(gltf => {
-                                               console.timeLog('[Sponza]', 'json and loaded textures');
                                                return gltf
                                                  .createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager, this.entityManager);
                                              });
-    console.timeEnd('[Sponza]');
     this.sceneCache.set('sponza', sponzaScene);
     return sponzaScene;
   }
@@ -255,14 +252,11 @@ class ModelRepository {
       return this.sceneCache.get('sponza')!;
     }
 
-    console.time('[Sponza GLB]');
     const sponzaScene = await ModelRepository.cacheables.sponzaAtriumGLB(transform?.localMatrix)()
                                              .then(gltf => {
-                                               console.timeLog('[Sponza GLB]', 'json and loaded textures');
                                                return gltf
                                                  .createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager, this.entityManager);
                                              });
-    console.timeEnd('[Sponza GLB]');
     this.sceneCache.set('sponza', sponzaScene);
     return sponzaScene;
   }
@@ -272,14 +266,11 @@ class ModelRepository {
       return this.sceneCache.get('monkeyHead')!;
     }
 
-    console.time('[test]');
     const scene = await ModelRepository.cacheables.test(this.resourceManager.textureManager)()
                                        .then(gltf => {
-                                         console.timeLog('[test]', 'json and loaded textures');
                                          return gltf
                                            .createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager, this.entityManager);
                                        });
-    console.timeEnd('[test]');
     this.sceneCache.set('monkeyHead', scene);
     return scene;
   }
@@ -290,14 +281,11 @@ class ModelRepository {
       return this.sceneCache.get('test')!;
     }
 
-    console.time('[test]');
     const scene = await ModelRepository.cacheables.porche(this.resourceManager.textureManager)()
                                        .then(gltf => {
-                                         console.timeLog('[test]', 'json and loaded textures');
                                          return gltf
                                            .createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager, this.entityManager);
                                        });
-    console.timeEnd('[test]');
     this.sceneCache.set('test', scene);
     return scene;
   }
@@ -307,14 +295,11 @@ class ModelRepository {
       return this.sceneCache.get('Warehouse')!;
     }
 
-    console.time('[Warehouse]');
     const scene = await ModelRepository.cacheables.monster(this.resourceManager.textureManager)()
                                        .then(gltf => {
-                                         console.timeLog('[Warehouse]', 'json and loaded textures');
                                          return gltf
                                            .createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager, this.entityManager);
                                        });
-    console.timeEnd('[Warehouse]');
     this.sceneCache.set('Warehouse', scene);
     return scene;
   }
@@ -335,14 +320,11 @@ class ModelRepository {
       return this.sceneCache.get('FinalWarsMonster')!;
     }
 
-    console.time('[FinalWarsMonster]');
     const scene = await ModelRepository.cacheables.newyork(transform?.localMatrix)()
                                        .then(gltf => {
-                                         console.timeLog('[FinalWarsMonster]', 'json and loaded textures');
                                          return gltf
                                            .createMeshes(this.shaderManager, this.geometryFactory, this.materialFactory, this.resourceManager, this.entityManager, transform);
                                        });
-    console.timeEnd('[FinalWarsMonster]');
     this.sceneCache.set('FinalWarsMonster', scene);
     return scene;
   }
@@ -366,7 +348,7 @@ class ModelRepository {
     sponzaAtriumGLB: (rootTransform?: mat4) => cacheablePromise(GLTFParser.parseGlb('assets/scene/sponza_atrium/', 'sponza_atrium_3.glb', rootTransform)),
     newyork: (rootTransform?: mat4) => cacheablePromise(GLTFParser.parseGlb('assets/scene/', 'fixed_new_york_highway_interstate_95.glb', rootTransform)),
     scourger: (rootTransform?: mat4) => cacheablePromise(GLTFParser.parseGlb('assets/scene/scourger/', 'scourger-1k.glb', rootTransform)),
-    midas: (rootTransform?: mat4) => cacheablePromise(GLTFParser.parseGlb('assets/scene/final_wars_monster/', 'midas.glb', rootTransform)),
+    midas: (rootTransform?: mat4) => cacheablePromise(GLTFParser.parseGlb('assets/scene/midas/', 'midas.glb', rootTransform)),
     toyCar: (textureManager: TextureManager) => cacheablePromise(GLTFParserMainThread.parseGltf('assets/scene/ToyCar/glTF/', 'ToyCar.gltf', 'ToyCar.bin', textureManager)),
     test: (textureManager: TextureManager) => cacheablePromise(GLTFParserMainThread.parseGltf('assets/scene/glTF/', 'Suzanne.gltf', 'Suzanne.bin', textureManager)),
     porche: (textureManager: TextureManager) => cacheablePromise(GLTFParserMainThread.parseGltf('assets/scene/porsche/', 'scene-2.gltf', 'scene-2.bin', textureManager)),

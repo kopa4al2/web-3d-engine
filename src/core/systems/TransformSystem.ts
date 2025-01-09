@@ -118,7 +118,6 @@ export default class TransformSystem implements UpdateSystem {
 
 
     for (const transform of transforms) {
-      console.log(`Root: ${transform.label}`);
       this._printTransform(transform);
     }
   }
